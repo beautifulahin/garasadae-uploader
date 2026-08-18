@@ -1,10 +1,10 @@
 // 가라사대 업로더 — 진입점
-import { APP_NAME, dataDir, ensureDataDir, loadConfig, log, saveConfig } from "./paths.ts";
+import { APP_NAME, APP_VERSION, dataDir, ensureDataDir, loadConfig, log, saveConfig } from "./paths.ts";
 import { Engine } from "./watcher.ts";
 import { startServer } from "./server.ts";
 import { openUrl } from "./platform.ts";
 
-const VERSION = "1.0.0";
+const VERSION = APP_VERSION;
 
 async function main() {
   const args = new Set(Deno.args);

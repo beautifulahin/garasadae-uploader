@@ -5,9 +5,11 @@ cd "$(dirname "$0")"
 OUT=dist
 PERM="--allow-net --allow-read --allow-write --allow-env --allow-run --allow-sys"
 INC="--include app/ui.html"
+VER=$(grep -o 'APP_VERSION = "[^"]*"' app/paths.ts | head -1 | sed 's/.*"\(.*\)"/\1/')
 APP="가라사대 업로더"
 EXEC="GarasadaeUploader"   # 번들 내부 실행파일은 ASCII 여야 코드서명이 유효하다
 rm -rf "$OUT"; mkdir -p "$OUT"
+echo "버전: $VER"
 
 compile () {  # $1=타깃 $2=출력경로
   echo "▶ $1"
@@ -19,7 +21,7 @@ make_app () {  # $1=바이너리 $2=.app 만들 폴더
   mkdir -p "$B/MacOS" "$B/Resources"
   mv "$1" "$B/MacOS/$EXEC"
   chmod +x "$B/MacOS/$EXEC"
-  printf '1.0.0\n' > "$B/Resources/version.txt"
+  printf "%s\n" "$VER" > "$B/Resources/version.txt"
   cat > "$B/Info.plist" <<PL
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -27,8 +29,8 @@ make_app () {  # $1=바이너리 $2=.app 만들 폴더
   <key>CFBundleName</key><string>$EXEC</string>
   <key>CFBundleDisplayName</key><string>가라사대 업로더</string>
   <key>CFBundleIdentifier</key><string>com.garasadae.uploader</string>
-  <key>CFBundleVersion</key><string>1.0.0</string>
-  <key>CFBundleShortVersionString</key><string>1.0.0</string>
+  <key>CFBundleVersion</key><string>$VER</string>
+  <key>CFBundleShortVersionString</key><string>$VER</string>
   <key>CFBundleExecutable</key><string>$EXEC</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSMinimumSystemVersion</key><string>11.0</string>

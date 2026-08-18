@@ -1,11 +1,14 @@
 // 로컬 웹 UI + API
 import {
-  APP_NAME, Config, DEFAULTS, IS_MAC, IS_WIN, dataDir, desktopDir, join,
+  APP_NAME, APP_VERSION, Config, DEFAULTS, IS_MAC, IS_WIN, dataDir, desktopDir, join,
   loadConfig, loadTokens, log, saveConfig, clearTokens, tailLog,
 } from "./paths.ts";
 import { accessToken, authUrl, checkChannel, exchange, revoke } from "./auth.ts";
 import { Engine, studioEditorUrl } from "./watcher.ts";
 import { autoStartEnabled, isCompiled, openPath, openUrl, pickFolder, setAutoStart } from "./platform.ts";
+import { checkUpdate, installUpdate, UpdateInfo } from "./update.ts";
+
+let upState = { running: false, pct: 0, text: "", error: "" };
 
 const UI = await Deno.readTextFile(new URL("./ui.html", import.meta.url));
 
@@ -56,6 +59,9 @@ export function startServer(engine: Engine, port: number) {
           channelError: tok?.channelError ?? "",
           channelErrorUrl: tok?.channelErrorUrl ?? "",
           autoStart: await autoStartEnabled(),
+          version: APP_VERSION,
+          update: await checkUpdate(false),
+          updating: upState,
           // 첫 실행에서 한 번만 물어본다 (구글 연결이 끝난 뒤)
           askAutoStart: isCompiled() && !!tok && !cfg.autoStartAsked && !(await autoStartEnabled()),
           ...engine.snapshot(),
@@ -216,6 +222,26 @@ export function startServer(engine: Engine, port: number) {
           await saveConfig(cfg);
           await engine.reloadConfig();
         }
+        return json({ ok: true });
+      }
+
+      if (p === "/api/update/check" && req.method === "POST") {
+        return json(await checkUpdate(true));
+      }
+
+      if (p === "/api/update/install" && req.method === "POST") {
+        if (upState.running) return json({ error: "이미 업데이트를 진행 중입니다." }, 409);
+        const info: UpdateInfo = await checkUpdate(true);
+        if (!info.available) return json({ error: "이미 최신 버전입니다." }, 400);
+        if (!info.canInstall) return json({ error: info.reason || "이 상태에서는 자동 설치할 수 없습니다.", page: info.page }, 400);
+        if (engine.uploading) return json({ error: "업로드가 진행 중입니다. 끝난 뒤에 다시 눌러 주세요." }, 409);
+
+        upState = { running: true, pct: 0, text: "준비 중…", error: "" };
+        installUpdate(info, (pct, text) => { upState.pct = pct; upState.text = text; })
+          .catch(async (e) => {
+            upState = { running: false, pct: 0, text: "", error: e instanceof Error ? e.message : String(e) };
+            await log(`⚠️  업데이트 실패: ${upState.error}`);
+          });
         return json({ ok: true });
       }
 

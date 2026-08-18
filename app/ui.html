@@ -404,6 +404,13 @@ textarea.fin{resize:vertical;line-height:1.6}
     </div>
   </div>
 
+  <div class="card">
+    <h3>ℹ️ 프로그램 정보</h3>
+    <div class="kv"><span>버전</span><b id="sVer">-</b></div>
+    <div class="kv"><span>설정 저장 위치</span><b id="sData">-</b></div>
+    <button class="tb" style="margin-top:10px" onclick="checkUp()">🔄 새 버전 확인</button>
+  </div>
+
   <button class="go" style="max-width:820px" onclick="saveAll()">💾 설정 저장</button>
 </div>
 
@@ -557,6 +564,30 @@ textarea.fin{resize:vertical;line-height:1.6}
   </div>
 </div>
 
+<!-- 새 버전 안내 팝업 -->
+<div class="modal" id="upModal">
+  <div class="modal-box">
+    <div class="modal-emoji">🆕</div>
+    <h3>업데이트 하시겠습니까?</h3>
+    <div class="modal-title" id="upVer"></div>
+    <p class="modal-desc">
+      새 버전이 나왔습니다. 확인을 누르면 프로그램이 알아서 받아서<br>
+      교체하고 다시 시작합니다. <b>설정과 로그인은 그대로 유지됩니다.</b>
+    </p>
+    <div id="upProg" style="display:none">
+      <div class="gauge" style="margin-bottom:6px"><div class="gauge-f" id="upBar"></div></div>
+      <div class="gauge-l"><span id="upText">준비 중…</span><span id="upPct">0%</span></div>
+    </div>
+    <div class="modal-btns" id="upBtns">
+      <button class="mbtn ghost" onclick="closeUp()">취소</button>
+      <button class="mbtn primary" onclick="doUpdate()">확인</button>
+    </div>
+    <div class="modal-remember">
+      <button class="mlink" onclick="ext(ST&&ST.update?ST.update.page:'#')">바뀐 내용 보기</button>
+    </div>
+  </div>
+</div>
+
 <!-- 첫 실행에서 자동 실행을 켤지 묻는 팝업 -->
 <div class="modal" id="autoModal">
   <div class="modal-box">
@@ -663,8 +694,10 @@ function paint(){
   $('kAfter').textContent=({move:'_완료 폴더로',trash:'휴지통으로',delete:'완전 삭제',keep:'그대로 두기'})[s.config.afterUpload]||'-';
   $('kAuto').textContent=s.autoStart?'켜짐':'꺼짐';
 
-  paintAutoAsk(s.askAutoStart);
-  if(!$('autoModal').classList.contains('on'))paintAsk(s.ask);
+  paintUpdate(s.update,s.updating);
+  const upOpen=$('upModal').classList.contains('on');
+  if(!upOpen)paintAutoAsk(s.askAutoStart);
+  if(!upOpen&&!$('autoModal').classList.contains('on'))paintAsk(s.ask);
 
   // 최근 올린 영상
   renderThumbs(s.uploads.slice(0,8));
@@ -696,6 +729,32 @@ function paint(){
 
   renderCards(s.items);
   if(tab==='t2')renderHist(s.uploads);
+}
+
+let upSkipped='';
+function paintUpdate(u,upd){
+  const m=$('upModal');
+  if(upd&&upd.running){
+    m.classList.add('on');
+    $('upProg').style.display='block'; $('upBtns').style.display='none';
+    $('upBar').style.width=upd.pct+'%'; $('upPct').textContent=upd.pct+'%'; $('upText').textContent=upd.text;
+    return;
+  }
+  if(upd&&upd.error){ msg('업데이트 실패: '+upd.error,'err'); }
+  if(!u||!u.available||upSkipped===u.version){ if(!upd||!upd.running)m.classList.remove('on'); return; }
+  $('upVer').textContent=`${u.current} → ${u.version}`;
+  $('upProg').style.display='none'; $('upBtns').style.display='flex';
+  m.classList.add('on');
+}
+function closeUp(){ if(ST&&ST.update)upSkipped=ST.update.version; $('upModal').classList.remove('on'); }
+async function doUpdate(){
+  $('upProg').style.display='block'; $('upBtns').style.display='none';
+  const r=await api('/api/update/install',{});
+  if(r.error){
+    $('upProg').style.display='none'; $('upBtns').style.display='flex';
+    msg(r.error,'err');
+    if(r.page)ext(r.page);
+  }
 }
 
 let autoAsked=false;
@@ -898,6 +957,8 @@ function fillSettings(){
   $('cLang').value=c.language; $('cLimit').value=c.dailyLimit; $('cPoll').value=c.pollSeconds;
   $('cStable').value=c.stableChecks; $('cPrefix').value=c.titlePrefix; $('cSuffix').value=c.titleSuffix;
   $('cTags').value=(c.tags||[]).join(', '); $('cDesc').value=c.description;
+  if($('sVer'))$('sVer').textContent='v'+(ST.version||'-');
+  if($('sData'))$('sData').textContent=ST.dataDir||'-';
   $('cCid').value=c.clientId; $('cSec').value=c.clientSecret?'********':'';
   setSw('cReview',c.reviewMode); $('cStudio').value=c.studioAfter||'ask'; setSw('cKids',c.madeForKids); setSw('cNotify',c.notifySubscribers);
   setSw('cOsNotify',c.notifications); setSw('cAuto',ST.autoStart);
@@ -950,6 +1011,12 @@ async function doLogin(){
   if(r.error)return msg(r.error,'err');
   window.open(r.url,'_blank','noopener');
   msg('브라우저에서 구글 로그인을 진행해 주세요');
+}
+async function checkUp(){
+  msg('새 버전을 확인하는 중…');
+  const u=await api('/api/update/check',{});
+  if(u.available){ upSkipped=''; msg(`새 버전이 있습니다 (${u.version})`,'ok'); poll(); }
+  else msg('최신 버전을 쓰고 계십니다','ok');
 }
 async function checkConn(){
   msg('연결 상태를 확인하는 중…');

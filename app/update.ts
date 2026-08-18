@@ -1,0 +1,234 @@
+// 새 버전 확인 및 설치
+import { APP_NAME, APP_VERSION, IS_MAC, IS_WIN, REPO, join, log } from "./paths.ts";
+
+export interface UpdateInfo {
+  available: boolean;
+  version: string;
+  current: string;
+  url: string;          // 내려받을 파일 주소
+  page: string;         // 사람이 보는 릴리스 페이지
+  canInstall: boolean;  // 앱이 스스로 교체할 수 있는 상태인지
+  reason: string;       // 스스로 못 할 때의 이유
+}
+
+let cached: UpdateInfo | null = null;
+let checkedAt = 0;
+
+/** 이 컴퓨터에 맞는 배포 파일 이름 */
+function assetName(): string {
+  if (IS_WIN) return "garasadae-uploader-windows.zip";
+  if (IS_MAC) {
+    return Deno.build.arch === "aarch64"
+      ? "garasadae-uploader-mac-apple-silicon.zip"
+      : "garasadae-uploader-mac-intel.zip";
+  }
+  return "";
+}
+
+function cmpVersion(a: string, b: string): number {
+  const pa = a.replace(/^v/, "").split(".").map(Number);
+  const pb = b.replace(/^v/, "").split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    const x = pa[i] ?? 0, y = pb[i] ?? 0;
+    if (x !== y) return x > y ? 1 : -1;
+  }
+  return 0;
+}
+
+/** 실행 중인 프로그램을 스스로 교체할 수 있는 상태인지 */
+function installable(): { ok: boolean; reason: string } {
+  const exe = Deno.execPath();
+  if (exe.toLowerCase().endsWith("/deno") || exe.toLowerCase().endsWith("deno.exe")) {
+    return { ok: false, reason: "개발 모드에서는 업데이트하지 않습니다." };
+  }
+  if (exe.includes("/AppTranslocation/")) {
+    return {
+      ok: false,
+      reason: "프로그램이 임시 위치에서 실행 중이라 교체할 수 없습니다. " +
+        "가라사대 업로더를 응용 프로그램 폴더로 옮긴 뒤 다시 실행해 주세요.",
+    };
+  }
+  return { ok: true, reason: "" };
+}
+
+export async function checkUpdate(force = false): Promise<UpdateInfo> {
+  const page = `https://github.com/${REPO}/releases/latest`;
+  const none: UpdateInfo = {
+    available: false, version: APP_VERSION, current: APP_VERSION,
+    url: "", page, canInstall: false, reason: "",
+  };
+  if (!force && cached && Date.now() - checkedAt < 6 * 3600_000) return cached;
+
+  try {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 8000);
+    const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+      headers: { Accept: "application/vnd.github+json" },
+      signal: c.signal,
+    });
+    clearTimeout(t);
+    if (!r.ok) return none;
+    const j = await r.json();
+    const latest: string = (j.tag_name ?? "").replace(/^v/, "");
+    if (!latest) return none;
+
+    const want = assetName();
+    const asset = (j.assets ?? []).find((a: { name: string }) => a.name === want);
+    const inst = installable();
+    const info: UpdateInfo = {
+      available: cmpVersion(latest, APP_VERSION) > 0,
+      version: latest,
+      current: APP_VERSION,
+      url: asset?.browser_download_url ?? "",
+      page,
+      canInstall: inst.ok && !!asset,
+      reason: inst.ok ? (asset ? "" : "이 컴퓨터에 맞는 파일을 찾지 못했습니다.") : inst.reason,
+    };
+    cached = info;
+    checkedAt = Date.now();
+    if (info.available) await log(`🆕 새 버전이 있습니다: ${APP_VERSION} → ${latest}`);
+    return info;
+  } catch {
+    return none;
+  }
+}
+
+/* ------------------------------------------------- 설치 */
+export type Progress = (pct: number, text: string) => void;
+
+export async function installUpdate(info: UpdateInfo, onProgress: Progress): Promise<void> {
+  if (!info.url) throw new Error("내려받을 파일 주소가 없습니다.");
+  const inst = installable();
+  if (!inst.ok) throw new Error(inst.reason);
+
+  const tmp = await Deno.makeTempDir({ prefix: "garasadae_up_" });
+  const zip = join(tmp, "new.zip");
+
+  // 1) 내려받기
+  onProgress(0, "새 버전을 내려받는 중…");
+  const r = await fetch(info.url);
+  if (!r.ok) throw new Error(`내려받기 실패 (${r.status})`);
+  const total = Number(r.headers.get("content-length") ?? 0);
+  const f = await Deno.open(zip, { write: true, create: true, truncate: true });
+  let got = 0;
+  const reader = r.body!.getReader();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    await f.write(value);
+    got += value.length;
+    if (total) onProgress(Math.round((got / total) * 80), `내려받는 중… ${(got / 1048576).toFixed(0)}MB`);
+  }
+  f.close();
+
+  // 2) 압축 풀기
+  onProgress(85, "압축을 푸는 중…");
+  const out = join(tmp, "out");
+  await Deno.mkdir(out, { recursive: true });
+  await extract(zip, out);
+
+  // 3) 교체
+  onProgress(92, "프로그램을 교체하는 중…");
+  if (IS_MAC) await swapMac(out);
+  else if (IS_WIN) await swapWin(out);
+  else throw new Error("이 운영체제는 자동 설치를 지원하지 않습니다.");
+
+  onProgress(100, "완료 — 다시 시작합니다");
+}
+
+async function extract(zip: string, dest: string) {
+  const cmd = IS_WIN
+    ? ["powershell", "-NoProfile", "-Command",
+       `Expand-Archive -LiteralPath '${zip.replace(/'/g, "''")}' -DestinationPath '${dest.replace(/'/g, "''")}' -Force`]
+    : ["ditto", "-x", "-k", zip, dest];
+  const { code, stderr } = await new Deno.Command(cmd[0], {
+    args: cmd.slice(1), stdout: "null", stderr: "piped",
+  }).output();
+  if (code !== 0) throw new Error("압축을 풀지 못했습니다: " + new TextDecoder().decode(stderr).slice(0, 200));
+}
+
+async function findFile(root: string, name: string): Promise<string | null> {
+  for await (const e of Deno.readDir(root)) {
+    const p = join(root, e.name);
+    if (e.name === name) return p;
+    if (e.isDirectory && !e.name.endsWith(".app")) {
+      const hit = await findFile(p, name);
+      if (hit) return hit;
+    }
+    if (e.isDirectory && e.name.endsWith(".app") && name.endsWith(".app")) {
+      if (e.name === name) return p;
+    }
+  }
+  return null;
+}
+
+async function findApp(root: string): Promise<string | null> {
+  for await (const e of Deno.readDir(root)) {
+    const p = join(root, e.name);
+    if (e.isDirectory && e.name.endsWith(".app")) return p;
+    if (e.isDirectory) {
+      const hit = await findApp(p);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
+/** 맥: 실행 중인 .app 번들을 통째로 바꾸고 다시 실행한다. */
+async function swapMac(extracted: string) {
+  const exe = Deno.execPath();                       // .../X.app/Contents/MacOS/GarasadaeUploader
+  const parts = exe.split("/");
+  const idx = parts.findIndex((p) => p.endsWith(".app"));
+  if (idx < 0) throw new Error("설치 위치를 찾지 못했습니다.");
+  const current = parts.slice(0, idx + 1).join("/");
+
+  const fresh = await findApp(extracted);
+  if (!fresh) throw new Error("새 버전에서 프로그램을 찾지 못했습니다.");
+
+  // 서명이 온전한지 확인한 뒤에만 바꾼다
+  const v = await new Deno.Command("codesign", { args: ["--verify", "--strict", fresh], stderr: "null" }).output();
+  if (v.code !== 0) throw new Error("새 파일의 서명 확인에 실패해 설치를 중단했습니다.");
+
+  const backup = current + ".old";
+  try { await Deno.remove(backup, { recursive: true }); } catch { /* 없으면 무시 */ }
+  await Deno.rename(current, backup);
+  try {
+    await Deno.rename(fresh, current);
+  } catch (e) {
+    await Deno.rename(backup, current);               // 실패하면 되돌린다
+    throw new Error(`교체하지 못했습니다: ${e instanceof Error ? e.message : e}`);
+  }
+  try { await Deno.remove(backup, { recursive: true }); } catch { /* 무시 */ }
+
+  await log("⬆️  새 버전으로 교체 완료 — 다시 시작합니다");
+  new Deno.Command("open", { args: ["-n", current], stdout: "null", stderr: "null" }).spawn().unref?.();
+  setTimeout(() => Deno.exit(0), 1200);
+}
+
+/** 윈도우: 실행 중인 exe 는 못 바꾸므로 도우미 스크립트에 맡긴다. */
+async function swapWin(extracted: string) {
+  const exe = Deno.execPath();
+  const name = exe.split(/[\\/]/).pop()!;
+  const fresh = await findFile(extracted, name) ?? await findFile(extracted, "가라사대업로더.exe");
+  if (!fresh) throw new Error("새 버전에서 프로그램을 찾지 못했습니다.");
+
+  const bat = join(Deno.env.get("TEMP") ?? ".", "가라사대_업데이트.bat");
+  const script = `@echo off\r
+chcp 65001 >nul\r
+echo ${APP_NAME} 를 업데이트하는 중입니다. 이 창은 저절로 닫힙니다.\r
+timeout /t 2 /nobreak >nul\r
+:wait\r
+tasklist /FI "IMAGENAME eq ${name}" 2>nul | find /I "${name}" >nul\r
+if not errorlevel 1 (\r
+  timeout /t 1 /nobreak >nul\r
+  goto wait\r
+)\r
+move /Y "${fresh}" "${exe}" >nul\r
+start "" "${exe}"\r
+del "%~f0"\r
+`;
+  await Deno.writeTextFile(bat, script);
+  await log("⬆️  새 버전 교체를 도우미에 맡기고 종료합니다");
+  new Deno.Command("cmd", { args: ["/c", "start", "", bat], stdout: "null", stderr: "null" }).spawn().unref?.();
+  setTimeout(() => Deno.exit(0), 1200);
+}
