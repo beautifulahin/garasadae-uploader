@@ -108,11 +108,11 @@ h2{font-size:17px;font-weight:800;margin:36px 0 14px}
           <span id="liveText">준비 중…</span><span id="livePct">0%</span>
         </div>
       </div>
-      <div class="alt"><a href="javascript:void(0)" onclick="openApp()">프로그램 화면 열기</a></div>
+      <div class="alt"><a href="javascript:void(0)" onclick="goApp()">🚀 가라사대 업로더로 가기</a></div>
     </div>
     <div id="liveLatest" style="display:none">
       <div style="padding:14px;text-align:center;color:var(--cyan);font-size:14px;font-weight:700">최신 버전을 쓰고 계십니다</div>
-      <div class="alt"><a href="javascript:void(0)" onclick="openApp()">프로그램 화면 열기</a></div>
+      <a class="btn" href="javascript:void(0)" onclick="goApp()">🚀 가라사대 업로더로 가기</a>
     </div>
   </div>
 
@@ -240,6 +240,9 @@ function showLive(st){
   }
 }
 function closeUp(){ document.getElementById('upModal').classList.remove('on'); }
+/* 이 탭을 앱 화면으로 바꾼다. 브라우저는 스스로 연 탭만 닫을 수 있어,
+   창을 닫는 대신 같은 탭을 앱 주소로 옮긴다. 결과적으로 창이 하나만 남는다. */
+function goApp(){ if(appBase) location.replace(appBase); }
 
 function liveUpdate(){
   document.getElementById('upModal').classList.add('on');
@@ -271,7 +274,11 @@ function liveUpdate(){
             document.getElementById('upPct').textContent='100%';
             document.getElementById('upHead').textContent='✅ 최신 버전입니다';
             document.getElementById('upText').textContent='v'+st.version+' 으로 업데이트되었습니다';
-            setTimeout(closeUp,2500);
+            // 이 페이지를 앱 화면으로 바꿔서 창이 쌓이지 않게 한다
+            var b=document.getElementById('upBtns');
+            b.style.display='flex';
+            b.innerHTML='<button class="mbtn primary" onclick="goApp()">🚀 가라사대 업로더로 가기</button>';
+            setTimeout(goApp,2500);
             setTimeout(function(){ showLive(st); document.getElementById('liveProg').style.display='none'; document.getElementById('liveBtn').style.display='block'; },1500);
             return;
           }
