@@ -14,13 +14,6 @@ async function main() {
   const cfg = await loadConfig();
   await saveConfig(cfg);                       // 첫 실행 시 기본 설정 파일 생성
 
-  // 무슨 일이 있어도 감시 폴더는 먼저 만들어 둔다 (실행됐다는 눈에 보이는 신호)
-  try {
-    await Deno.mkdir(cfg.watchDir, { recursive: true });
-  } catch (e) {
-    console.error(`감시 폴더를 만들지 못했습니다: ${cfg.watchDir}\n${e instanceof Error ? e.message : e}`);
-  }
-
   // 포트가 이미 쓰이고 있다면, 우리 프로그램인지 다른 프로그램인지 가려낸다
   if (await portBusy(cfg.port)) {
     if (await isOurApp(cfg.port)) {
@@ -48,6 +41,17 @@ async function main() {
   await engine.ensureDirs();
 
   startServer(engine, cfg.port);
+
+  // 감시 폴더 만들기는 화면을 띄운 뒤에 한다.
+  // 맥에서는 "데스크탑 폴더에 접근하려고 합니다" 권한 창이 뜨는데,
+  // 사용자가 답할 때까지 멈추기 때문에 이걸 먼저 하면 화면이 안 열린다.
+  (async () => {
+    try {
+      await Deno.mkdir(cfg.watchDir, { recursive: true });
+    } catch (e) {
+      await log(`⚠️  감시 폴더를 만들지 못했습니다: ${cfg.watchDir} — ${e instanceof Error ? e.message : e}`);
+    }
+  })();
 
   console.log(`
 ┌───────────────────────────────────────────────
