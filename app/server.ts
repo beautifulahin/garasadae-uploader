@@ -171,6 +171,36 @@ export function startServer(engine: Engine, port: number) {
       }
 
       /* ---------------- 기타 ---------------- */
+      // 화면에 끌어다 놓은 파일을 감시 폴더에 저장한다
+      if (p === "/api/drop" && req.method === "POST") {
+        const raw = req.headers.get("x-filename") ?? "";
+        let name = decodeURIComponent(raw).replace(/[/\\]/g, "_").trim();
+        if (!name) return json({ error: "파일 이름을 읽지 못했습니다." }, 400);
+        if (!req.body) return json({ error: "파일 내용이 비어 있습니다." }, 400);
+
+        await engine.ensureDirs();
+        const dir = engine.cfg.watchDir;
+        const dot = name.lastIndexOf(".");
+        const [base, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+        let dest = join(dir, name);
+        let i = 1;
+        while (await fileExists(dest)) dest = join(dir, `${base} (${i++})${ext}`);
+
+        // 아직 쓰는 중인 파일로 오인하지 않도록 임시 이름으로 받은 뒤 옮긴다
+        const tmp = dest + ".part";
+        const f = await Deno.open(tmp, { write: true, create: true, truncate: true });
+        try {
+          await req.body.pipeTo(f.writable);
+        } catch (e) {
+          try { f.close(); } catch { /* 이미 닫힘 */ }
+          try { await Deno.remove(tmp); } catch { /* 무시 */ }
+          return json({ error: `파일을 저장하지 못했습니다: ${e instanceof Error ? e.message : e}` }, 500);
+        }
+        await Deno.rename(tmp, dest);
+        await log(`📥 화면에서 받은 파일: ${dest.split(/[/\\]/).pop()}`);
+        return json({ ok: true, name: dest.split(/[/\\]/).pop() });
+      }
+
       if (p === "/api/openfolder" && req.method === "POST") {
         await engine.ensureDirs();
         await openPath(engine.cfg.watchDir);
@@ -206,6 +236,10 @@ export function startServer(engine: Engine, port: number) {
       return json({ error: msg }, 500);
     }
   });
+}
+
+async function fileExists(p: string) {
+  try { await Deno.stat(p); return true; } catch { return false; }
 }
 
 const clamp = (n: number, lo: number, hi: number) =>

@@ -143,7 +143,7 @@ export const saveState = (s: State) => writeJson(STATE_F(), s);
 
 export interface Tokens {
   access_token?: string; refresh_token: string; expires_at?: number;
-  channel?: { title: string; thumb: string; subs: string };
+  channel?: { title: string; thumb: string; subs: string; views?: string; videos?: string; handle?: string };
   channelError?: string;
   channelErrorUrl?: string;
 }

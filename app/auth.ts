@@ -144,8 +144,11 @@ export async function fetchChannel(token: string) {
   }
   return {
     title: c.snippet?.title ?? "",
-    thumb: c.snippet?.thumbnails?.default?.url ?? "",
+    thumb: c.snippet?.thumbnails?.medium?.url ?? c.snippet?.thumbnails?.default?.url ?? "",
     subs: c.statistics?.subscriberCount ?? "0",
+    views: c.statistics?.viewCount ?? "0",
+    videos: c.statistics?.videoCount ?? "0",
+    handle: c.snippet?.customUrl ?? "",
   };
 }
 
