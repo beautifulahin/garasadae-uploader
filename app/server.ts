@@ -56,6 +56,8 @@ export function startServer(engine: Engine, port: number) {
           channelError: tok?.channelError ?? "",
           channelErrorUrl: tok?.channelErrorUrl ?? "",
           autoStart: await autoStartEnabled(),
+          // 첫 실행에서 한 번만 물어본다 (구글 연결이 끝난 뒤)
+          askAutoStart: isCompiled() && !!tok && !cfg.autoStartAsked && !(await autoStartEnabled()),
           ...engine.snapshot(),
         });
       }
@@ -229,10 +231,11 @@ export function startServer(engine: Engine, port: number) {
       }
 
       if (p === "/api/autostart" && req.method === "POST") {
-        const { on } = await req.json();
+        const { on, asked } = await req.json();
         const m = await setAutoStart(!!on);
         const cfg = await loadConfig();
         cfg.autoStart = !!on;
+        if (asked) cfg.autoStartAsked = true;
         await saveConfig(cfg);
         await engine.reloadConfig();
         return json({ ok: true, message: m });

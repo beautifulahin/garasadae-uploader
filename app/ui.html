@@ -557,6 +557,25 @@ textarea.fin{resize:vertical;line-height:1.6}
   </div>
 </div>
 
+<!-- 첫 실행에서 자동 실행을 켤지 묻는 팝업 -->
+<div class="modal" id="autoModal">
+  <div class="modal-box">
+    <div class="modal-emoji">🔌</div>
+    <h3>컴퓨터를 켤 때 항상 실행할까요?</h3>
+    <p class="modal-desc">
+      켜두면 이 창을 닫아도, 컴퓨터를 껐다 켜도<br>
+      <b>뒤에서 계속 폴더를 지켜봅니다.</b><br>
+      영상을 저장하기만 하면 알아서 올라갑니다.
+    </p>
+    <p class="modal-note">끄시면 이 프로그램을 직접 실행했을 때만 동작합니다.<br>
+    나중에 <b>설정</b> 탭에서 언제든 바꿀 수 있습니다.</p>
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="answerAuto(false)">필요할 때만 켤게요</button>
+      <button class="mbtn primary" onclick="answerAuto(true)">🔌 항상 켜기</button>
+    </div>
+  </div>
+</div>
+
 <!-- 업로드 후 음악 넣을지 묻는 팝업 -->
 <div class="modal" id="askModal">
   <div class="modal-box">
@@ -644,7 +663,8 @@ function paint(){
   $('kAfter').textContent=({move:'_완료 폴더로',trash:'휴지통으로',delete:'완전 삭제',keep:'그대로 두기'})[s.config.afterUpload]||'-';
   $('kAuto').textContent=s.autoStart?'켜짐':'꺼짐';
 
-  paintAsk(s.ask);
+  paintAutoAsk(s.askAutoStart);
+  if(!$('autoModal').classList.contains('on'))paintAsk(s.ask);
 
   // 최근 올린 영상
   renderThumbs(s.uploads.slice(0,8));
@@ -676,6 +696,19 @@ function paint(){
 
   renderCards(s.items);
   if(tab==='t2')renderHist(s.uploads);
+}
+
+let autoAsked=false;
+function paintAutoAsk(need){
+  if(!need||autoAsked)return;
+  autoAsked=true;
+  $('autoModal').classList.add('on');
+}
+async function answerAuto(on){
+  $('autoModal').classList.remove('on');
+  const r=await api('/api/autostart',{on:!!on,asked:true});
+  msg(on?'컴퓨터를 켤 때 자동으로 실행됩니다':'자동 실행을 켜지 않았습니다. 설정에서 바꿀 수 있습니다', on?'ok':'');
+  poll();
 }
 
 let askShown='';

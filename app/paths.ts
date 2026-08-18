@@ -86,6 +86,7 @@ export interface Config {
   dailyLimit: number;
   notifications: boolean;
   autoStart: boolean;
+  autoStartAsked: boolean;   // 자동 실행을 켤지 한 번 물어봤는지
   port: number;
 }
 
@@ -97,7 +98,7 @@ export const DEFAULTS: Config = {
   madeForKids: false, notifySubscribers: true,
   reviewMode: false, studioAfter: "ask", afterUpload: "move",
   maxRetries: 3, dailyLimit: 6, notifications: true,
-  autoStart: false, port: 8777,
+  autoStart: false, autoStartAsked: false, port: 8777,
 };
 
 export interface UploadRec {
