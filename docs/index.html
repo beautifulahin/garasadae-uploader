@@ -42,10 +42,48 @@ h2{font-size:17px;font-weight:800;margin:36px 0 14px}
 .foot{margin-top:44px;padding-top:20px;border-top:1px solid var(--bdr);font-size:12px;color:var(--t3);display:flex;gap:14px;flex-wrap:wrap}
 .foot a{color:var(--t3)}
 .foot a:hover{color:var(--accent)}
+.modal{display:none;position:fixed;inset:0;background:rgba(11,11,17,.82);backdrop-filter:blur(8px);z-index:100;align-items:center;justify-content:center;padding:20px}
+.modal.on{display:flex}
+.modal-box{background:var(--bg1);border:1px solid var(--bdr);border-radius:16px;padding:28px 24px;width:430px;max-width:100%;text-align:center}
+.modal-emoji{font-size:42px;margin-bottom:10px}
+.modal-box h3{font-size:19px;font-weight:900;margin-bottom:8px;line-height:1.4}
+.modal-ver{font-size:13px;color:var(--cyan);font-weight:700;margin-bottom:14px}
+.modal-desc{font-size:13px;color:var(--t2);line-height:1.85;margin-bottom:20px}
+.modal-prog{display:none;margin-bottom:18px}
+.pbar{height:9px;border-radius:5px;background:var(--bg3);overflow:hidden}
+.pbar-f{height:100%;width:0;border-radius:5px;background:linear-gradient(90deg,var(--accent),#ff8844);transition:width .3s}
+.pbar-l{display:flex;justify-content:space-between;font-size:11px;color:var(--t3);margin-top:7px}
+.modal-btns{display:flex;gap:9px}
+.mbtn{flex:1;padding:14px;border-radius:11px;border:1px solid var(--bdr);font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;transition:.15s}
+.mbtn.ghost{background:var(--bg2);color:var(--t2)}
+.mbtn.ghost:hover{color:var(--t1)}
+.mbtn.primary{border:none;background:linear-gradient(135deg,var(--accent),#ff8844);color:#fff}
+.mbtn.primary:hover{filter:brightness(1.1)}
 @media(max-width:600px){h1{font-size:26px}.wrap{padding:36px 16px 60px}}
 </style>
 </head>
 <body>
+<div class="modal" id="upModal">
+  <div class="modal-box">
+    <div class="modal-emoji">🆕</div>
+    <h3 id="upHead">최신 버전으로 업데이트 하시겠습니까?</h3>
+    <div class="modal-ver" id="upVer"></div>
+    <p class="modal-desc" id="upDesc">
+      프로그램이 켜져 있는 것을 확인했습니다.<br>
+      <b>예</b>를 누르면 내려받지 않고 바로 업데이트됩니다.<br>
+      설정과 구글 로그인은 그대로 유지됩니다.
+    </p>
+    <div class="modal-prog" id="upProg">
+      <div class="pbar"><div class="pbar-f" id="upBar"></div></div>
+      <div class="pbar-l"><span id="upText">준비 중…</span><span id="upPct">0%</span></div>
+    </div>
+    <div class="modal-btns" id="upBtns">
+      <button class="mbtn ghost" onclick="closeUp()">아니오</button>
+      <button class="mbtn primary" onclick="liveUpdate()">예</button>
+    </div>
+  </div>
+</div>
+
 <div class="wrap">
   <div class="logo"><em>🚀</em> <b>가라사대</b>&nbsp;업로더</div>
 
@@ -193,18 +231,34 @@ function showLive(st){
     document.getElementById('liveNew').style.display='block';
     document.getElementById('liveLatest').style.display='none';
     document.getElementById('liveSub').textContent=st.version+' → '+u.version+' · 내려받지 않아도 됩니다';
+    // 링크를 연 순간 바로 물어본다
+    document.getElementById('upVer').textContent=st.version+' → '+u.version;
+    document.getElementById('upModal').classList.add('on');
   }else{
     document.getElementById('liveNew').style.display='none';
     document.getElementById('liveLatest').style.display='block';
   }
 }
+function closeUp(){ document.getElementById('upModal').classList.remove('on'); }
 
 function liveUpdate(){
+  document.getElementById('upModal').classList.add('on');
+  document.getElementById('upProg').style.display='block';
+  document.getElementById('upBtns').style.display='none';
+  document.getElementById('upDesc').style.display='none';
+  document.getElementById('upHead').textContent='업데이트하는 중입니다';
   document.getElementById('liveProg').style.display='block';
   document.getElementById('liveBtn').style.display='none';
   appFetch('/api/update/install',{method:'POST',headers:{'content-type':'application/json'},body:'{}'})
     .then(function(r){
-      if(r.error){ alert(r.error); return; }
+      if(r.error){
+        document.getElementById('upHead').textContent='업데이트할 수 없습니다';
+        document.getElementById('upDesc').style.display='block';
+        document.getElementById('upDesc').textContent=r.error;
+        document.getElementById('upProg').style.display='none';
+        document.getElementById('upBtns').style.display='flex';
+        return;
+      }
       var lost=false;
       var t=setInterval(function(){
         withTimeout(appFetch('/api/state'),2500).then(function(st){
@@ -213,20 +267,36 @@ function liveUpdate(){
             document.getElementById('liveBar').style.width='100%';
             document.getElementById('livePct').textContent='100%';
             document.getElementById('liveText').textContent='완료 — v'+st.version+' 로 업데이트되었습니다';
+            document.getElementById('upBar').style.width='100%';
+            document.getElementById('upPct').textContent='100%';
+            document.getElementById('upHead').textContent='✅ 최신 버전입니다';
+            document.getElementById('upText').textContent='v'+st.version+' 으로 업데이트되었습니다';
+            setTimeout(closeUp,2500);
             setTimeout(function(){ showLive(st); document.getElementById('liveProg').style.display='none'; document.getElementById('liveBtn').style.display='block'; },1500);
             return;
           }
           var up=st.updating||{};
-          document.getElementById('liveBar').style.width=(up.pct||0)+'%';
-          document.getElementById('livePct').textContent=(up.pct||0)+'%';
-          document.getElementById('liveText').textContent=up.text||'진행 중…';
+          var pct=up.pct||0, tx=up.text||'진행 중…';
+          document.getElementById('liveBar').style.width=pct+'%';
+          document.getElementById('livePct').textContent=pct+'%';
+          document.getElementById('liveText').textContent=tx;
+          document.getElementById('upBar').style.width=pct+'%';
+          document.getElementById('upPct').textContent=pct+'%';
+          document.getElementById('upText').textContent=tx;
         }).catch(function(){
           lost=true;   // 교체하며 잠깐 꺼진 상태
           document.getElementById('liveText').textContent='프로그램을 교체하고 다시 켜는 중…';
+          document.getElementById('upText').textContent='교체하고 다시 켜는 중…';
         });
       },1500);
     })
-    .catch(function(){ alert('프로그램과 연결하지 못했습니다. 프로그램이 켜져 있는지 확인해 주세요.'); });
+    .catch(function(){
+      document.getElementById('upHead').textContent='연결하지 못했습니다';
+      document.getElementById('upDesc').style.display='block';
+      document.getElementById('upDesc').textContent='프로그램이 켜져 있는지 확인한 뒤 이 페이지를 새로고침해 주세요.';
+      document.getElementById('upProg').style.display='none';
+      document.getElementById('upBtns').style.display='flex';
+    });
 }
 
 (function detect(){
