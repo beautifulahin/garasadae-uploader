@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📖 설정 안내서 먼저 보기
+    url: https://github.com/beautifulahin/garasadae-uploader/blob/main/docs/설정안내.md
+    about: 설정하다 막히셨다면 여기에 대부분의 해결 방법이 있습니다.

@@ -1,0 +1,12 @@
+name: 💡 기능 요청
+description: 이런 게 있었으면 좋겠어요
+title: "[요청] "
+labels: ["요청"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 어떤 기능이 필요하신가요?
+      placeholder: 무엇이 불편해서 이 기능이 필요한지 함께 적어주시면 좋습니다.
+    validations:
+      required: true

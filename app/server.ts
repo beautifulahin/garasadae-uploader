@@ -1,6 +1,6 @@
 // 로컬 웹 UI + API
 import {
-  APP_NAME, APP_VERSION, Config, DEFAULTS, IS_MAC, IS_WIN, dataDir, desktopDir, join,
+  APP_NAME, APP_VERSION, Config, DEFAULTS, IS_MAC, IS_WIN, REPO, dataDir, desktopDir, join,
   loadConfig, loadTokens, log, saveConfig, clearTokens, tailLog,
 } from "./paths.ts";
 import { accessToken, authUrl, checkChannel, exchange, revoke } from "./auth.ts";
@@ -289,6 +289,57 @@ export function startServer(engine: Engine, port: number) {
             upState = { running: false, pct: 0, text: "", error: e instanceof Error ? e.message : String(e) };
             await log(`⚠️  업데이트 실패: ${upState.error}`);
           });
+        return json({ ok: true });
+      }
+
+      // 사용자 의견을 바탕화면에 쌓고, 깃허브에 남길 주소를 돌려준다
+      if (p === "/api/feedback" && req.method === "POST") {
+        const { kind, title, body } = await req.json();
+        const t = String(title ?? "").trim().slice(0, 120);
+        const b = String(body ?? "").trim().slice(0, 4000);
+        if (!t) return json({ error: "제목을 입력해 주세요." }, 400);
+        if (!b) return json({ error: "내용을 입력해 주세요." }, 400);
+
+        const kindLabel: Record<string, string> = {
+          bug: "🐞 오류 신고", idea: "💡 기능 요청", etc: "💬 기타 의견",
+        };
+        const label = kindLabel[kind] ?? kindLabel.etc;
+        const os = IS_WIN ? "윈도우" : IS_MAC ? "맥" : "리눅스";
+        const when = new Date().toLocaleString("ko-KR");
+
+        // 바탕화면 파일에 번호를 매겨 쌓는다
+        let saved = "";
+        try {
+          const f = join(await desktopDir(), "가라사대_피드백.txt");
+          let prev = "";
+          try { prev = await Deno.readTextFile(f); } catch { /* 처음이면 없음 */ }
+          const n = (prev.match(/^\d+\. /gm) ?? []).length + 1;
+          const entry = `${n}. [${label}] ${t}\n` +
+            `   보낸 때 : ${when}\n` +
+            `   환경    : ${os} · 프로그램 ${APP_VERSION}\n` +
+            `   내용    : ${b.split("\n").join("\n             ")}\n\n`;
+          const head = prev ? "" : "가라사대 업로더 — 보낸 의견 모음\n" + "=".repeat(40) + "\n\n";
+          await Deno.writeTextFile(f, head + prev + entry);
+          saved = f;
+        } catch (e) {
+          await log(`⚠️  의견을 파일로 저장하지 못했습니다: ${e instanceof Error ? e.message : e}`);
+        }
+
+        const issueBody = `${b}\n\n---\n환경: ${os} · 프로그램 ${APP_VERSION}\n보낸 때: ${when}`;
+        const url = `https://github.com/${REPO}/issues/new?` + new URLSearchParams({
+          title: `[${label.replace(/^\S+\s/, "")}] ${t}`,
+          body: issueBody,
+        });
+        await log(`💬 의견 접수: ${t}`);
+        return json({ ok: true, url, saved });
+      }
+
+      if (p === "/api/openfeedback" && req.method === "POST") {
+        const f = join(await desktopDir(), "가라사대_피드백.txt");
+        try { await Deno.stat(f); } catch {
+          return json({ error: "아직 보낸 의견이 없습니다." }, 404);
+        }
+        await openPath(f);
         return json({ ok: true });
       }
 

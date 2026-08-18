@@ -211,6 +211,7 @@ textarea.fin{resize:vertical;line-height:1.6}
   <button class="tab" data-tab="t2" onclick="swTab('t2')">📋 기록</button>
   <button class="tab" data-tab="t3" onclick="swTab('t3')">⚙️ 설정</button>
   <button class="tab" data-tab="t4" onclick="swTab('t4')">🚀 시작하기</button>
+  <button class="tab" data-tab="t5" onclick="swTab('t5')">💬 의견 보내기</button>
 </div>
 
 <!-- ============ 감시 ============ -->
@@ -569,6 +570,42 @@ textarea.fin{resize:vertical;line-height:1.6}
 </div>
 
 <!-- 새 버전 안내 팝업 -->
+<div class="tp solo" id="t5">
+  <div class="stit">💬 의견 보내기</div>
+  <div class="ssub">쓰시면서 불편했던 점, 있었으면 하는 기능, 오류를 알려주세요. 하나하나 읽고 반영합니다.</div>
+
+  <div class="card">
+    <label class="flabel">어떤 내용인가요?</label>
+    <div class="choices" style="grid-template-columns:repeat(3,1fr)">
+      <button class="ch on" data-fk="idea" onclick="pickKind(this)"><b>💡 이런 게 있었으면</b></button>
+      <button class="ch" data-fk="bug" onclick="pickKind(this)"><b>🐞 오류가 나요</b></button>
+      <button class="ch" data-fk="etc" onclick="pickKind(this)"><b>💬 그 밖의 의견</b></button>
+    </div>
+
+    <label class="flabel" style="margin-top:14px">한 줄 요약</label>
+    <input class="fin" id="fbTitle" maxlength="120" placeholder="예: 업로드 끝나면 카톡으로 알려줬으면 좋겠어요"/>
+
+    <label class="flabel" style="margin-top:12px">자세한 내용</label>
+    <textarea class="fin" id="fbBody" rows="7" maxlength="4000" placeholder="어떤 상황에서 무엇이 불편했는지 적어주시면 큰 도움이 됩니다.&#10;오류라면 어떤 화면에서 무엇을 눌렀을 때 생겼는지 알려주세요."></textarea>
+
+    <div class="hintline">보내면 <b>바탕화면 「가라사대_피드백.txt」</b> 에도 번호를 매겨 저장됩니다.
+    프로그램 버전과 운영체제는 자동으로 함께 전달됩니다.</div>
+
+    <button class="go" style="margin-top:14px" onclick="sendFeedback()">💬 의견 보내기</button>
+    <div class="hintline" style="text-align:center">보내기를 누르면 깃허브 작성 창이 열립니다. 내용은 이미 채워져 있고 <b>Submit</b> 만 누르시면 됩니다.</div>
+  </div>
+
+  <div class="card">
+    <h3>📮 다른 방법</h3>
+    <div class="p13">깃허브 계정이 없으시면 바탕화면에 저장된 <b>가라사대_피드백.txt</b> 파일 내용을
+    그대로 복사해서 보내주셔도 됩니다.</div>
+    <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+      <button class="tb" onclick="openFeedbackFile()">📂 저장된 의견 파일 열기</button>
+      <button class="tb" onclick="ext('https://github.com/beautifulahin/garasadae-uploader/issues')">🔗 접수된 의견 목록 보기</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="upModal">
   <div class="modal-box">
     <div class="modal-emoji">🆕</div>
@@ -1056,6 +1093,22 @@ async function doLogin(){
   window.open(r.url,'_blank','noopener');
   msg('브라우저에서 구글 로그인을 진행해 주세요');
 }
+let fbKind='idea';
+function pickKind(b){
+  document.querySelectorAll('[data-fk]').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); fbKind=b.dataset.fk;
+}
+async function sendFeedback(){
+  const title=$('fbTitle').value.trim(), body=$('fbBody').value.trim();
+  if(!title)return msg('한 줄 요약을 입력해 주세요','err');
+  if(!body)return msg('자세한 내용을 입력해 주세요','err');
+  const r=await api('/api/feedback',{kind:fbKind,title,body});
+  if(r.error)return msg(r.error,'err');
+  $('fbTitle').value=''; $('fbBody').value='';
+  msg('의견을 저장했습니다. 깃허브 창에서 Submit 을 눌러주세요','ok');
+  ext(r.url);
+}
+async function openFeedbackFile(){ await api('/api/openfeedback',{}); }
 async function checkUp(){
   msg('새 버전을 확인하는 중…');
   const u=await api('/api/update/check',{});
