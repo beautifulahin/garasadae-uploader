@@ -231,7 +231,7 @@ textarea.fin{resize:vertical;line-height:1.6}
         <div class="empty-d">영상을 끌어다 놓거나 감시 폴더에 저장하면 여기에 나타납니다.</div>
       </div>
 
-      <div class="sechead"><span>🕐 최근 올린 영상</span>
+      <div class="sechead"><span>🕐 최근 올린 영상 <span style="font-weight:400;color:var(--t3);font-size:10px">— 누르면 음악을 넣을 수 있습니다</span></span>
         <button class="tb" onclick="swTab('t2')">전체 보기</button></div>
       <div class="thumbs" id="recentThumbs"></div>
     </div>
@@ -288,7 +288,7 @@ textarea.fin{resize:vertical;line-height:1.6}
 <!-- ============ 기록 ============ -->
 <div class="tp solo" id="t2">
   <div class="stit">📋 업로드 기록</div>
-  <div class="ssub">이 컴퓨터에서 올린 영상 목록입니다.</div>
+  <div class="ssub">이 컴퓨터에서 올린 영상 목록입니다. <b>🎵 음악</b> 을 누르면 나중에라도 음악을 넣을 수 있습니다.</div>
   <div id="histList"></div>
   <div class="stit" style="margin-top:26px">📜 로그</div>
   <pre id="logBox" style="background:var(--bg1);border:1px solid var(--bdr);border-radius:var(--r);padding:14px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--t2);line-height:1.7;max-height:340px;overflow:auto;white-space:pre-wrap"></pre>
@@ -832,10 +832,10 @@ function renderThumbs(ups){
     box.innerHTML='<div style="grid-column:1/-1;padding:22px;text-align:center;color:var(--t3);font-size:11px;border:1px dashed var(--bdr);border-radius:var(--r)">아직 올린 영상이 없습니다</div>';
     return;
   }
-  const html=ups.map(u=>`<a class="thumb" href="https://studio.youtube.com/video/${u.id}/edit" target="_blank" rel="noopener">
+  const html=ups.map(u=>`<a class="thumb" href="https://studio.youtube.com/video/${u.id}/editor" target="_blank" rel="noopener" title="누르면 음악을 넣을 수 있는 편집기가 열립니다">
     <img src="https://i.ytimg.com/vi/${u.id}/mqdefault.jpg" alt="" onerror="this.style.opacity=.15"/>
     <div class="thumb-t">${esc(u.title)}</div>
-    <div class="thumb-d">${u.at.replace('T',' ').slice(5,16)}${u.verified?' · 🔎':''}</div>
+    <div class="thumb-d">${u.at.replace('T',' ').slice(5,16)}${u.verified?' · 🔎':''} <span style="color:var(--cyan)">· 🎵 음악</span></div>
   </a>`).join('');
   if(box.innerHTML!==html)box.innerHTML=html;
 }
@@ -915,8 +915,9 @@ function renderCards(items){
     if(it.status!=='uploading'&&it.status!=='done')html+=`<button class="tb" onclick="holdItem('${jsEsc(it.name)}')">⏸ 보류</button>`;
     if(it.status==='done'&&it.verified)html+=`<span style="font-size:10px;color:var(--cyan)">🔎 유튜브에서 확인됨</span>`;
     if(it.status==='done'&&it.videoId){
-      html+=`<a class="tb on" href="https://www.youtube.com/watch?v=${it.videoId}" target="_blank" rel="noopener" style="text-decoration:none">▶️ 영상 보기</a>`
-           +`<a class="tb" href="https://studio.youtube.com/video/${it.videoId}/edit" target="_blank" rel="noopener" style="text-decoration:none">✏️ 스튜디오에서 편집</a>`;
+      html+=`<a class="tb on" href="https://studio.youtube.com/video/${it.videoId}/editor" target="_blank" rel="noopener" style="text-decoration:none">🎵 음악 넣기</a>`
+           +`<a class="tb" href="https://www.youtube.com/watch?v=${it.videoId}" target="_blank" rel="noopener" style="text-decoration:none">▶️ 영상 보기</a>`
+           +`<a class="tb" href="https://studio.youtube.com/video/${it.videoId}/edit" target="_blank" rel="noopener" style="text-decoration:none">✏️ 세부정보</a>`;
     }
     if(tools.innerHTML!==html)tools.innerHTML=html;
 
@@ -972,6 +973,7 @@ function renderHist(ups){
         <div class="hrow-m">${u.at.replace('T',' ').slice(0,16)} · ${esc(u.file)} · ${fmtSize(u.size)}${u.verified?' · <span style="color:var(--cyan)">🔎 유튜브 확인됨</span>':''}</div>
       </div>
       <span class="pv ${u.privacy}">${({public:'공개',unlisted:'일부공개',private:'비공개'})[u.privacy]||u.privacy}</span>
+      <a class="tb on" href="https://studio.youtube.com/video/${u.id}/editor" target="_blank" rel="noopener" style="text-decoration:none">🎵 음악</a>
       <a class="tb" href="https://www.youtube.com/watch?v=${u.id}" target="_blank" rel="noopener" style="text-decoration:none">▶️ 보기</a>
       <a class="tb" href="https://studio.youtube.com/video/${u.id}/edit" target="_blank" rel="noopener" style="text-decoration:none">✏️ 편집</a>
     </div>`).join('');
