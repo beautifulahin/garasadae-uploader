@@ -14,14 +14,34 @@ async function main() {
   const cfg = await loadConfig();
   await saveConfig(cfg);                       // 첫 실행 시 기본 설정 파일 생성
 
-  const url = `http://127.0.0.1:${cfg.port}`;
-
-  // 이미 실행 중이면 창만 띄우고 종료 (중복 실행 방지)
-  if (await alreadyRunning(cfg.port)) {
-    console.log(`${APP_NAME} 가 이미 실행 중입니다 → ${url}`);
-    if (!background) await openUrl(url);
-    Deno.exit(0);
+  // 무슨 일이 있어도 감시 폴더는 먼저 만들어 둔다 (실행됐다는 눈에 보이는 신호)
+  try {
+    await Deno.mkdir(cfg.watchDir, { recursive: true });
+  } catch (e) {
+    console.error(`감시 폴더를 만들지 못했습니다: ${cfg.watchDir}\n${e instanceof Error ? e.message : e}`);
   }
+
+  // 포트가 이미 쓰이고 있다면, 우리 프로그램인지 다른 프로그램인지 가려낸다
+  if (await portBusy(cfg.port)) {
+    if (await isOurApp(cfg.port)) {
+      const url = `http://127.0.0.1:${cfg.port}`;
+      console.log(`${APP_NAME} 가 이미 실행 중입니다 → ${url}`);
+      if (!background) await openUrl(url);
+      Deno.exit(0);
+    }
+    // 다른 프로그램이 쓰는 중 → 빈 포트를 찾아 옮긴다
+    const free = await findFreePort(cfg.port + 1, 30);
+    if (!free) {
+      await fatal(`${cfg.port} 번을 포함해 쓸 수 있는 통신 포트를 찾지 못했습니다.\n` +
+        `보안 프로그램이 막고 있을 수 있습니다.`, background);
+      return;
+    }
+    await log(`⚠️  ${cfg.port} 번을 다른 프로그램이 쓰고 있어 ${free} 번으로 옮깁니다`);
+    cfg.port = free;
+    await saveConfig(cfg);
+  }
+
+  const url = `http://127.0.0.1:${cfg.port}`;
 
   const engine = new Engine();
   await engine.init();
@@ -54,7 +74,7 @@ async function main() {
   await engine.loop();
 }
 
-async function alreadyRunning(port: number): Promise<boolean> {
+async function portBusy(port: number): Promise<boolean> {
   try {
     const l = Deno.listen({ port, hostname: "127.0.0.1" });
     l.close();
@@ -64,10 +84,53 @@ async function alreadyRunning(port: number): Promise<boolean> {
   }
 }
 
+/** 그 포트를 쓰는 게 우리 프로그램인지 확인한다. */
+async function isOurApp(port: number): Promise<boolean> {
+  try {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 1500);
+    const r = await fetch(`http://127.0.0.1:${port}/api/state`, { signal: c.signal });
+    clearTimeout(t);
+    if (!r.ok) return false;
+    const j = await r.json();
+    return j?.app === APP_NAME;
+  } catch {
+    return false;
+  }
+}
+
+async function findFreePort(from: number, tries: number): Promise<number | null> {
+  for (let p = from; p < from + tries; p++) {
+    if (!(await portBusy(p))) return p;
+  }
+  return null;
+}
+
+/** 치명적 오류를 사용자가 읽을 수 있게 보여주고 끝낸다. */
+async function fatal(message: string, background: boolean) {
+  await log(`💥 ${message}`);
+  console.error(`\n────────────────────────────────────\n  ${APP_NAME} 를 시작할 수 없습니다\n────────────────────────────────────\n${message}\n`);
+  if (!background) {
+    console.error("이 창을 닫으려면 Enter 를 누르세요.");
+    try { await readLine(); } catch { /* 입력을 받을 수 없는 환경 */ }
+  }
+  Deno.exit(1);
+}
+
+async function readLine(): Promise<void> {
+  const buf = new Uint8Array(64);
+  await Deno.stdin.read(buf);
+}
+
 if (import.meta.main) {
   main().catch(async (e) => {
-    await log(`💥 시작 실패: ${e instanceof Error ? e.stack ?? e.message : e}`);
-    console.error(e);
+    const msg = e instanceof Error ? (e.stack ?? e.message) : String(e);
+    await log(`💥 시작 실패: ${msg}`);
+    console.error(`\n────────────────────────────────────\n  ${APP_NAME} 를 시작할 수 없습니다\n────────────────────────────────────\n${msg}\n`);
+    if (!Deno.args.includes("--background")) {
+      console.error("이 창을 닫으려면 Enter 를 누르세요.");
+      try { const b = new Uint8Array(64); await Deno.stdin.read(b); } catch { /* 무시 */ }
+    }
     Deno.exit(1);
   });
 }
