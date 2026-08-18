@@ -42,6 +42,7 @@ export function startServer(engine: Engine, port: number) {
 
       /* ---------------- 상태 ---------------- */
       if (p === "/api/state") {
+        engine.lastSeen = Date.now();
         const cfg = engine.cfg;
         const tok = await loadTokens();
         return json({

@@ -56,6 +56,8 @@ export class Engine {
   lastError = "";
   /** 업로드가 끝나 "음악 넣으시겠어요?" 를 물어봐야 하는 영상 */
   ask: { id: string; title: string } | null = null;
+  /** 화면(브라우저)이 마지막으로 상태를 물어본 시각 */
+  lastSeen = 0;
   blocked = "";          // 사용자가 구글 설정을 고쳐야 하는 상태
   blockedUrl = "";
   paused = false;
@@ -219,6 +221,11 @@ export class Engine {
           await log(`   🎬 스튜디오 편집기를 열었습니다`);
         } else if (this.cfg.studioAfter === "ask") {
           this.ask = { id: res.id, title: p.title };
+          // 백그라운드로 돌고 있어 화면이 닫혀 있으면 팝업을 볼 수 없으므로 창을 띄운다
+          if (Date.now() - this.lastSeen > 15_000) {
+            await openUrl(`http://127.0.0.1:${this.cfg.port}`);
+            await log(`   💬 음악을 넣을지 묻기 위해 화면을 열었습니다`);
+          }
         }
       } else {
         await log(`   ⚠️  ${v.message} — 파일을 지우지 않고 _완료 폴더에 보관합니다`);
