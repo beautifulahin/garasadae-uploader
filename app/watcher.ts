@@ -1,7 +1,7 @@
 // 폴더 감시 엔진 — 채널마다 폴더를 하나씩 지켜보며 자동으로 올린다.
 import {
   Channel, Config, IS_WIN, State, credsOf, join, loadConfig, loadState, loadTokens,
-  log, projectKey, safeFolderName, saveState,
+  localDate, localStamp, log, projectKey, safeFolderName, saveState,
 } from "./paths.ts";
 import { DAILY_QUOTA, UPLOAD_COST, uploadVideo, verifyVideo, VideoMeta } from "./youtube.ts";
 import { ErrKind, UploadError } from "./errors.ts";
@@ -118,7 +118,7 @@ export class Manager {
 
   /* ----------------------------------------- 한도 */
 
-  private today() { return new Date().toISOString().slice(0, 10); }
+  private today() { return localDate(); }
 
   quotaOf(ch: Channel): { used: number; left: number } {
     const key = projectKey(this.cfg, ch);
@@ -245,7 +245,7 @@ export class Manager {
         file: p.name,
         size: p.size,
         privacy: res.status?.privacyStatus ?? ch.privacy,
-        at: new Date().toISOString().slice(0, 19),
+        at: localStamp(),
         channelId: ch.id,
         channelName: ch.name,
         verified: false,

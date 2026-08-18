@@ -176,6 +176,19 @@ export function credsOf(cfg: Config, ch: Channel): { clientId: string; clientSec
   return { clientId: cur?.clientId ?? "", clientSecret: cur?.clientSecret ?? "" };
 }
 
+/** 이 컴퓨터 시간 기준 날짜 (YYYY-MM-DD).
+ *  세계표준시를 쓰면 한국에서 새벽 0~9시에 '오늘' 이 하루 밀린다. */
+export function localDate(d = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** 기록에 남기는 시각. localDate() 와 앞 10자리가 일치해야 한다. */
+export function localStamp(d = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${localDate(d)}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
 export interface UploadRec {
   id: string;
   title: string;

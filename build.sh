@@ -8,6 +8,14 @@ INC="--include app/ui.html"
 VER=$(grep -o 'APP_VERSION = "[^"]*"' app/paths.ts | head -1 | sed 's/.*"\(.*\)"/\1/')
 APP="가라사대 업로더"
 EXEC="GarasadaeUploader"   # 번들 내부 실행파일은 ASCII 여야 코드서명이 유효하다
+# 빌드 전에 반드시 점검을 통과해야 한다 (같은 실수를 되풀이하지 않기 위한 관문)
+if ! ./점검.sh; then
+  echo
+  echo "❌ 점검에 실패해 빌드를 멈춥니다."
+  exit 1
+fi
+echo
+
 rm -rf "$OUT"; mkdir -p "$OUT"
 echo "버전: $VER"
 
