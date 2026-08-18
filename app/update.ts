@@ -67,7 +67,8 @@ export async function checkUpdate(force = false): Promise<UpdateInfo> {
     available: false, version: APP_VERSION, current: APP_VERSION,
     url: "", page, canInstall: false, reason: "",
   };
-  if (!force && cached && Date.now() - checkedAt < 6 * 3600_000) return cached;
+  // 5분마다 확인한다. 새 버전을 올리면 실행 중인 프로그램이 곧바로 알아챈다.
+  if (!force && cached && Date.now() - checkedAt < 5 * 60_000) return cached;
 
   try {
     const c = new AbortController();
@@ -99,6 +100,8 @@ export async function checkUpdate(force = false): Promise<UpdateInfo> {
     if (info.available) await log(`🆕 새 버전이 있습니다: ${APP_VERSION} → ${latest}`);
     return info;
   } catch {
+    cached = none;
+    checkedAt = Date.now() - 4 * 60_000;   // 1분 뒤 다시 시도
     return none;
   }
 }
