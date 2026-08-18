@@ -2,6 +2,17 @@
 
 **폴더에 영상을 저장하면 유튜브에 자동으로 올려줍니다.**
 
+> ### 💬 의견을 들려주세요
+> 쓰시면서 불편했던 점, 있었으면 하는 기능, 오류를 알려주시면 하나하나 읽고 반영합니다.
+>
+> | | |
+> |---|---|
+> | 🐞 **[오류가 나요](https://github.com/beautifulahin/garasadae-uploader/issues/new?template=1_bug.yml)** | 프로그램이 제대로 동작하지 않을 때 |
+> | 💡 **[이런 게 있었으면](https://github.com/beautifulahin/garasadae-uploader/issues/new?template=2_idea.yml)** | 필요한 기능을 알려주세요 |
+> | 📋 **[접수된 의견 보기](https://github.com/beautifulahin/garasadae-uploader/issues)** | 다른 분들이 남긴 의견과 처리 상황 |
+>
+> 프로그램의 **💬 의견 보내기** 탭에서 보내시면 환경 정보가 자동으로 채워집니다.
+
 영상 만들고 나서 유튜브 열고, 업로드 누르고, 제목 넣고, 기다리는 일을 안 해도 됩니다.
 바탕화면 폴더에 저장만 하면 알아서 올라갑니다.
 
@@ -86,6 +97,15 @@
 네. 각자 자기 구글 계정으로 쓰기 때문에 인원 제한이 없고 서로 영향을 주지 않습니다.
 
 ---
+
+## 의견 보내기
+
+프로그램의 **💬 의견 보내기** 탭이 가장 편합니다. 보내면 바탕화면 `가라사대_피드백.txt` 에도 저장되고,
+깃허브 작성 창이 내용이 채워진 채로 열립니다.
+
+- 🐞 [오류 신고](https://github.com/beautifulahin/garasadae-uploader/issues/new?template=1_bug.yml)
+- 💡 [기능 요청](https://github.com/beautifulahin/garasadae-uploader/issues/new?template=2_idea.yml)
+- 📋 [접수된 의견 목록](https://github.com/beautifulahin/garasadae-uploader/issues)
 
 ## 문제가 생기면
 
