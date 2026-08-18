@@ -12,8 +12,12 @@ export function homeDir(): string {
   return env(IS_WIN ? "USERPROFILE" : "HOME") || ".";
 }
 
-/** 설정·토큰 저장 위치 (실행파일 옆이 아니라 OS 표준 위치) */
+/** 설정·토큰 저장 위치 (실행파일 옆이 아니라 OS 표준 위치)
+ *  GARASADAE_DATA_DIR 을 지정하면 그쪽을 쓴다 — 실제 사용 중인 설정을 건드리지 않고
+ *  시험해 볼 때 사용한다. */
 export function dataDir(): string {
+  const override = env("GARASADAE_DATA_DIR");
+  if (override) return override;
   if (IS_WIN) return join(env("APPDATA") || join(homeDir(), "AppData", "Roaming"), APP_NAME);
   if (IS_MAC) return join(homeDir(), "Library", "Application Support", APP_NAME);
   return join(env("XDG_CONFIG_HOME") || join(homeDir(), ".config"), APP_NAME);
