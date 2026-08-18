@@ -539,6 +539,7 @@ function renderCards(items){
       if(it.retryAt>Date.now())html+=`<span style="font-size:10px;color:var(--t3)">${Math.ceil((it.retryAt-Date.now())/1000)}초 뒤 자동 재시도</span>`;
     }
     if(it.status!=='uploading'&&it.status!=='done')html+=`<button class="tb" onclick="holdItem('${jsEsc(it.name)}')">⏸ 보류</button>`;
+    if(it.status==='done'&&it.verified)html+=`<span style="font-size:10px;color:var(--cyan)">🔎 유튜브에서 확인됨</span>`;
     if(it.status==='done'&&it.videoId){
       html+=`<a class="tb on" href="https://www.youtube.com/watch?v=${it.videoId}" target="_blank" rel="noopener" style="text-decoration:none">▶️ 영상 보기</a>`
            +`<a class="tb" href="https://studio.youtube.com/video/${it.videoId}/edit" target="_blank" rel="noopener" style="text-decoration:none">✏️ 스튜디오에서 편집</a>`;
@@ -594,7 +595,7 @@ function renderHist(ups){
       <div class="hrow-th"><img src="https://i.ytimg.com/vi/${u.id}/mqdefault.jpg" alt="" onerror="this.style.display='none'"/></div>
       <div class="hrow-i">
         <div class="hrow-t">${esc(u.title)}</div>
-        <div class="hrow-m">${u.at.replace('T',' ').slice(0,16)} · ${esc(u.file)} · ${fmtSize(u.size)}</div>
+        <div class="hrow-m">${u.at.replace('T',' ').slice(0,16)} · ${esc(u.file)} · ${fmtSize(u.size)}${u.verified?' · <span style="color:var(--cyan)">🔎 유튜브 확인됨</span>':''}</div>
       </div>
       <span class="pv ${u.privacy}">${({public:'공개',unlisted:'일부공개',private:'비공개'})[u.privacy]||u.privacy}</span>
       <a class="tb" href="https://www.youtube.com/watch?v=${u.id}" target="_blank" rel="noopener" style="text-decoration:none">▶️ 보기</a>

@@ -98,6 +98,7 @@ export const DEFAULTS: Config = {
 export interface UploadRec {
   id: string; title: string; file: string; size: number;
   privacy: string; at: string;
+  verified?: boolean;
 }
 export interface State {
   uploads: UploadRec[];

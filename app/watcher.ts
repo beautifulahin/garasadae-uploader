@@ -1,6 +1,6 @@
 // 폴더 감시 엔진 — 새 영상을 감지해 안정화되면 업로드한다.
 import { Config, IS_WIN, State, join, loadConfig, loadState, loadTokens, log, saveState } from "./paths.ts";
-import { DAILY_QUOTA, ErrKind, UPLOAD_COST, UploadError, uploadVideo, VideoMeta } from "./youtube.ts";
+import { DAILY_QUOTA, ErrKind, UPLOAD_COST, UploadError, uploadVideo, verifyVideo, VideoMeta } from "./youtube.ts";
 import { moveToTrash, notify } from "./platform.ts";
 
 const VIDEO_EXT = new Set([
@@ -26,6 +26,7 @@ export interface Pending {
   error: string;
   videoId: string;
   detectedAt: number;
+  verified: boolean;    // 유튜브에서 실제로 확인됨
   retryAt: number;      // 이 시각 이후에 다시 시도
   tries: number;
   helpUrl: string;
@@ -130,7 +131,7 @@ export class Engine {
           description: this.cfg.description,
           stable: 0, status: "watching", progress: 0, sent: 0,
           error: "", videoId: "", detectedAt: Date.now(),
-          retryAt: 0, tries: 0, helpUrl: "",
+          verified: false, retryAt: 0, tries: 0, helpUrl: "",
         };
         this.pending.set(e.name, p);
         await log(`🎬 새 영상 감지: ${e.name}`);
@@ -193,12 +194,30 @@ export class Engine {
         size: p.size,
         privacy: res.status?.privacyStatus ?? this.cfg.privacy,
         at: new Date().toISOString().slice(0, 19),
+        verified: false,
       });
       this.state.uploads = this.state.uploads.slice(0, 300);
       await saveState(this.state);
       await log(`✅ 완료: ${p.name} → https://youtu.be/${res.id}`);
       if (this.cfg.notifications) await notify("가라사대 업로더 ✅", `${p.title} 업로드 완료`);
-      await this.disposeDone(p);
+
+      // 유튜브에 실제로 올라갔는지 확인한 뒤에야 파일을 처리한다
+      const v = await verifyVideo(this.cfg, res.id);
+      p.verified = v.ok;
+      this.state.quotaUsed += 1;
+      if (this.state.uploads[0]?.id === res.id) this.state.uploads[0].verified = v.ok;
+      await saveState(this.state);
+      if (v.ok) {
+        await log(`   🔎 유튜브 확인됨 (${v.status})`);
+        await this.disposeDone(p);
+      } else {
+        await log(`   ⚠️  ${v.message} — 파일을 지우지 않고 _완료 폴더에 보관합니다`);
+        p.error = `${v.message}. 원본 파일은 _완료 폴더에 그대로 두었습니다.`;
+        await this.moveTo(p, DONE_DIR);
+        if (this.cfg.notifications) {
+          await notify("가라사대 업로더 ⚠️", "유튜브 확인 실패 — 원본을 보관했습니다");
+        }
+      }
       setTimeout(() => this.pending.delete(p.name), 60_000);   // 1분간 결과 표시 후 정리
     } catch (e) {
       const err = e instanceof UploadError ? e : new UploadError(e instanceof Error ? e.message : String(e));

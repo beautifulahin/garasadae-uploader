@@ -171,6 +171,43 @@ async function resumeOffset(session: string, size: number, fallback: number): Pr
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+export interface VerifyResult {
+  ok: boolean;        // 유튜브에서 실제로 확인됨
+  status: string;     // uploaded · processed · failed · rejected · deleted
+  message: string;
+}
+
+/**
+ * 업로드한 영상이 정말 내 채널에 올라갔는지 유튜브에 다시 물어본다.
+ * 파일을 지우기 전에 이 확인을 통과해야 한다. (1 unit)
+ */
+export async function verifyVideo(cfg: Config, videoId: string): Promise<VerifyResult> {
+  const token = await accessToken(cfg);
+  const url = "https://www.googleapis.com/youtube/v3/videos" +
+    `?part=status,snippet&id=${encodeURIComponent(videoId)}`;
+
+  // 반영에 몇 초 걸릴 수 있어 몇 번 다시 물어본다
+  for (let i = 0; i < 4; i++) {
+    try {
+      const r = await fetch(url, { headers: { Authorization: "Bearer " + token } });
+      const j = await r.json();
+      if (r.ok) {
+        const item = j.items?.[0];
+        if (item) {
+          const st: string = item.status?.uploadStatus ?? "";
+          if (st === "failed" || st === "rejected" || st === "deleted") {
+            const why = item.status?.failureReason ?? item.status?.rejectionReason ?? "";
+            return { ok: false, status: st, message: `유튜브가 영상을 거부했습니다 (${st}${why ? ": " + why : ""})` };
+          }
+          return { ok: true, status: st || "uploaded", message: "유튜브에서 확인되었습니다" };
+        }
+      }
+    } catch { /* 다음 시도 */ }
+    if (i < 3) await new Promise((r) => setTimeout(r, 3000));
+  }
+  return { ok: false, status: "unknown", message: "유튜브에서 영상을 확인하지 못했습니다" };
+}
+
 /** 유튜브 오류를 한국어 안내 + 재시도 정책으로 바꾼다. */
 async function apiError(res: Response): Promise<UploadError> {
   let txt = "";
