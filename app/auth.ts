@@ -1,0 +1,176 @@
+// 구글 OAuth 2.0 (설치형 앱 · 루프백 + PKCE)
+import { Config, loadTokens, saveTokens, Tokens, log } from "./paths.ts";
+
+const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+const TOKEN_URL = "https://oauth2.googleapis.com/token";
+const REVOKE_URL = "https://oauth2.googleapis.com/revoke";
+export const SCOPE =
+  "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly";
+
+const b64url = (buf: ArrayBuffer) =>
+  btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+let pending: { verifier: string; state: string; redirect: string } | null = null;
+
+export async function authUrl(cfg: Config): Promise<string> {
+  const bytes = crypto.getRandomValues(new Uint8Array(48));
+  const verifier = b64url(bytes.buffer);
+  const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+  const state = crypto.randomUUID();
+  // 구글은 루프백 리디렉션에 경로를 허용하지 않는다. 반드시 호스트:포트 까지만.
+  const redirect = `http://127.0.0.1:${cfg.port}`;
+  pending = { verifier, state, redirect };
+
+  const q = new URLSearchParams({
+    client_id: cfg.clientId,
+    redirect_uri: redirect,
+    response_type: "code",
+    scope: SCOPE,
+    access_type: "offline",
+    prompt: "consent",
+    state,
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+  });
+  return `${AUTH_URL}?${q}`;
+}
+
+/** 콜백에서 받은 code 를 토큰으로 교환한다. 실패 시 사람이 읽을 메시지를 던진다. */
+export async function exchange(cfg: Config, code: string, state: string): Promise<Tokens> {
+  if (!pending || pending.state !== state) throw new Error("인증 상태가 일치하지 않습니다. 다시 시도해 주세요.");
+  const body = new URLSearchParams({
+    client_id: cfg.clientId,
+    client_secret: cfg.clientSecret,
+    code,
+    code_verifier: pending.verifier,
+    grant_type: "authorization_code",
+    redirect_uri: pending.redirect,
+  });
+  const r = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(explain(j));
+  if (!j.refresh_token) {
+    throw new Error(
+      "refresh_token 이 발급되지 않았습니다. 구글 계정 > 보안 > 서드파티 앱에서 기존 권한을 삭제한 뒤 다시 로그인해 주세요.",
+    );
+  }
+  const tok: Tokens = {
+    access_token: j.access_token,
+    refresh_token: j.refresh_token,
+    expires_at: Date.now() + (j.expires_in ?? 3600) * 1000 - 60_000,
+  };
+  await saveTokens(tok);
+  pending = null;
+  await checkChannel(tok);
+  await log(`✅ 인증 완료${tok.channel ? ` · 채널: ${tok.channel.title}` : ` · ⚠️ ${tok.channelError}`}`);
+  return tok;
+}
+
+export async function accessToken(cfg: Config): Promise<string> {
+  const tok = await loadTokens();
+  if (!tok) throw new Error("로그인이 필요합니다.");
+  if (tok.access_token && (tok.expires_at ?? 0) > Date.now()) return tok.access_token;
+
+  const body = new URLSearchParams({
+    client_id: cfg.clientId,
+    client_secret: cfg.clientSecret,
+    refresh_token: tok.refresh_token,
+    grant_type: "refresh_token",
+  });
+  const r = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(explain(j));
+  tok.access_token = j.access_token;
+  tok.expires_at = Date.now() + (j.expires_in ?? 3600) * 1000 - 60_000;
+  await saveTokens(tok);
+  return tok.access_token!;
+}
+
+/** 채널 정보를 받아 토큰 파일에 기록한다. 실패하면 원인과 해결 링크를 남긴다. */
+export async function checkChannel(tok: Tokens): Promise<Tokens> {
+  try {
+    tok.channel = await fetchChannel(tok.access_token!);
+    tok.channelError = "";
+    tok.channelErrorUrl = "";
+  } catch (e) {
+    tok.channel = undefined;
+    const m = e instanceof ChannelError ? e : new ChannelError(e instanceof Error ? e.message : String(e));
+    tok.channelError = m.message;
+    tok.channelErrorUrl = m.helpUrl;
+  }
+  await saveTokens(tok);
+  return tok;
+}
+
+export class ChannelError extends Error {
+  constructor(message: string, public helpUrl = "") { super(message); }
+}
+
+export async function fetchChannel(token: string) {
+  const r = await fetch(
+    "https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true",
+    { headers: { Authorization: "Bearer " + token } },
+  );
+  const j = await r.json();
+  if (!r.ok) {
+    const detail: string = j.error?.message ?? "";
+    if (/has not been used in project|is disabled/i.test(detail)) {
+      const proj = detail.match(/project (\d+)/)?.[1] ?? "";
+      throw new ChannelError(
+        "구글 클라우드에서 'YouTube Data API v3' 가 아직 켜져 있지 않습니다. " +
+        "아래 버튼으로 열어 '사용' 을 누른 뒤 1~2분 기다렸다가 '연결 점검' 을 눌러주세요.",
+        proj
+          ? `https://console.cloud.google.com/apis/library/youtube.googleapis.com?project=${proj}`
+          : "https://console.cloud.google.com/apis/library/youtube.googleapis.com",
+      );
+    }
+    throw new ChannelError(detail || `채널 정보를 가져오지 못했습니다 (${r.status})`);
+  }
+  const c = j.items?.[0];
+  if (!c) {
+    throw new ChannelError(
+      "이 구글 계정에 유튜브 채널이 없습니다. 유튜브에서 채널을 먼저 만들어 주세요.",
+      "https://www.youtube.com/create_channel",
+    );
+  }
+  return {
+    title: c.snippet?.title ?? "",
+    thumb: c.snippet?.thumbnails?.default?.url ?? "",
+    subs: c.statistics?.subscriberCount ?? "0",
+  };
+}
+
+export async function revoke() {
+  const tok = await loadTokens();
+  if (!tok) return;
+  try {
+    await fetch(REVOKE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token: tok.refresh_token }),
+    });
+  } catch { /* 무시 */ }
+}
+
+/** 구글 오류 응답을 한국어 안내로 바꾼다. */
+function explain(j: Record<string, string>): string {
+  const e = j.error ?? "";
+  const d = j.error_description ?? "";
+  const map: Record<string, string> = {
+    invalid_client: "클라이언트 ID 또는 보안 비밀번호가 올바르지 않습니다. 설정에서 다시 확인해 주세요.",
+    invalid_grant: "인증이 만료되었거나 취소되었습니다. 다시 로그인해 주세요. (OAuth 동의 화면이 '테스트' 상태면 7일마다 만료됩니다 — '프로덕션'으로 게시하세요)",
+    redirect_uri_mismatch: "리디렉션 주소가 등록되지 않았습니다. OAuth 클라이언트 유형이 '데스크톱 앱'인지 확인해 주세요.",
+    access_denied: "구글 로그인 창에서 권한을 거부하셨습니다.",
+    unauthorized_client: "이 클라이언트는 해당 권한을 쓸 수 없습니다. 클라이언트 유형이 '데스크톱 앱'인지 확인해 주세요.",
+  };
+  return map[e] ?? `${e || "인증 실패"}${d ? ": " + d : ""}`;
+}

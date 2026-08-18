@@ -1,0 +1,10 @@
+# 빌드 결과물 — 릴리스로 배포하므로 저장소에는 넣지 않는다
+dist/
+
+# 로컬 부산물
+.DS_Store
+*.tmp
+*.log
+tokens.json
+state.json
+config.json

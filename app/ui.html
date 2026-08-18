@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>가라사대 업로더</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap');
+:root{--bg:#0b0b11;--bg1:#111119;--bg2:#1a1a25;--bg3:#22222f;--bg4:#2b2b3a;--accent:#ff4466;--accentG:rgba(255,68,102,.25);--blue:#4c8dff;--blueG:rgba(76,141,255,.15);--cyan:#2dd4a8;--cyanG:rgba(45,212,168,.12);--gold:#f0b429;--t1:#ededf4;--t2:#8e8ea8;--t3:#5a5a72;--bdr:#262638;--r:10px;--rs:7px}
+*{margin:0;padding:0;box-sizing:border-box}body{background:var(--bg);color:var(--t1);font-family:'Noto Sans KR',sans-serif;min-height:100vh;font-size:14px;overflow-x:hidden}button{font-family:inherit;cursor:pointer}input,textarea,select{font-family:inherit}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px}
+
+.hdr{position:sticky;top:0;z-index:100;background:rgba(11,11,17,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--bdr);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:17px}.logo em{width:30px;height:30px;background:linear-gradient(135deg,var(--accent),#ff8844);border-radius:8px;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:15px}.logo b{background:linear-gradient(135deg,var(--accent),#ff8844);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hdr-r{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.api-in{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rs);padding:6px 10px;color:var(--t1);font-size:11px;width:230px;font-family:'JetBrains Mono',monospace}.api-in:focus{outline:none;border-color:var(--blue)}.api-in::placeholder{color:var(--t3)}
+.sm{padding:5px 10px;border-radius:var(--rs);border:1px solid var(--bdr);background:var(--bg2);color:var(--t2);font-size:11px;transition:.2s}.sm:hover{border-color:var(--cyan);color:var(--cyan)}.sm.ok{border-color:var(--cyan);color:var(--cyan)}
+.sm.login{border-color:var(--accent);color:var(--accent)}.sm.login:hover{background:var(--accentG)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--t3);margin-right:2px}.dot.on{background:var(--cyan);box-shadow:0 0 6px var(--cyanG)}.dot.err{background:var(--accent)}
+.api-st{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t3)}
+.me{display:none;align-items:center;gap:6px;padding:3px 10px 3px 3px;background:var(--bg2);border:1px solid var(--bdr);border-radius:20px}.me.on{display:flex}
+.me img{width:24px;height:24px;border-radius:50%;object-fit:cover;background:var(--bg3)}.me b{font-size:12px}.me span{font-size:10px;color:var(--t3);font-family:'JetBrains Mono',monospace}
+
+.tabs{display:flex;background:var(--bg1);border-bottom:1px solid var(--bdr)}.tab{flex:1;padding:11px;text-align:center;font-size:13px;font-weight:600;color:var(--t3);border:none;background:none;border-bottom:2px solid transparent;transition:.2s}.tab:hover{color:var(--t2);background:var(--bg2)}.tab.on{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg)}
+
+.body{display:flex;min-height:calc(100vh - 100px)}.side{width:290px;min-width:290px;background:var(--bg1);border-right:1px solid var(--bdr);overflow-y:auto;max-height:calc(100vh - 100px);position:sticky;top:100px}.content{flex:1;padding:20px;overflow-y:auto;min-width:0}
+.tp{display:none}.tp.on{display:flex}.tp.solo.on{display:block;padding:20px}
+
+.s-pad{padding:12px 14px}
+.sec{border-bottom:1px solid var(--bdr)}.sec-h{padding:10px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}.sec-h:hover{background:rgba(255,255,255,.02)}.sec-lbl{font-size:11px;font-weight:700;color:var(--t3);letter-spacing:.5px}.sec-arr{font-size:9px;color:var(--t3);transition:transform .2s}.sec.shut .sec-b{display:none}.sec.shut .sec-arr{transform:rotate(-90deg)}.sec-b{padding:4px 14px 12px}
+
+.pills{display:flex;flex-wrap:wrap;gap:4px}.p{padding:5px 10px;border-radius:14px;font-size:11px;border:1px solid var(--bdr);background:none;color:var(--t2);transition:.15s;white-space:nowrap}.p:hover{border-color:var(--blue);color:var(--t1)}.p.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:4px}.ch{padding:8px 6px;border-radius:var(--rs);border:1px solid var(--bdr);background:var(--bg2);color:var(--t2);transition:.15s;text-align:center;font-size:12px}.ch:hover{border-color:var(--blue);color:var(--t1)}.ch.on{border-color:var(--blue);color:var(--blue);background:var(--blueG)}.ch b{display:block;font-size:12px;font-weight:700}.ch small{font-size:9px;color:var(--t3);margin-top:1px;display:block}.ch.on small{color:var(--blue);opacity:.6}
+.fin{width:100%;padding:8px 10px;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rs);color:var(--t1);font-size:12px}.fin:focus{outline:none;border-color:var(--blue)}.fin::placeholder{color:var(--t3)}
+textarea.fin{resize:vertical;line-height:1.6}
+.sw{display:flex;align-items:center;justify-content:space-between;padding:7px 0;font-size:12px;color:var(--t2)}
+.tgl{position:relative;width:36px;height:20px;background:var(--bg3);border:1px solid var(--bdr);border-radius:12px;transition:.2s;flex-shrink:0}.tgl::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--t3);transition:.2s}.tgl.on{background:var(--blueG);border-color:var(--blue)}.tgl.on::after{left:18px;background:var(--blue)}
+.go{width:100%;padding:12px;border-radius:var(--r);border:none;background:linear-gradient(135deg,var(--accent),#ff8844);color:#fff;font-size:14px;font-weight:700;transition:.2s;display:flex;align-items:center;justify-content:center;gap:6px}.go:hover{filter:brightness(1.1);transform:translateY(-1px)}.go:disabled{opacity:.4;cursor:default;transform:none}
+.go2{width:100%;padding:9px;margin-top:6px;border-radius:var(--rs);border:1px solid var(--bdr);background:none;color:var(--t2);font-size:12px;font-weight:600;transition:.15s}.go2:hover{border-color:var(--blue);color:var(--blue)}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}.st{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:14px}.st-lbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}.st-val{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;background:linear-gradient(135deg,var(--accent),#ff8844);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+
+.drop{border:2px dashed var(--bdr);border-radius:var(--r);padding:34px 20px;text-align:center;cursor:pointer;transition:.2s;background:var(--bg1);margin-bottom:16px}
+.drop:hover,.drop.hot{border-color:var(--accent);background:var(--bg2)}.drop.hot{box-shadow:0 0 20px var(--accentG)}
+.drop-i{font-size:38px;margin-bottom:8px;opacity:.6}.drop-t{font-size:15px;font-weight:700;margin-bottom:4px}.drop-d{font-size:12px;color:var(--t3);line-height:1.6}
+
+.qlist{display:flex;flex-direction:column;gap:10px}
+.qc{background:var(--bg2);border:2px solid var(--bdr);border-radius:var(--r);overflow:hidden;transition:.2s;animation:fu .3s ease both}
+.qc.s-up{border-color:var(--blue);box-shadow:0 0 12px var(--blueG)}
+.qc.s-done{border-color:var(--cyan);box-shadow:0 0 10px var(--cyanG)}
+.qc.s-err{border-color:var(--accent);box-shadow:0 0 10px var(--accentG)}
+.qc-top{display:flex;gap:12px;padding:12px;align-items:flex-start}
+.qc-th{width:140px;min-width:140px;aspect-ratio:16/9;background:var(--bg3);border-radius:var(--rs);overflow:hidden;position:relative;display:flex;align-items:center;justify-content:center;font-size:26px;opacity:.9}
+.qc-th img{width:100%;height:100%;object-fit:cover}.qc-dur{position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,.8);color:#fff;font-size:10px;font-family:'JetBrains Mono',monospace;padding:2px 5px;border-radius:3px}
+.qc-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.qc-file{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--t3);font-family:'JetBrains Mono',monospace}
+.qc-file b{color:var(--t2);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.badge{padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;flex-shrink:0;letter-spacing:.3px}
+.badge.wait{background:var(--bg4);color:var(--t2)}.badge.up{background:var(--blueG);color:var(--blue)}.badge.done{background:var(--cyanG);color:var(--cyan)}.badge.err{background:var(--accentG);color:var(--accent)}
+.qc-x{margin-left:auto;border:none;background:none;color:var(--t3);font-size:14px;padding:0 2px;flex-shrink:0}.qc-x:hover{color:var(--accent)}
+.cnt{font-size:9px;color:var(--t3);text-align:right;font-family:'JetBrains Mono',monospace;margin-top:-3px}
+.qc-more{padding:0 12px 12px;display:none}.qc-more.show{display:block}
+.qc-tools{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:0 12px 10px}
+.tb{padding:4px 10px;border-radius:var(--rs);border:1px solid var(--bdr);background:none;color:var(--t2);font-size:10px;transition:.15s}.tb:hover{border-color:var(--blue);color:var(--blue)}.tb.on{border-color:var(--cyan);color:var(--cyan)}
+.rb{background:var(--bg3);border-radius:3px;height:4px;overflow:hidden;margin:0 12px 6px}.rf{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent),#ff8844);width:0;transition:width .2s}
+.rl{display:flex;justify-content:space-between;font-size:9px;padding:0 12px 10px;font-family:'JetBrains Mono',monospace}.rl span:first-child{color:var(--t3)}.rl span:last-child{color:var(--accent);font-weight:700}
+.qc-link{display:block;margin:0 12px 12px;padding:7px;border-radius:var(--rs);border:1px solid var(--cyan);color:var(--cyan);font-size:11px;font-weight:600;text-align:center;text-decoration:none;transition:.15s}.qc-link:hover{background:var(--cyanG)}
+.qc-err{margin:0 12px 12px;padding:8px 10px;border-radius:var(--rs);background:var(--accentG);color:var(--accent);font-size:11px;line-height:1.5;word-break:break-word}
+
+.stit{font-size:16px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px}.ssub{font-size:12px;color:var(--t3);margin-bottom:14px;line-height:1.6}
+.empty{text-align:center;padding:60px 30px}.empty-i{font-size:48px;margin-bottom:12px;opacity:.4}.empty-t{font-size:17px;font-weight:700;margin-bottom:6px}.empty-d{font-size:13px;color:var(--t3);line-height:1.7}
+
+.hrow{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rs);margin-bottom:6px;transition:.15s}.hrow:hover{border-color:var(--blue)}
+.hrow-th{width:64px;min-width:64px;aspect-ratio:16/9;border-radius:5px;overflow:hidden;background:var(--bg3)}.hrow-th img{width:100%;height:100%;object-fit:cover}
+.hrow-i{flex:1;min-width:0}.hrow-t{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hrow-m{font-size:10px;color:var(--t3);font-family:'JetBrains Mono',monospace}
+.pv{font-size:9px;padding:2px 7px;border-radius:8px;font-weight:700;flex-shrink:0}.pv.public{background:var(--accentG);color:var(--accent)}.pv.unlisted{background:var(--blueG);color:var(--blue)}.pv.private{background:var(--bg4);color:var(--t2)}
+
+.card{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:18px;margin-bottom:14px;max-width:820px}
+.card h3{font-size:14px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.card ol,.card ul{padding-left:20px;line-height:1.9;font-size:13px;color:var(--t2)}.card li{margin-bottom:3px}
+.card code{background:var(--bg3);padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--cyan);word-break:break-all}
+.card pre{background:var(--bg);border:1px solid var(--bdr);border-radius:var(--rs);padding:12px;overflow-x:auto;margin:8px 0;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--cyan);line-height:1.7}
+.warn{border-color:var(--gold);background:rgba(240,180,41,.07)}.warn h3{color:var(--gold)}
+
+.ld{display:none;position:fixed;inset:0;background:rgba(11,11,17,.85);backdrop-filter:blur(8px);z-index:200;align-items:center;justify-content:center;flex-direction:column;gap:14px}.ld.on{display:flex}
+.spin{width:36px;height:36px;border:3px solid var(--bdr);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+.ld-t{font-size:14px;color:var(--t2)}.ld-s{font-size:11px;color:var(--t3);font-family:'JetBrains Mono',monospace}
+.toast{position:fixed;bottom:16px;right:16px;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:10px 16px;font-size:12px;color:var(--t1);z-index:300;transform:translateY(60px);opacity:0;transition:.3s;max-width:340px}.toast.show{transform:translateY(0);opacity:1}.toast.err{border-color:var(--accent)}.toast.ok{border-color:var(--cyan)}
+@keyframes fu{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:900px){.side{width:100%;min-width:100%;max-height:none;position:static;border-right:none;border-bottom:1px solid var(--bdr)}.body{flex-direction:column}.stats{grid-template-columns:repeat(2,1fr)}.qc-top{flex-direction:column}.qc-th{width:100%;min-width:0}}
+</style>
+<style>
+.hintline{font-size:11px;color:var(--t3);line-height:1.7;margin-top:6px}
+.hintline code,.p13 code,.sw code{background:var(--bg3);padding:1px 5px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--cyan)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media(max-width:640px){.grid2{grid-template-columns:1fr}}
+.flabel{display:block;font-size:11px;font-weight:700;color:var(--t3);margin-bottom:5px;letter-spacing:.3px}
+.p13{font-size:13px;color:var(--t2);line-height:1.9}
+.danger{margin-top:12px;padding:12px 14px;border-radius:var(--rs);background:rgba(255,68,102,.08);border:1px solid rgba(255,68,102,.35);font-size:12px;color:var(--t1);line-height:1.8}
+.card ol li{margin-bottom:6px}
+.tp.solo.on{display:block;padding:20px;max-width:900px}
+.stats{max-width:860px}
+.qlist{max-width:860px}
+.pulse{animation:pl 1.4s ease-in-out infinite}@keyframes pl{0%,100%{opacity:1}50%{opacity:.45}}
+.qc-meta{display:flex;flex-direction:column;gap:6px;padding:0 12px 12px}
+.sw small{font-size:11px}
+.must{font-size:10px;font-weight:700;color:#0b0b11;background:var(--gold);padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle}
+.blockcard{border-color:var(--accent);background:rgba(255,68,102,.07)}
+.blockcard h3{color:var(--accent)}
+.dirbox{margin-top:10px;padding:11px 13px;background:var(--bg);border:1px solid var(--bdr);border-radius:var(--rs);font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--cyan);word-break:break-all;line-height:1.6}
+.tro{border-top:1px solid var(--bdr);padding:12px 0;display:grid;grid-template-columns:230px 1fr;gap:14px}
+.tro-q{font-size:12px;font-weight:700;color:var(--gold);line-height:1.6}
+.tro-q span{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--t3);font-weight:400}
+.tro-a{font-size:12px;color:var(--t2);line-height:1.8}
+@media(max-width:700px){.tro{grid-template-columns:1fr;gap:6px}}
+.st-val{overflow:hidden}
+</style>
+
+</head>
+<body>
+<header class="hdr">
+  <div class="logo"><em>🚀</em> <b>가라사대</b>&nbsp;업로더</div>
+  <div class="hdr-r">
+    <button class="sm" onclick="openFolder()">📂 감시 폴더 열기</button>
+    <button class="sm" id="pauseBtn" onclick="togglePause()">⏸ 일시정지</button>
+    <div class="api-st"><div class="dot" id="dot"></div><span id="stTxt">확인 중…</span></div>
+    <div class="me" id="me"><img id="meAv" alt=""/><div><b id="meNm"></b><br><span id="meSub"></span></div></div>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab on" data-tab="t1" onclick="swTab('t1')">👀 감시 중</button>
+  <button class="tab" data-tab="t2" onclick="swTab('t2')">📋 기록</button>
+  <button class="tab" data-tab="t3" onclick="swTab('t3')">⚙️ 설정</button>
+  <button class="tab" data-tab="t4" onclick="swTab('t4')">🚀 시작하기</button>
+</div>
+
+<!-- ============ 감시 ============ -->
+<div class="tp solo on" id="t1">
+  <div id="notReady"></div>
+  <div class="stats">
+    <div class="st"><div class="st-lbl">대기 중</div><div class="st-val" id="sWait">0</div></div>
+    <div class="st"><div class="st-lbl">오늘 완료</div><div class="st-val" id="sToday">0</div></div>
+    <div class="st"><div class="st-lbl">남은 한도</div><div class="st-val" id="sLimit">-</div></div>
+    <div class="st"><div class="st-lbl">감시 폴더</div><div class="st-val" id="sDir" style="font-size:12px;line-height:1.4;word-break:break-all">-</div></div>
+  </div>
+  <div class="qlist" id="qlist"></div>
+  <div class="empty" id="qEmpty">
+    <div class="empty-i">📭</div>
+    <div class="empty-t">감시 중입니다</div>
+    <div class="empty-d">감시 폴더에 영상을 저장하면 자동으로 여기에 나타나고 업로드됩니다.<br>파일 저장이 끝날 때까지 기다렸다가 올리므로 렌더링 중에 넣어도 안전합니다.</div>
+  </div>
+</div>
+
+<!-- ============ 기록 ============ -->
+<div class="tp solo" id="t2">
+  <div class="stit">📋 업로드 기록</div>
+  <div class="ssub">이 컴퓨터에서 올린 영상 목록입니다.</div>
+  <div id="histList"></div>
+  <div class="stit" style="margin-top:26px">📜 로그</div>
+  <pre id="logBox" style="background:var(--bg1);border:1px solid var(--bdr);border-radius:var(--r);padding:14px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--t2);line-height:1.7;max-height:340px;overflow:auto;white-space:pre-wrap"></pre>
+</div>
+
+<!-- ============ 설정 ============ -->
+<div class="tp solo" id="t3">
+  <div class="stit">⚙️ 설정</div>
+  <div class="ssub">바꾼 내용은 저장 버튼을 눌러야 적용됩니다.</div>
+
+  <div class="card">
+    <h3>📂 감시 폴더</h3>
+    <input class="fin" id="cWatch" placeholder="영상을 저장할 폴더 경로"/>
+    <div class="hintline">이 폴더에 영상 파일이 들어오면 자동으로 업로드합니다. 폴더가 없으면 앱이 알아서 만듭니다.
+    하위 폴더 <code>_완료</code> · <code>_실패</code> · <code>_보류</code> 는 감시하지 않습니다.</div>
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+      <button class="tb on" onclick="pickDir()">📁 폴더 선택…</button>
+      <button class="tb" onclick="useDefaultDir()">바탕화면 기본 폴더로</button>
+      <button class="tb" onclick="openFolder()">📂 현재 폴더 열기</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>🎬 업로드 기본값</h3>
+    <div class="grid2">
+      <div>
+        <label class="flabel">공개 범위</label>
+        <select class="fin" id="cPrivacy">
+          <option value="private">🔒 비공개</option>
+          <option value="unlisted">🔗 일부 공개</option>
+          <option value="public">🌍 공개</option>
+        </select>
+      </div>
+      <div>
+        <label class="flabel">카테고리</label>
+        <select class="fin" id="cCat">
+          <option value="22">인물/블로그</option><option value="1">영화/애니메이션</option>
+          <option value="2">자동차/교통</option><option value="10">음악</option>
+          <option value="15">애완동물/동물</option><option value="17">스포츠</option>
+          <option value="19">여행/이벤트</option><option value="20">게임</option>
+          <option value="23">코미디</option><option value="24">엔터테인먼트</option>
+          <option value="25">뉴스/정치</option><option value="26">노하우/스타일</option>
+          <option value="27">교육</option><option value="28">과학기술</option>
+        </select>
+      </div>
+      <div>
+        <label class="flabel">언어</label>
+        <select class="fin" id="cLang">
+          <option value="ko">한국어</option><option value="en">English</option>
+          <option value="ja">日本語</option><option value="">지정 안 함</option>
+        </select>
+      </div>
+      <div>
+        <label class="flabel">하루 업로드 한도</label>
+        <input class="fin" id="cLimit" type="number" min="1" max="50"/>
+      </div>
+    </div>
+    <label class="flabel" style="margin-top:12px">제목 앞뒤에 붙일 말</label>
+    <div class="grid2">
+      <input class="fin" id="cPrefix" placeholder="앞에 붙일 말 (예: [쇼츠] )"/>
+      <input class="fin" id="cSuffix" placeholder="뒤에 붙일 말 (예:  #shorts)"/>
+    </div>
+    <div class="hintline">제목은 파일 이름에서 확장자를 뺀 값입니다. 업로드 전에 화면에서 직접 고칠 수도 있습니다.</div>
+    <label class="flabel" style="margin-top:12px">태그</label>
+    <input class="fin" id="cTags" placeholder="쉼표로 구분"/>
+    <label class="flabel" style="margin-top:12px">설명</label>
+    <textarea class="fin" id="cDesc" rows="4" placeholder="모든 영상에 공통으로 들어갈 설명"></textarea>
+  </div>
+
+  <div class="card">
+    <h3>🔧 동작 방식</h3>
+    <div class="sw" onclick="tglSw('cReview')"><span>검토 후 업로드 <small style="color:var(--t3)">— 자동으로 올리지 않고 확인 버튼을 기다립니다</small></span><div class="tgl" id="cReview"></div></div>
+    <div class="sw" onclick="tglSw('cKids')"><span>아동용 영상</span><div class="tgl" id="cKids"></div></div>
+    <div class="sw" onclick="tglSw('cNotify')"><span>구독자에게 알림</span><div class="tgl" id="cNotify"></div></div>
+    <div class="sw" onclick="tglSw('cOsNotify')"><span>업로드 완료 시 알림 표시</span><div class="tgl" id="cOsNotify"></div></div>
+    <div class="sw" onclick="tglSw('cMove')"><span>업로드한 파일을 <code>_완료</code> 폴더로 옮기기</span><div class="tgl" id="cMove"></div></div>
+    <div class="sw" onclick="tglAutoStart()"><span>컴퓨터 켤 때 자동 실행</span><div class="tgl" id="cAuto"></div></div>
+    <div class="grid2" style="margin-top:10px">
+      <div><label class="flabel">확인 간격(초)</label><input class="fin" id="cPoll" type="number" min="2" max="600"/></div>
+      <div><label class="flabel">저장 완료 판정 횟수</label><input class="fin" id="cStable" type="number" min="1" max="60"/></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>🔑 구글 연결</h3>
+    <label class="flabel">클라이언트 ID</label>
+    <input class="fin" id="cCid" placeholder="....apps.googleusercontent.com"/>
+    <label class="flabel" style="margin-top:10px">클라이언트 보안 비밀번호</label>
+    <input class="fin" id="cSec" type="password" placeholder="GOCSPX-..."/>
+    <div class="hintline">발급 방법은 <b>시작하기</b> 탭에 단계별로 있습니다.</div>
+    <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
+      <button class="tb" onclick="doLogin()">🔑 구글 계정 연결</button>
+      <button class="tb on" onclick="checkConn()">🔍 연결 점검</button>
+      <button class="tb" onclick="doLogout()">🚪 연결 해제</button>
+    </div>
+  </div>
+
+  <button class="go" style="max-width:820px" onclick="saveAll()">💾 설정 저장</button>
+</div>
+
+<!-- ============ 시작하기 ============ -->
+<div class="tp solo" id="t4">
+  <div class="stit">🚀 처음 한 번만 하면 됩니다</div>
+  <div class="ssub">유튜브에 자동으로 올리려면 구글에서 <b>내 계정 전용 열쇠</b>를 발급받아야 합니다. 아래 순서대로 따라오세요. 약 10분 걸립니다.</div>
+
+  <div class="card warn">
+    <h3>❓ 왜 이런 게 필요한가요?</h3>
+    <div class="p13">구글은 프로그램이 유튜브에 영상을 올릴 때 <b>누구의 권한으로 올리는지</b>를 반드시 확인합니다.
+    이 열쇠는 여러분 계정에서만 쓰이고, 이 프로그램을 만든 사람도 볼 수 없습니다.
+    또한 하루 업로드 한도가 계정마다 따로 주어지기 때문에, 각자 발급받는 편이 훨씬 유리합니다.</div>
+  </div>
+
+  <div class="card">
+    <h3>1️⃣ 구글 클라우드에 프로젝트 만들기</h3>
+    <ol>
+      <li>아래 버튼으로 구글 클라우드 콘솔에 들어갑니다 (유튜브 채널이 있는 계정으로 로그인).</li>
+      <li>화면 위쪽 프로젝트 선택 → <b>새 프로젝트</b> → 이름은 아무거나 (예: 내업로더) → <b>만들기</b></li>
+    </ol>
+    <button class="tb" onclick="ext('https://console.cloud.google.com/projectcreate')">🔗 프로젝트 만들기 열기</button>
+  </div>
+
+  <div class="card">
+    <h3>2️⃣ 유튜브 API 켜기 <span class="must">가장 많이 빠뜨리는 단계</span></h3>
+    <ol>
+      <li>아래 버튼을 누르면 <b>YouTube Data API v3</b> 페이지가 열립니다.</li>
+      <li>화면 위쪽에 <b>방금 만든 프로젝트</b>가 선택되어 있는지 꼭 확인하세요.</li>
+      <li>파란 <b>사용</b>(ENABLE) 버튼을 누릅니다.</li>
+      <li>버튼이 <b>관리</b>(MANAGE)로 바뀌면 켜진 것입니다.</li>
+    </ol>
+    <button class="tb on" onclick="ext('https://console.cloud.google.com/apis/library/youtube.googleapis.com')">🔗 API 사용 설정 열기</button>
+    <div class="danger">
+      <b>⚠️ 이 단계를 건너뛰면 영상이 하나도 올라가지 않습니다.</b><br>
+      로그인까지는 멀쩡히 되기 때문에 다 됐다고 착각하기 쉽습니다. 반드시 <b>사용</b> 버튼을 누르세요.<br>
+      누른 뒤 구글에 반영되기까지 <b>1~2분</b> 걸립니다. 바로 안 되면 잠시 기다렸다 다시 시도하세요.
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>3️⃣ 동의 화면 만들기</h3>
+    <ol>
+      <li>아래 버튼 → <b>외부</b> 선택 → 만들기</li>
+      <li>앱 이름·이메일을 채우고 계속 (개발자 연락처에도 같은 이메일)</li>
+      <li>범위 단계에서 <b>범위 추가 또는 삭제</b> → 검색창에 <code>youtube.upload</code> → 체크 → 업데이트</li>
+      <li>저장하고 계속을 눌러 끝까지 진행합니다.</li>
+    </ol>
+    <button class="tb" onclick="ext('https://console.cloud.google.com/apis/credentials/consent')">🔗 동의 화면 열기</button>
+    <div class="danger">
+      <b>⚠️ 꼭 하세요 — 게시 상태를 '프로덕션'으로 바꾸기</b><br>
+      동의 화면 첫 페이지에 <b>앱 게시</b> 버튼이 있습니다. 이걸 누르지 않고 <b>테스트</b> 상태로 두면
+      <b>7일마다 로그인이 풀립니다.</b> 프로덕션으로 바꿔야 계속 자동으로 올라갑니다.
+      (본인만 쓰는 앱이므로 구글 심사를 받지 않아도 동작합니다)
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>4️⃣ 열쇠(클라이언트 ID) 발급받기</h3>
+    <ol>
+      <li>아래 버튼 → <b>사용자 인증 정보 만들기</b> → <b>OAuth 클라이언트 ID</b></li>
+      <li>애플리케이션 유형은 반드시 <b>데스크톱 앱</b>을 고릅니다.</li>
+      <li>만들기를 누르면 <b>클라이언트 ID</b>와 <b>클라이언트 보안 비밀번호</b>가 나옵니다. 두 개 다 복사해 두세요.</li>
+    </ol>
+    <button class="tb" onclick="ext('https://console.cloud.google.com/apis/credentials')">🔗 사용자 인증 정보 열기</button>
+  </div>
+
+  <div class="card">
+    <h3>5️⃣ 여기에 붙여넣고 연결하기</h3>
+    <label class="flabel">클라이언트 ID</label>
+    <input class="fin" id="wCid" placeholder="....apps.googleusercontent.com"/>
+    <label class="flabel" style="margin-top:10px">클라이언트 보안 비밀번호</label>
+    <input class="fin" id="wSec" type="password" placeholder="GOCSPX-..."/>
+    <button class="go" style="margin-top:14px" onclick="wizardConnect()">🔑 저장하고 구글 계정 연결</button>
+    <button class="tb" style="margin-top:10px" onclick="checkConn()">🔍 연결 점검 — 제대로 됐는지 확인하기</button>
+    <div class="danger" style="margin-top:12px">
+      <b>“Google에서 확인하지 않은 앱” 경고가 떠도 정상입니다.</b><br>
+      본인이 직접 만든 앱이라 그렇습니다. <b>고급</b> → <b>(앱 이름)(으)로 이동</b> 을 눌러 계속 진행하세요.
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>6️⃣ 영상을 저장할 폴더 정하기</h3>
+    <div class="p13">이 폴더에 영상을 저장하면 자동으로 업로드됩니다.
+    아래 폴더가 기본으로 <b>자동 생성</b>되어 있으니 그대로 쓰셔도 되고, 원하는 폴더로 바꾸셔도 됩니다.</div>
+    <div class="dirbox" id="wDir">-</div>
+    <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+      <button class="tb on" onclick="pickDir()">📁 다른 폴더로 바꾸기</button>
+      <button class="tb" onclick="openFolder()">📂 폴더 열어보기</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>7️⃣ 끝났습니다</h3>
+    <div class="p13">이제 그 폴더에 영상을 저장하기만 하면 됩니다.
+    설정 탭에서 <b>컴퓨터 켤 때 자동 실행</b>을 켜두면 이 창을 닫아도 계속 동작합니다.</div>
+  </div>
+
+  <div class="card">
+    <h3>🚨 "액세스가 차단됨" 이 나온다면</h3>
+    <div class="p13">구글 로그인 화면에 뜬 <b>작은 글씨 한 줄</b>이 원인을 알려줍니다. 해당하는 항목을 찾아보세요.</div>
+
+    <div class="tro">
+      <div class="tro-q">"앱이 Google 인증 절차를 완료하지 않았습니다"<br><span>또는 오류 403: access_denied</span></div>
+      <div class="tro-a"><b>가장 흔한 경우입니다.</b> 동의 화면이 아직 <b>테스트</b> 상태라 등록된 계정만 쓸 수 있습니다.<br>
+      동의 화면에서 <b>앱 게시</b>를 누르거나, <b>테스트 사용자</b>에 본인 지메일을 추가하세요.
+      <button class="tb" style="margin-top:8px" onclick="ext('https://console.cloud.google.com/apis/credentials/consent')">🔗 동의 화면 열기</button></div>
+    </div>
+
+    <div class="tro">
+      <div class="tro-q">"이 앱의 요청이 잘못되었습니다"<br><span>또는 오류 400: redirect_uri_mismatch</span></div>
+      <div class="tro-a">클라이언트 유형이 <b>데스크톱 앱</b>이 아닐 때 납니다. 사용자 인증 정보에서 새로 만들 때
+      애플리케이션 유형을 반드시 <b>데스크톱 앱</b>으로 고르세요. (웹 애플리케이션 아님)
+      <button class="tb" style="margin-top:8px" onclick="ext('https://console.cloud.google.com/apis/credentials')">🔗 사용자 인증 정보 열기</button></div>
+    </div>
+
+    <div class="tro">
+      <div class="tro-q">"오류 401: invalid_client"</div>
+      <div class="tro-a">클라이언트 ID나 보안 비밀번호가 잘못 붙여넣어졌습니다. 설정 탭에서 두 값을 다시 복사해 넣어주세요.
+      앞뒤 공백이 섞이지 않았는지 확인하세요.</div>
+    </div>
+
+    <div class="tro">
+      <div class="tro-q">"관리자가 액세스를 차단했습니다"<br><span>또는 admin_policy_enforced</span></div>
+      <div class="tro-a">회사·학교에서 발급한 구글 계정은 관리자가 외부 앱 접근을 막아둔 경우가 많습니다.
+      개인 지메일 계정으로 다시 시도하세요.</div>
+    </div>
+
+    <div class="tro">
+      <div class="tro-q">"Google에서 확인하지 않은 앱"</div>
+      <div class="tro-a">이건 차단이 아니라 <b>정상 안내</b>입니다. <b>고급</b> → <b>(앱 이름)(으)로 이동</b>을 누르면 계속 진행됩니다.
+      본인이 만든 앱이라 뜨는 화면입니다.</div>
+    </div>
+
+    <div class="tro">
+      <div class="tro-q">로그인은 됐는데 "채널을 찾을 수 없습니다"</div>
+      <div class="tro-a">그 구글 계정에 유튜브 채널이 없습니다. 유튜브에서 채널을 먼저 만든 뒤 다시 연결하세요.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>📊 하루에 몇 개까지 올릴 수 있나요?</h3>
+    <ul>
+      <li>구글이 계정마다 하루 <b>10,000점</b>을 주고, 영상 업로드 1건에 <b>1,600점</b>이 듭니다.</li>
+      <li>그래서 <b>하루 약 6개</b>가 한도입니다. 넘으면 다음 날 자동으로 다시 시작합니다.</li>
+      <li>더 필요하면 구글 클라우드 콘솔에서 한도 증액을 신청할 수 있습니다.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtSize=b=>b>1073741824?(b/1073741824).toFixed(2)+'GB':(b/1048576).toFixed(1)+'MB';
+let ST=null, tab='t1', dirty=new Set();
+
+function msg(t,k){const e=$('toast');e.textContent=t;e.className='toast show '+(k||'');clearTimeout(e._t);e._t=setTimeout(()=>e.className='toast',3600)}
+function swTab(id){tab=id;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===id));document.querySelectorAll('.tp').forEach(p=>p.classList.toggle('on',p.id===id));if(id==='t2')loadLog();if(id==='t3')fillSettings()}
+const api=(p,body)=>fetch(p,body?{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}:undefined).then(r=>r.json());
+function ext(u){window.open(u,'_blank','noopener')}
+
+/* ---------------- 상태 폴링 ---------------- */
+async function poll(){
+  try{
+    ST=await api('/api/state');
+    paint();
+  }catch(e){
+    $('stTxt').textContent='앱 연결 끊김';
+    $('dot').className='dot err';
+  }
+}
+function paint(){
+  const s=ST;
+  // 헤더
+  if(!s.authed){$('dot').className='dot err';$('stTxt').textContent='구글 미연결'}
+  else if(s.paused){$('dot').className='dot';$('stTxt').textContent='일시정지'}
+  else if(s.limitReached){$('dot').className='dot';$('stTxt').textContent='오늘 한도 도달'}
+  else {$('dot').className='dot on';$('stTxt').textContent='감시 중'}
+  $('pauseBtn').textContent=s.paused?'▶️ 재개':'⏸ 일시정지';
+  if(s.channel){$('me').classList.add('on');$('meAv').src=s.channel.thumb;$('meNm').textContent=s.channel.title;
+    $('meSub').textContent='구독자 '+Number(s.channel.subs||0).toLocaleString()}
+  else $('me').classList.remove('on');
+
+  // 통계
+  $('sWait').textContent=s.items.filter(i=>i.status!=='done').length;
+  $('sToday').textContent=s.todayCount;
+  $('sLimit').textContent=Math.max(0,s.config.dailyLimit-s.todayCount)+'개';
+  $('sDir').textContent=s.config.watchDir;
+  if($('wDir'))$('wDir').textContent=s.config.watchDir;
+
+  // 미설정 안내
+  const nr=$('notReady');
+  if(!s.authed){
+    nr.innerHTML='<div class="card warn"><h3>🔑 아직 구글 계정이 연결되지 않았습니다</h3>'
+      +'<div class="p13">영상을 감지해도 올릴 수 없습니다. <b>시작하기</b> 탭에서 10분이면 끝나는 최초 설정을 진행해 주세요.</div>'
+      +'<button class="tb" style="margin-top:10px" onclick="swTab(\'t4\')">🚀 시작하기 열기</button></div>';
+  } else if(s.channelError){
+    nr.innerHTML='<div class="card blockcard"><h3>⚠️ 설정이 하나 남았습니다</h3>'
+      +'<div class="p13">'+esc(s.channelError)+'</div>'
+      +'<div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">'
+      +(s.channelErrorUrl?'<button class="tb on" onclick="ext(\''+s.channelErrorUrl+'\')">🔗 구글 설정 화면 열기</button>':'')
+      +'<button class="tb" onclick="checkConn()">🔍 연결 점검</button></div></div>';
+  } else if(s.blocked){
+    nr.innerHTML='<div class="card blockcard"><h3>⛔ 업로드를 진행할 수 없습니다</h3>'
+      +'<div class="p13">'+esc(s.blocked)+'</div>'
+      +'<div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">'
+      +(s.blockedUrl?'<button class="tb on" onclick="ext(\''+s.blockedUrl+'\')">🔗 구글 설정 화면 열기</button>':'')
+      +'<button class="tb" onclick="retryAll()">🔄 지금 다시 시도</button>'
+      +'<button class="tb" onclick="swTab(\'t4\')">📖 문제 해결 보기</button></div></div>';
+  } else if(s.limitReached){
+    nr.innerHTML='<div class="card warn"><h3>⏸ 오늘 업로드 한도에 도달했습니다</h3>'
+      +'<div class="p13">구글이 주는 하루 사용량을 다 썼습니다. 내일 0시(태평양 시간 기준)에 자동으로 다시 시작합니다.</div></div>';
+  } else nr.innerHTML='';
+
+  renderCards(s.items);
+  if(tab==='t2')renderHist(s.uploads);
+}
+
+/* ---------------- 대기열 카드 ---------------- */
+function renderCards(items){
+  const box=$('qlist');
+  $('qEmpty').style.display=items.length?'none':'block';
+  const alive=new Set(items.map(i=>i.name));
+  [...box.children].forEach(c=>{if(!alive.has(c.dataset.name))c.remove()});
+
+  items.forEach(it=>{
+    let c=box.querySelector(`[data-name="${cssEsc(it.name)}"]`);
+    if(!c){
+      c=document.createElement('div');
+      c.dataset.name=it.name;
+      c.innerHTML=`
+        <div class="qc-top">
+          <div class="qc-th">🎬</div>
+          <div class="qc-mid">
+            <div class="qc-file"><span class="badge" data-r="bd"></span><b>${esc(it.name)}</b><span data-r="sz"></span></div>
+            <input class="fin" data-r="ti" maxlength="100" placeholder="제목"/>
+            <textarea class="fin" data-r="de" rows="2" maxlength="5000" placeholder="설명"></textarea>
+          </div>
+        </div>
+        <div class="qc-tools" data-r="tools"></div>
+        <div class="rb" data-r="rb" style="display:none"><div class="rf" data-r="rf"></div></div>
+        <div class="rl" data-r="rl" style="display:none"><span data-r="rt"></span><span data-r="rp"></span></div>`;
+      box.appendChild(c);
+      const ti=c.querySelector('[data-r=ti]'), de=c.querySelector('[data-r=de]');
+      ti.oninput=()=>pushMeta(it.name,c);
+      de.oninput=()=>pushMeta(it.name,c);
+    }
+    c.className='qc s-'+({watching:'',ready:'',uploading:'up',done:'done',error:'err'}[it.status]||'');
+    const q=r=>c.querySelector(`[data-r=${r}]`);
+    q('sz').textContent=fmtSize(it.size);
+
+    const bd=q('bd');
+    const label={watching:'저장 대기',ready:'준비됨',uploading:'업로드 중',done:'완료',error:'실패'}[it.status];
+    bd.className='badge '+({watching:'wait',ready:'wait',uploading:'up',done:'done',error:'err'}[it.status]);
+    bd.textContent=label;
+    bd.classList.toggle('pulse',it.status==='watching'||it.status==='uploading');
+
+    const ti=q('ti'), de=q('de');
+    if(document.activeElement!==ti && !dirty.has(it.name+'|t'))ti.value=it.title;
+    if(document.activeElement!==de && !dirty.has(it.name+'|d'))de.value=it.description;
+    const locked=it.status==='uploading'||it.status==='done';
+    ti.disabled=de.disabled=locked;
+
+    // 도구 영역
+    const tools=q('tools');
+    let html='';
+    if(it.status==='ready'&&ST.config.reviewMode)html+=`<button class="tb on" onclick="uploadNow('${jsEsc(it.name)}')">⬆️ 지금 업로드</button>`;
+    if(it.status==='ready'&&!ST.config.reviewMode)html+=`<span style="font-size:10px;color:var(--t3)">곧 자동으로 업로드됩니다…</span>`;
+    if(it.status==='watching')html+=`<span style="font-size:10px;color:var(--t3)">파일 저장이 끝나기를 기다리는 중 (${it.stable}/${ST.config.stableChecks})</span>`;
+    if(it.status==='error'){
+      html+=`<button class="tb" onclick="uploadNow('${jsEsc(it.name)}')">🔄 다시 시도</button>`;
+      if(it.helpUrl)html+=`<button class="tb on" onclick="ext('${it.helpUrl}')">🔗 해결하러 가기</button>`;
+      if(it.retryAt>Date.now())html+=`<span style="font-size:10px;color:var(--t3)">${Math.ceil((it.retryAt-Date.now())/1000)}초 뒤 자동 재시도</span>`;
+    }
+    if(it.status!=='uploading'&&it.status!=='done')html+=`<button class="tb" onclick="holdItem('${jsEsc(it.name)}')">⏸ 보류</button>`;
+    if(it.status==='done'&&it.videoId){
+      html+=`<a class="tb on" href="https://www.youtube.com/watch?v=${it.videoId}" target="_blank" rel="noopener" style="text-decoration:none">▶️ 영상 보기</a>`
+           +`<a class="tb" href="https://studio.youtube.com/video/${it.videoId}/edit" target="_blank" rel="noopener" style="text-decoration:none">✏️ 스튜디오에서 편집</a>`;
+    }
+    if(tools.innerHTML!==html)tools.innerHTML=html;
+
+    // 진행률
+    const show=it.status==='uploading'||it.status==='done';
+    q('rb').style.display=show?'block':'none';
+    q('rl').style.display=show?'flex':'none';
+    if(show){
+      q('rf').style.width=it.progress+'%';
+      q('rp').textContent=it.progress+'%';
+      q('rt').textContent=it.status==='done'?'완료':`${fmtSize(it.sent||0)} / ${fmtSize(it.size)}`;
+    }
+    // 오류 메시지
+    let er=c.querySelector('.qc-err');
+    if(it.status==='error'&&it.error){
+      if(!er){er=document.createElement('div');er.className='qc-err';c.appendChild(er)}
+      er.textContent='⚠️ '+it.error;
+    } else if(er)er.remove();
+  });
+}
+const cssEsc=s=>s.replace(/["\\]/g,'\\$&');
+const jsEsc=s=>s.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+
+let metaTimer=null;
+function pushMeta(name,card){
+  dirty.add(name+'|t');dirty.add(name+'|d');
+  clearTimeout(metaTimer);
+  metaTimer=setTimeout(async()=>{
+    await api('/api/item/meta',{name,title:card.querySelector('[data-r=ti]').value,description:card.querySelector('[data-r=de]').value});
+    dirty.delete(name+'|t');dirty.delete(name+'|d');
+  },500);
+}
+async function retryAll(){
+  const t=(ST.items||[]).filter(i=>i.status==='error');
+  if(!t.length)return msg('다시 시도할 항목이 없습니다');
+  for(const i of t){await api('/api/item/upload',{name:i.name})}
+  msg('다시 시도합니다','ok'); poll();
+}
+async function uploadNow(name){const r=await api('/api/item/upload',{name});r.error?msg(r.error,'err'):msg('업로드를 시작합니다','ok');poll()}
+async function holdItem(name){await api('/api/item/hold',{name});msg('_보류 폴더로 옮겼습니다');poll()}
+async function openFolder(){await api('/api/openfolder',{});}
+async function togglePause(){const r=await api('/api/pause',{on:!ST.paused});msg(r.paused?'감시를 멈췄습니다':'감시를 재개합니다');poll()}
+
+/* ---------------- 기록 ---------------- */
+function renderHist(ups){
+  const box=$('histList');
+  if(!ups.length){box.innerHTML='<div class="empty"><div class="empty-i">🗂</div><div class="empty-t">아직 올린 영상이 없습니다</div><div class="empty-d">감시 폴더에 영상을 넣어보세요.</div></div>';return}
+  box.innerHTML=ups.map(u=>`
+    <div class="hrow">
+      <div class="hrow-th"><img src="https://i.ytimg.com/vi/${u.id}/mqdefault.jpg" alt="" onerror="this.style.display='none'"/></div>
+      <div class="hrow-i">
+        <div class="hrow-t">${esc(u.title)}</div>
+        <div class="hrow-m">${u.at.replace('T',' ').slice(0,16)} · ${esc(u.file)} · ${fmtSize(u.size)}</div>
+      </div>
+      <span class="pv ${u.privacy}">${({public:'공개',unlisted:'일부공개',private:'비공개'})[u.privacy]||u.privacy}</span>
+      <a class="tb" href="https://www.youtube.com/watch?v=${u.id}" target="_blank" rel="noopener" style="text-decoration:none">▶️ 보기</a>
+      <a class="tb" href="https://studio.youtube.com/video/${u.id}/edit" target="_blank" rel="noopener" style="text-decoration:none">✏️ 편집</a>
+    </div>`).join('');
+}
+async function loadLog(){const r=await api('/api/log');$('logBox').textContent=(r.lines||[]).join('\n')||'(로그 없음)'}
+
+/* ---------------- 설정 ---------------- */
+function fillSettings(){
+  if(!ST)return;
+  const c=ST.config;
+  $('cWatch').value=c.watchDir; $('cPrivacy').value=c.privacy; $('cCat').value=c.categoryId;
+  $('cLang').value=c.language; $('cLimit').value=c.dailyLimit; $('cPoll').value=c.pollSeconds;
+  $('cStable').value=c.stableChecks; $('cPrefix').value=c.titlePrefix; $('cSuffix').value=c.titleSuffix;
+  $('cTags').value=(c.tags||[]).join(', '); $('cDesc').value=c.description;
+  $('cCid').value=c.clientId; $('cSec').value=c.clientSecret?'********':'';
+  setSw('cReview',c.reviewMode); setSw('cKids',c.madeForKids); setSw('cNotify',c.notifySubscribers);
+  setSw('cOsNotify',c.notifications); setSw('cMove',c.afterUpload==='move'); setSw('cAuto',ST.autoStart);
+}
+const setSw=(id,on)=>$(id).classList.toggle('on',!!on);
+const getSw=id=>$(id).classList.contains('on');
+function tglSw(id){$(id).classList.toggle('on')}
+async function tglAutoStart(){
+  const on=!getSw('cAuto');
+  const r=await api('/api/autostart',{on});
+  setSw('cAuto',on); msg(r.message||'변경되었습니다','ok');
+}
+async function pickDir(){
+  msg('폴더 선택창을 여는 중…');
+  const r=await api('/api/pickfolder',{});
+  if(!r.path)return msg('선택이 취소되었습니다');
+  const save=await api('/api/config',{watchDir:r.path});
+  if(save.error)return msg(save.error,'err');
+  if($('cWatch'))$('cWatch').value=r.path;
+  msg('감시 폴더를 바꿨습니다','ok');
+  poll();
+}
+async function useDefaultDir(){const r=await api('/api/defaults');$('cWatch').value=r.suggested;msg('바탕화면 기본 폴더로 설정했습니다 (저장을 눌러주세요)')}
+async function saveAll(){
+  const body={
+    watchDir:$('cWatch').value.trim(), privacy:$('cPrivacy').value, categoryId:$('cCat').value,
+    language:$('cLang').value, dailyLimit:+$('cLimit').value, pollSeconds:+$('cPoll').value,
+    stableChecks:+$('cStable').value, titlePrefix:$('cPrefix').value, titleSuffix:$('cSuffix').value,
+    tags:$('cTags').value, description:$('cDesc').value,
+    reviewMode:getSw('cReview'), madeForKids:getSw('cKids'), notifySubscribers:getSw('cNotify'),
+    notifications:getSw('cOsNotify'), afterUpload:getSw('cMove')?'move':'keep',
+    clientId:$('cCid').value.trim(), clientSecret:$('cSec').value.trim(),
+  };
+  const r=await api('/api/config',body);
+  r.error?msg(r.error,'err'):msg('저장했습니다','ok');
+  poll();
+}
+async function doLogin(){
+  const r=await api('/api/auth/url',{});
+  if(r.error)return msg(r.error,'err');
+  window.open(r.url,'_blank','noopener');
+  msg('브라우저에서 구글 로그인을 진행해 주세요');
+}
+async function checkConn(){
+  msg('연결 상태를 확인하는 중…');
+  const r=await api('/api/auth/check',{});
+  if(r.ok){ msg('✅ 정상입니다 · 채널: '+(r.channel?.title||''),'ok'); }
+  else { msg(r.error||'확인에 실패했습니다','err'); if(r.url)ext(r.url); }
+  poll();
+}
+async function doLogout(){await api('/api/auth/logout',{});msg('연결을 해제했습니다');poll()}
+async function wizardConnect(){
+  const cid=$('wCid').value.trim(), sec=$('wSec').value.trim();
+  if(!cid.includes('apps.googleusercontent.com'))return msg('클라이언트 ID 형식이 올바르지 않습니다','err');
+  if(!sec)return msg('클라이언트 보안 비밀번호를 입력해 주세요','err');
+  const s=await api('/api/config',{clientId:cid,clientSecret:sec});
+  if(s.error)return msg(s.error,'err');
+  await doLogin();
+}
+
+/* ---------------- 시작 ---------------- */
+(async()=>{
+  await poll();
+  if(ST&&!ST.authed)swTab('t4');
+  fillSettings();
+  setInterval(poll,1500);
+})();
+</script>
+
+</body>
+</html>
