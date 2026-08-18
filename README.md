@@ -24,6 +24,10 @@ start.command       (구버전) 위 화면을 localhost 로 띄우는 실행기
 _python_legacy/     (구버전) 파이썬 + launchd 감시 데몬. 맥 전용
 ```
 
+## 문서
+
+- [설정 안내 영상 대본](docs/설정안내-영상대본.md) — 배포 대상자용 설정 영상을 찍을 때 쓰는 녹화 대본
+
 ## 개발
 
 ```bash
