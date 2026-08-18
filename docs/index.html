@@ -55,7 +55,30 @@ h2{font-size:17px;font-weight:800;margin:36px 0 14px}
     바탕화면 폴더에 저장만 하면 알아서 올라갑니다. 설치할 것도 없고 무료입니다.
   </p>
 
-  <div class="dl">
+  <div class="dl" id="liveBox" style="display:none;border-color:var(--cyan)">
+    <div class="dl-os">✅ <b>이미 설치되어 있습니다</b> <span id="liveVer"></span></div>
+    <div id="liveNew" style="display:none">
+      <a class="btn" id="liveBtn" href="javascript:void(0)" onclick="liveUpdate()">
+        ⚡ 지금 바로 업데이트
+        <small id="liveSub"></small>
+      </a>
+      <div id="liveProg" style="display:none;margin-top:14px">
+        <div style="height:8px;border-radius:4px;background:var(--bg3);overflow:hidden">
+          <div id="liveBar" style="height:100%;width:0;border-radius:4px;background:linear-gradient(90deg,var(--accent),#ff8844);transition:width .3s"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3);margin-top:6px">
+          <span id="liveText">준비 중…</span><span id="livePct">0%</span>
+        </div>
+      </div>
+      <div class="alt"><a href="javascript:void(0)" onclick="openApp()">프로그램 화면 열기</a></div>
+    </div>
+    <div id="liveLatest" style="display:none">
+      <div style="padding:14px;text-align:center;color:var(--cyan);font-size:14px;font-weight:700">최신 버전을 쓰고 계십니다</div>
+      <div class="alt"><a href="javascript:void(0)" onclick="openApp()">프로그램 화면 열기</a></div>
+    </div>
+  </div>
+
+  <div class="dl" id="dlBox">
     <div class="dl-os" id="osLine">내 컴퓨터를 확인하는 중…</div>
     <a class="btn" id="mainBtn" href="https://github.com/beautifulahin/garasadae-uploader/releases/latest">
       ⬇️ 내려받기
@@ -149,6 +172,72 @@ h2{font-size:17px;font-weight:800;margin:36px 0 14px}
   for(var k in FILES){ if(k!==pick) html+='<a href="'+BASE+FILES[k].f+'">'+FILES[k].n+' 용 내려받기</a>'; }
   if(isMac) html+='<a href="https://support.apple.com/ko-kr/HT211814" target="_blank" rel="noopener">내 맥이 어느 쪽인지 확인</a>';
   alt.innerHTML=html;
+})();
+
+/* ---- 이미 실행 중인 프로그램이 있으면 바로 업데이트할 수 있게 ---- */
+var APP_PORTS=[8777,8778,8779], appBase='';
+function appFetch(path,opt){
+  return fetch(appBase+path, Object.assign({mode:'cors'},opt||{})).then(function(r){return r.json();});
+}
+function withTimeout(p,ms){
+  return Promise.race([p,new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'))},ms)})]);
+}
+function openApp(){ if(appBase)window.open(appBase,'_blank','noopener'); }
+
+function showLive(st){
+  document.getElementById('liveBox').style.display='block';
+  document.getElementById('dlBox').style.display='none';
+  document.getElementById('liveVer').textContent='v'+st.version;
+  var u=st.update||{};
+  if(u.available){
+    document.getElementById('liveNew').style.display='block';
+    document.getElementById('liveLatest').style.display='none';
+    document.getElementById('liveSub').textContent=st.version+' → '+u.version+' · 내려받지 않아도 됩니다';
+  }else{
+    document.getElementById('liveNew').style.display='none';
+    document.getElementById('liveLatest').style.display='block';
+  }
+}
+
+function liveUpdate(){
+  document.getElementById('liveProg').style.display='block';
+  document.getElementById('liveBtn').style.display='none';
+  appFetch('/api/update/install',{method:'POST',headers:{'content-type':'application/json'},body:'{}'})
+    .then(function(r){
+      if(r.error){ alert(r.error); return; }
+      var lost=false;
+      var t=setInterval(function(){
+        withTimeout(appFetch('/api/state'),2500).then(function(st){
+          if(lost){
+            clearInterval(t);
+            document.getElementById('liveBar').style.width='100%';
+            document.getElementById('livePct').textContent='100%';
+            document.getElementById('liveText').textContent='완료 — v'+st.version+' 로 업데이트되었습니다';
+            setTimeout(function(){ showLive(st); document.getElementById('liveProg').style.display='none'; document.getElementById('liveBtn').style.display='block'; },1500);
+            return;
+          }
+          var up=st.updating||{};
+          document.getElementById('liveBar').style.width=(up.pct||0)+'%';
+          document.getElementById('livePct').textContent=(up.pct||0)+'%';
+          document.getElementById('liveText').textContent=up.text||'진행 중…';
+        }).catch(function(){
+          lost=true;   // 교체하며 잠깐 꺼진 상태
+          document.getElementById('liveText').textContent='프로그램을 교체하고 다시 켜는 중…';
+        });
+      },1500);
+    })
+    .catch(function(){ alert('프로그램과 연결하지 못했습니다. 프로그램이 켜져 있는지 확인해 주세요.'); });
+}
+
+(function detect(){
+  var i=0;
+  (function next(){
+    if(i>=APP_PORTS.length)return;
+    var base='http://127.0.0.1:'+APP_PORTS[i++];
+    withTimeout(fetch(base+'/api/state',{mode:'cors'}).then(function(r){return r.json()}),1500)
+      .then(function(st){ if(st&&st.app){ appBase=base; showLive(st); } else next(); })
+      .catch(next);
+  })();
 })();
 </script>
 </body>

@@ -12,10 +12,38 @@ let upState = { running: false, pct: 0, text: "", error: "" };
 
 const UI = await Deno.readTextFile(new URL("./ui.html", import.meta.url));
 
+/** 안내 페이지에서만 말을 걸 수 있게 허용한다. 다른 사이트는 접근할 수 없다. */
+const ALLOWED_ORIGINS = [
+  "https://beautifulahin.github.io",
+  "http://127.0.0.1:8777",
+  "http://localhost:8777",
+];
+/** 바깥 페이지가 쓸 수 있는 통로 — 업데이트 관련만 열어 둔다 */
+const PUBLIC_PATHS = ["/api/state", "/api/update/check", "/api/update/install"];
+
+function corsFor(req: Request, path: string): Record<string, string> {
+  const origin = req.headers.get("origin") ?? "";
+  if (!origin || !ALLOWED_ORIGINS.includes(origin) || !PUBLIC_PATHS.includes(path)) return {};
+  return {
+    "access-control-allow-origin": origin,
+    "access-control-allow-methods": "GET, POST, OPTIONS",
+    "access-control-allow-headers": "content-type, access-control-request-private-network",
+    "access-control-max-age": "600",
+    // 크롬은 공개 사이트가 내 컴퓨터 주소로 요청하는 걸 따로 막는다. 그 허용 표시.
+    "access-control-allow-private-network": "true",
+  };
+}
+
+let corsHeaders: Record<string, string> = {};
+
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
     status,
-    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      ...corsHeaders,
+    },
   });
 
 const page = (title: string, body: string) =>
@@ -34,6 +62,11 @@ export function startServer(engine: Engine, port: number) {
   }, async (req) => {
     const url = new URL(req.url);
     const p = url.pathname;
+    corsHeaders = corsFor(req, p);
+
+    if (req.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
 
     try {
       // 구글은 루프백 리디렉션에 경로를 붙일 수 없어 콜백이 "/" 로 돌아온다.
