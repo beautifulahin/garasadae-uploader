@@ -87,6 +87,38 @@ async function capture(cmd: string[]): Promise<string> {
   return new TextDecoder().decode(stdout);
 }
 
+/** 파일을 휴지통으로 보낸다. 실패하면 false. */
+export async function moveToTrash(path: string): Promise<boolean> {
+  try {
+    if (IS_WIN) {
+      const esc = path.replace(/'/g, "''");
+      const ps = `Add-Type -AssemblyName Microsoft.VisualBasic
+[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('${esc}','OnlyErrorDialogs','SendToRecycleBin')`;
+      const c = new Deno.Command("powershell", {
+        args: ["-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
+        stdout: "null", stderr: "null",
+      });
+      return (await c.output()).code === 0;
+    }
+    // 맥·리눅스는 휴지통 폴더로 옮기는 편이 권한 문제가 없다
+    const trash = IS_MAC
+      ? join(homeDir(), ".Trash")
+      : join(homeDir(), ".local", "share", "Trash", "files");
+    await Deno.mkdir(trash, { recursive: true });
+    const name = path.split("/").pop() ?? "file";
+    const dot = name.lastIndexOf(".");
+    const [base, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+    let dest = join(trash, name);
+    let i = 1;
+    while (await exists(dest)) dest = join(trash, `${base} ${i++}${ext}`);
+    await Deno.rename(path, dest);
+    return true;
+  } catch (e) {
+    await log(`   ⚠️  휴지통으로 보내지 못했습니다: ${e instanceof Error ? e.message : e}`);
+    return false;
+  }
+}
+
 /* ------------------------------------------------- 자동 시작 */
 const winStartupFile = () =>
   join(homeDir(), "AppData", "Roaming", "Microsoft", "Windows",

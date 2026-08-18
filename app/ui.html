@@ -231,7 +231,16 @@ textarea.fin{resize:vertical;line-height:1.6}
     <div class="sw" onclick="tglSw('cKids')"><span>아동용 영상</span><div class="tgl" id="cKids"></div></div>
     <div class="sw" onclick="tglSw('cNotify')"><span>구독자에게 알림</span><div class="tgl" id="cNotify"></div></div>
     <div class="sw" onclick="tglSw('cOsNotify')"><span>업로드 완료 시 알림 표시</span><div class="tgl" id="cOsNotify"></div></div>
-    <div class="sw" onclick="tglSw('cMove')"><span>업로드한 파일을 <code>_완료</code> 폴더로 옮기기</span><div class="tgl" id="cMove"></div></div>
+    <div style="padding:8px 0">
+      <label class="flabel">업로드에 성공한 파일 처리</label>
+      <select class="fin" id="cAfter">
+        <option value="move">📁 _완료 폴더로 옮기기 (권장)</option>
+        <option value="trash">🗑 휴지통으로 보내기</option>
+        <option value="delete">❌ 완전 삭제 (복구 불가)</option>
+        <option value="keep">📌 그대로 두기</option>
+      </select>
+      <div class="hintline" id="afterHint"></div>
+    </div>
     <div class="sw" onclick="tglAutoStart()"><span>컴퓨터 켤 때 자동 실행</span><div class="tgl" id="cAuto"></div></div>
     <div class="grid2" style="margin-top:10px">
       <div><label class="flabel">확인 간격(초)</label><input class="fin" id="cPoll" type="number" min="2" max="600"/></div>
@@ -604,7 +613,17 @@ function fillSettings(){
   $('cTags').value=(c.tags||[]).join(', '); $('cDesc').value=c.description;
   $('cCid').value=c.clientId; $('cSec').value=c.clientSecret?'********':'';
   setSw('cReview',c.reviewMode); setSw('cKids',c.madeForKids); setSw('cNotify',c.notifySubscribers);
-  setSw('cOsNotify',c.notifications); setSw('cMove',c.afterUpload==='move'); setSw('cAuto',ST.autoStart);
+  setSw('cOsNotify',c.notifications); setSw('cAuto',ST.autoStart);
+  $('cAfter').value=c.afterUpload||'move'; afterHint();
+}
+function afterHint(){
+  const v=$('cAfter').value;
+  $('afterHint').innerHTML={
+    move:'감시 폴더 안 <code>_완료</code> 폴더로 옮깁니다. 원본이 남아 있어 가장 안전합니다.',
+    trash:'컴퓨터 휴지통으로 보냅니다. 잘못돼도 휴지통에서 되살릴 수 있습니다.',
+    delete:'파일을 바로 지웁니다. <b style="color:var(--accent)">휴지통에도 남지 않아 되돌릴 수 없습니다.</b> 원본을 따로 보관하고 계실 때만 쓰세요.',
+    keep:'파일을 그대로 둡니다. 같은 파일을 또 올리지는 않지만, 감시 폴더가 계속 쌓입니다.',
+  }[v]||'';
 }
 const setSw=(id,on)=>$(id).classList.toggle('on',!!on);
 const getSw=id=>$(id).classList.contains('on');
@@ -632,7 +651,7 @@ async function saveAll(){
     stableChecks:+$('cStable').value, titlePrefix:$('cPrefix').value, titleSuffix:$('cSuffix').value,
     tags:$('cTags').value, description:$('cDesc').value,
     reviewMode:getSw('cReview'), madeForKids:getSw('cKids'), notifySubscribers:getSw('cNotify'),
-    notifications:getSw('cOsNotify'), afterUpload:getSw('cMove')?'move':'keep',
+    notifications:getSw('cOsNotify'), afterUpload:$('cAfter').value,
     clientId:$('cCid').value.trim(), clientSecret:$('cSec').value.trim(),
   };
   const r=await api('/api/config',body);
@@ -663,6 +682,7 @@ async function wizardConnect(){
 }
 
 /* ---------------- 시작 ---------------- */
+document.addEventListener('change',e=>{if(e.target&&e.target.id==='cAfter')afterHint()});
 (async()=>{
   await poll();
   if(ST&&!ST.authed)swTab('t4');

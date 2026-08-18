@@ -1,7 +1,7 @@
 // 폴더 감시 엔진 — 새 영상을 감지해 안정화되면 업로드한다.
 import { Config, IS_WIN, State, join, loadConfig, loadState, loadTokens, log, saveState } from "./paths.ts";
 import { DAILY_QUOTA, ErrKind, UPLOAD_COST, UploadError, uploadVideo, VideoMeta } from "./youtube.ts";
-import { notify } from "./platform.ts";
+import { moveToTrash, notify } from "./platform.ts";
 
 const VIDEO_EXT = new Set([
   ".mp4", ".mov", ".m4v", ".avi", ".webm", ".mkv", ".flv", ".wmv", ".mpg", ".mpeg", ".mts", ".m2ts",
@@ -114,10 +114,13 @@ export class Engine {
     const seenNow = new Set<string>();
     for await (const e of Deno.readDir(this.cfg.watchDir)) {
       if (!e.isFile || !isVideoFile(e.name)) continue;
-      seenNow.add(e.name);
       const path = join(this.cfg.watchDir, e.name);
       let size = 0;
       try { size = (await Deno.stat(path)).size; } catch { continue; }
+
+      // '그대로 두기' 로 이미 올린 파일이면 다시 올리지 않는다
+      if (this.state.kept[e.name] === size) continue;
+      seenNow.add(e.name);
 
       let p = this.pending.get(e.name);
       if (!p) {
@@ -195,7 +198,7 @@ export class Engine {
       await saveState(this.state);
       await log(`✅ 완료: ${p.name} → https://youtu.be/${res.id}`);
       if (this.cfg.notifications) await notify("가라사대 업로더 ✅", `${p.title} 업로드 완료`);
-      await this.moveTo(p, DONE_DIR);
+      await this.disposeDone(p);
       setTimeout(() => this.pending.delete(p.name), 60_000);   // 1분간 결과 표시 후 정리
     } catch (e) {
       const err = e instanceof UploadError ? e : new UploadError(e instanceof Error ? e.message : String(e));
@@ -239,8 +242,36 @@ export class Engine {
     }
   }
 
+  /** 업로드에 성공한 파일을 설정에 따라 처리한다. */
+  async disposeDone(p: Pending) {
+    const mode = this.cfg.afterUpload;
+
+    if (mode === "keep") {
+      // 그대로 두되, 다시 감지해서 또 올리지 않도록 기록해 둔다
+      this.state.kept[p.name] = p.size;
+      await saveState(this.state);
+      return;
+    }
+    if (mode === "trash") {
+      const ok = await moveToTrash(p.path);
+      await log(ok ? `   🗑  휴지통으로 보냈습니다: ${p.name}` : `   ⚠️  휴지통 실패 — _완료 폴더로 옮깁니다`);
+      if (!ok) await this.moveTo(p, DONE_DIR);
+      return;
+    }
+    if (mode === "delete") {
+      try {
+        await Deno.remove(p.path);
+        await log(`   ❎ 파일을 삭제했습니다: ${p.name}`);
+      } catch (e) {
+        await log(`   ⚠️  삭제 실패 (${e instanceof Error ? e.message : e}) — _완료 폴더로 옮깁니다`);
+        await this.moveTo(p, DONE_DIR);
+      }
+      return;
+    }
+    await this.moveTo(p, DONE_DIR);
+  }
+
   async moveTo(p: Pending, dir: string) {
-    if (dir === DONE_DIR && this.cfg.afterUpload === "keep") return;
     try {
       const target = join(this.cfg.watchDir, dir);
       await Deno.mkdir(target, { recursive: true });

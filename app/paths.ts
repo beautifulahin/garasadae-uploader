@@ -76,7 +76,7 @@ export interface Config {
   madeForKids: boolean;
   notifySubscribers: boolean;
   reviewMode: boolean;      // true = 사용자가 확인 버튼을 눌러야 업로드
-  afterUpload: "move" | "keep";
+  afterUpload: "move" | "trash" | "delete" | "keep";
   maxRetries: number;
   dailyLimit: number;
   notifications: boolean;
@@ -101,11 +101,13 @@ export interface UploadRec {
 }
 export interface State {
   uploads: UploadRec[];
+  /** 그대로 두기 모드에서 이미 올린 파일 (이름 → 크기). 중복 업로드 방지용 */
+  kept: Record<string, number>;
   failed: Record<string, number>;
   quotaDate: string;
   quotaUsed: number;
 }
-export const EMPTY_STATE: State = { uploads: [], failed: {}, quotaDate: "", quotaUsed: 0 };
+export const EMPTY_STATE: State = { uploads: [], kept: {}, failed: {}, quotaDate: "", quotaUsed: 0 };
 
 const CONF_F = () => join(dataDir(), "config.json");
 const STATE_F = () => join(dataDir(), "state.json");
