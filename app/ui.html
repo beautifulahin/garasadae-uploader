@@ -469,6 +469,8 @@ textarea.fin{resize:vertical;line-height:1.6}
     </div>
     <div class="modal-remember">
       <button class="mlink" onclick="ext(ST&&ST.update?ST.update.page:'#')">바뀐 내용 보기</button>
+      <span>·</span>
+      <button class="mlink" onclick="closeUp()">닫기 (Esc)</button>
     </div>
   </div>
 </div>
@@ -488,6 +490,7 @@ textarea.fin{resize:vertical;line-height:1.6}
       <button class="mbtn ghost" onclick="answerAuto(false)">필요할 때만 켤게요</button>
       <button class="mbtn primary" onclick="answerAuto(true)">🔌 항상 켜기</button>
     </div>
+    <div class="modal-remember"><span>바깥을 누르거나 Esc 를 눌러도 닫힙니다</span></div>
   </div>
 </div>
 
@@ -515,6 +518,7 @@ textarea.fin{resize:vertical;line-height:1.6}
       <span>·</span>
       <button class="mlink" onclick="answerAsk(false,'never')">이 채널은 다시 묻지 않기</button>
     </div>
+    <div class="modal-remember"><span>바깥을 누르거나 Esc 를 눌러도 닫힙니다</span></div>
   </div>
 </div>
 
@@ -1139,6 +1143,29 @@ async function sendFeedback(){
   ext(r.url);
 }
 async function openFeedbackFile(){ const r=await api('/api/openfeedback',{}); if(r.error)msg(r.error,'err'); }
+
+/* ---- 팝업에서 빠져나갈 길 (진행 중일 때는 막지 않는다) ---- */
+function modalBusy(){
+  return !!(ST&&ST.updating&&ST.updating.running);
+}
+function dismissTopModal(){
+  if(modalBusy())return false;
+  const order=['askModal','autoModal','upModal'];
+  for(const id of order){
+    const m=$(id);
+    if(m&&m.classList.contains('on')){
+      if(id==='upModal')closeUp();
+      else if(id==='autoModal')answerAuto(false);
+      else answerAsk(false);
+      return true;
+    }
+  }
+  return false;
+}
+document.addEventListener('keydown',e=>{ if(e.key==='Escape')dismissTopModal(); });
+document.querySelectorAll('.modal').forEach(m=>{
+  m.addEventListener('mousedown',e=>{ if(e.target===m)dismissTopModal(); });
+});
 
 /* ================= 시작 ================= */
 (function initDrop(){
