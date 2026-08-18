@@ -364,7 +364,9 @@ export class Engine {
 async function fileExists(p: string) {
   try { await Deno.stat(p); return true; } catch { return false; }
 }
-/** 음악·자막을 붙이는 스튜디오 편집기 주소 */
+/** 음악을 넣는 스튜디오 편집기 주소.
+ *  브라우저에 다른 구글 계정이 함께 로그인되어 있으면 "오류가 발생했습니다" 가 뜨므로
+ *  팝업에서 그 점을 안내한다. */
 export function studioEditorUrl(id: string): string {
   return `https://studio.youtube.com/video/${id}/editor`;
 }

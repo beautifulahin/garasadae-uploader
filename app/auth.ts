@@ -143,6 +143,7 @@ export async function fetchChannel(token: string) {
     );
   }
   return {
+    id: c.id ?? "",
     title: c.snippet?.title ?? "",
     thumb: c.snippet?.thumbnails?.medium?.url ?? c.snippet?.thumbnails?.default?.url ?? "",
     subs: c.statistics?.subscriberCount ?? "0",
