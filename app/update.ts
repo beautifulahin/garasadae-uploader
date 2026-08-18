@@ -205,7 +205,9 @@ async function swapMac(extracted: string) {
   // 겹쳐서 켜면 새 프로그램이 "이미 실행 중"으로 보고 스스로 종료해 버린다.
   const esc = current.replace(/(["\\$`])/g, "\\$1");
   new Deno.Command("/bin/sh", {
-    args: ["-c", `sleep 4; open -n "${esc}"`],
+    // --background 로 켜서 새 탭이 또 열리지 않게 한다.
+    // 이미 열려 있는 화면이 스스로 새로고침되어 새 버전을 보여준다.
+    args: ["-c", `sleep 4; open -n "${esc}" --args --background`],
     stdout: "null", stderr: "null", stdin: "null",
   }).spawn().unref?.();
   setTimeout(() => Deno.exit(0), 300);
@@ -230,7 +232,7 @@ if not errorlevel 1 (\r
   goto wait\r
 )\r
 move /Y "${fresh}" "${exe}" >nul\r
-start "" "${exe}"\r
+start "" "${exe}" --background\r
 del "%~f0"\r
 `;
   await Deno.writeTextFile(bat, script);
