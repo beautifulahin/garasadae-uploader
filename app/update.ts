@@ -53,6 +53,16 @@ function installable(): { ok: boolean; reason: string } {
 
 export async function checkUpdate(force = false): Promise<UpdateInfo> {
   const page = `https://github.com/${REPO}/releases/latest`;
+
+  // 시험용 — 실제 배포 없이 팝업 동작을 확인할 때만 쓴다
+  const fake = (() => { try { return Deno.env.get("GARASADAE_FAKE_UPDATE") ?? ""; } catch { return ""; } })();
+  if (fake) {
+    return {
+      available: true, version: fake, current: APP_VERSION,
+      url: "", page, canInstall: false, reason: "시험 모드입니다.",
+    };
+  }
+
   const none: UpdateInfo = {
     available: false, version: APP_VERSION, current: APP_VERSION,
     url: "", page, canInstall: false, reason: "",

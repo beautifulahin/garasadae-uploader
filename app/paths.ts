@@ -3,7 +3,7 @@ export const IS_WIN = Deno.build.os === "windows";
 export const IS_MAC = Deno.build.os === "darwin";
 export const APP_NAME = "가라사대업로더";
 export const APP_ID = "com.garasadae.uploader";
-export const APP_VERSION = "1.4.3";
+export const APP_VERSION = "1.5.0";
 export const REPO = "beautifulahin/garasadae-uploader";
 
 function env(k: string) {
@@ -89,6 +89,7 @@ export interface Config {
   notifications: boolean;
   autoStart: boolean;
   autoStartAsked: boolean;   // 자동 실행을 켤지 한 번 물어봤는지
+  updateDeclines: Record<string, number>;  // 버전별로 업데이트를 몇 번 거절했는지
   port: number;
 }
 
@@ -100,7 +101,7 @@ export const DEFAULTS: Config = {
   madeForKids: false, notifySubscribers: true,
   reviewMode: false, studioAfter: "ask", afterUpload: "move",
   maxRetries: 3, dailyLimit: 6, notifications: true,
-  autoStart: false, autoStartAsked: false, port: 8777,
+  autoStart: false, autoStartAsked: false, updateDeclines: {}, port: 8777,
 };
 
 export interface UploadRec {

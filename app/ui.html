@@ -568,9 +568,9 @@ textarea.fin{resize:vertical;line-height:1.6}
 <div class="modal" id="upModal">
   <div class="modal-box">
     <div class="modal-emoji">🆕</div>
-    <h3>업데이트 하시겠습니까?</h3>
+    <h3 id="upTitle">업데이트 하시겠습니까?</h3>
     <div class="modal-title" id="upVer"></div>
-    <p class="modal-desc">
+    <p class="modal-desc" id="upDesc">
       새 버전이 나왔습니다. 확인을 누르면 프로그램이 알아서 받아서<br>
       교체하고 다시 시작합니다. <b>설정과 로그인은 그대로 유지됩니다.</b>
     </p>
@@ -579,8 +579,8 @@ textarea.fin{resize:vertical;line-height:1.6}
       <div class="gauge-l"><span id="upText">준비 중…</span><span id="upPct">0%</span></div>
     </div>
     <div class="modal-btns" id="upBtns">
-      <button class="mbtn ghost" onclick="closeUp()">취소</button>
-      <button class="mbtn primary" onclick="doUpdate()">확인</button>
+      <button class="mbtn ghost" id="upNo" onclick="closeUp()">취소</button>
+      <button class="mbtn primary" id="upYes" onclick="doUpdate()">확인</button>
     </div>
     <div class="modal-remember">
       <button class="mlink" onclick="ext(ST&&ST.update?ST.update.page:'#')">바뀐 내용 보기</button>
@@ -707,7 +707,7 @@ function paint(){
   $('kAfter').textContent=({move:'_완료 폴더로',trash:'휴지통으로',delete:'완전 삭제',keep:'그대로 두기'})[s.config.afterUpload]||'-';
   $('kAuto').textContent=s.autoStart?'켜짐':'꺼짐';
 
-  paintUpdate(s.update,s.updating);
+  paintUpdate(s.update,s.updating,s.updatePrompt);
   const upOpen=$('upModal').classList.contains('on');
   if(!upOpen)paintAutoAsk(s.askAutoStart);
   if(!upOpen&&!$('autoModal').classList.contains('on'))paintAsk(s.ask);
@@ -745,7 +745,7 @@ function paint(){
 }
 
 let upSkipped='';
-function paintUpdate(u,upd){
+function paintUpdate(u,upd,prompt){
   const m=$('upModal');
   if(upd&&upd.running){
     m.classList.add('on');
@@ -754,13 +754,35 @@ function paintUpdate(u,upd){
     return;
   }
   if(upd&&upd.error){ msg('업데이트 실패: '+upd.error,'err'); }
-  if(!u||!u.available||upSkipped===u.version){ if(!upd||!upd.running)m.classList.remove('on'); return; }
+  // 두 번까지만 묻는다. 이번 실행에서 이미 닫았으면 다시 띄우지 않는다.
+  if(!u||!u.available||!prompt||!prompt.show||upSkipped===u.version){
+    if(!upd||!upd.running)m.classList.remove('on');
+    return;
+  }
+  if(prompt.second){
+    $('upTitle').textContent='업데이트 받으시겠습니까?';
+    $('upDesc').innerHTML='앞서 취소하셨습니다. 새 버전에는 오류 수정과 새 기능이 들어 있습니다.<br>'
+      +'<b>이번에도 아니오를 누르시면 이 버전은 다시 묻지 않습니다.</b>';
+    $('upNo').textContent='아니오'; $('upYes').textContent='예';
+  }else{
+    $('upTitle').textContent='업데이트 하시겠습니까?';
+    $('upDesc').innerHTML='새 버전이 나왔습니다. 확인을 누르면 프로그램이 알아서 받아서<br>'
+      +'교체하고 다시 시작합니다. <b>설정과 로그인은 그대로 유지됩니다.</b>';
+    $('upNo').textContent='취소'; $('upYes').textContent='확인';
+  }
   $('upVer').textContent=`${u.current} → ${u.version}`;
   $('upProg').style.display='none'; $('upBtns').style.display='flex';
   m.classList.add('on');
 }
-function closeUp(){ if(ST&&ST.update)upSkipped=ST.update.version; $('upModal').classList.remove('on'); }
+async function closeUp(){
+  if(ST&&ST.update)upSkipped=ST.update.version;
+  $('upModal').classList.remove('on');
+  const r=await api('/api/update/decline',{});
+  if(r.times>=2)msg('이 버전은 다시 묻지 않습니다. 설정 탭에서 언제든 받으실 수 있습니다');
+  poll();
+}
 async function doUpdate(){
+  try{ localStorage.setItem('justUpdatedTo', (ST&&ST.update)?ST.update.version:''); }catch(_){}
   $('upProg').style.display='block'; $('upBtns').style.display='none';
   const r=await api('/api/update/install',{});
   if(r.error){
@@ -1065,6 +1087,17 @@ document.addEventListener('change',e=>{if(e.target&&e.target.id==='cAfter')after
 
 (async()=>{
   await poll();
+  // 업데이트가 끝나 새 버전으로 처음 열렸을 때 한 번만 알려준다
+  try{
+    const done=localStorage.getItem('justUpdatedTo');
+    if(done&&ST&&ST.version===done){
+      localStorage.removeItem('justUpdatedTo');
+      msg('최신 버전입니다 (v'+ST.version+')','ok');
+    }else if(done&&ST&&ST.update&&!ST.update.available){
+      localStorage.removeItem('justUpdatedTo');
+      msg('최신 버전입니다','ok');
+    }
+  }catch(_){}
   loadLog(); setInterval(loadLog,6000);
   if(ST&&!ST.authed)swTab('t4');
   fillSettings();

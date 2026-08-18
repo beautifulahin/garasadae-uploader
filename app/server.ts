@@ -61,6 +61,7 @@ export function startServer(engine: Engine, port: number) {
           autoStart: await autoStartEnabled(),
           version: APP_VERSION,
           update: await checkUpdate(false),
+          updatePrompt: await updatePrompt(cfg),
           updating: upState,
           // 첫 실행에서 한 번만 물어본다 (구글 연결이 끝난 뒤)
           askAutoStart: isCompiled() && !!tok && !cfg.autoStartAsked && !(await autoStartEnabled()),
@@ -225,6 +226,19 @@ export function startServer(engine: Engine, port: number) {
         return json({ ok: true });
       }
 
+      // 취소를 누른 횟수를 기록한다. 두 번 거절하면 그 버전은 다시 묻지 않는다.
+      if (p === "/api/update/decline" && req.method === "POST") {
+        const info = await checkUpdate(false);
+        if (!info.version) return json({ ok: true });
+        const cfg = await loadConfig();
+        const n = (cfg.updateDeclines[info.version] ?? 0) + 1;
+        cfg.updateDeclines = { [info.version]: n };   // 옛 버전 기록은 버린다
+        await saveConfig(cfg);
+        await engine.reloadConfig();
+        await log(`🔕 업데이트 ${info.version} 거절 (${n}번째)${n >= 2 ? " — 이 버전은 다시 묻지 않습니다" : ""}`);
+        return json({ ok: true, times: n });
+      }
+
       if (p === "/api/update/check" && req.method === "POST") {
         return json(await checkUpdate(true));
       }
@@ -285,6 +299,13 @@ export function startServer(engine: Engine, port: number) {
 
 async function fileExists(p: string) {
   try { await Deno.stat(p); return true; } catch { return false; }
+}
+
+/** 업데이트를 물어볼지, 몇 번째 물음인지 */
+async function updatePrompt(cfg: Config) {
+  const info = await checkUpdate(false);
+  const times = info.version ? (cfg.updateDeclines[info.version] ?? 0) : 0;
+  return { show: info.available && times < 2, times, second: times === 1 };
 }
 
 const clamp = (n: number, lo: number, hi: number) =>
