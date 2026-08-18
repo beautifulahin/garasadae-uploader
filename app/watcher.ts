@@ -1,7 +1,7 @@
 // 폴더 감시 엔진 — 새 영상을 감지해 안정화되면 업로드한다.
 import { Config, IS_WIN, State, join, loadConfig, loadState, loadTokens, log, saveState } from "./paths.ts";
 import { DAILY_QUOTA, ErrKind, UPLOAD_COST, UploadError, uploadVideo, verifyVideo, VideoMeta } from "./youtube.ts";
-import { moveToTrash, notify } from "./platform.ts";
+import { moveToTrash, notify, openUrl } from "./platform.ts";
 
 const VIDEO_EXT = new Set([
   ".mp4", ".mov", ".m4v", ".avi", ".webm", ".mkv", ".flv", ".wmv", ".mpg", ".mpeg", ".mts", ".m2ts",
@@ -210,6 +210,11 @@ export class Engine {
       if (v.ok) {
         await log(`   🔎 유튜브 확인됨 (${v.status})`);
         await this.disposeDone(p);
+        if (this.cfg.openStudio) {
+          // 유튜브 오디오 보관함·자막 등은 스튜디오에서만 붙일 수 있어 편집 화면을 띄워준다
+          await openUrl(`https://studio.youtube.com/video/${res.id}/edit`);
+          await log(`   🎬 스튜디오 편집 화면을 열었습니다`);
+        }
       } else {
         await log(`   ⚠️  ${v.message} — 파일을 지우지 않고 _완료 폴더에 보관합니다`);
         p.error = `${v.message}. 원본 파일은 _완료 폴더에 그대로 두었습니다.`;

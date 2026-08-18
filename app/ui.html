@@ -344,6 +344,7 @@ textarea.fin{resize:vertical;line-height:1.6}
   <div class="card">
     <h3>🔧 동작 방식</h3>
     <div class="sw" onclick="tglSw('cReview')"><span>검토 후 업로드 <small style="color:var(--t3)">— 자동으로 올리지 않고 확인 버튼을 기다립니다</small></span><div class="tgl" id="cReview"></div></div>
+    <div class="sw" onclick="tglSw('cStudio')"><span>업로드 후 스튜디오 편집 화면 자동으로 열기 <small style="color:var(--t3)">— 음악·자막·썸네일을 바로 붙일 수 있습니다</small></span><div class="tgl" id="cStudio"></div></div>
     <div class="sw" onclick="tglSw('cKids')"><span>아동용 영상</span><div class="tgl" id="cKids"></div></div>
     <div class="sw" onclick="tglSw('cNotify')"><span>구독자에게 알림</span><div class="tgl" id="cNotify"></div></div>
     <div class="sw" onclick="tglSw('cOsNotify')"><span>업로드 완료 시 알림 표시</span><div class="tgl" id="cOsNotify"></div></div>
@@ -798,7 +799,7 @@ function fillSettings(){
   $('cStable').value=c.stableChecks; $('cPrefix').value=c.titlePrefix; $('cSuffix').value=c.titleSuffix;
   $('cTags').value=(c.tags||[]).join(', '); $('cDesc').value=c.description;
   $('cCid').value=c.clientId; $('cSec').value=c.clientSecret?'********':'';
-  setSw('cReview',c.reviewMode); setSw('cKids',c.madeForKids); setSw('cNotify',c.notifySubscribers);
+  setSw('cReview',c.reviewMode); setSw('cStudio',c.openStudio); setSw('cKids',c.madeForKids); setSw('cNotify',c.notifySubscribers);
   setSw('cOsNotify',c.notifications); setSw('cAuto',ST.autoStart);
   $('cAfter').value=c.afterUpload||'move'; afterHint();
 }
@@ -836,7 +837,7 @@ async function saveAll(){
     language:$('cLang').value, dailyLimit:+$('cLimit').value, pollSeconds:+$('cPoll').value,
     stableChecks:+$('cStable').value, titlePrefix:$('cPrefix').value, titleSuffix:$('cSuffix').value,
     tags:$('cTags').value, description:$('cDesc').value,
-    reviewMode:getSw('cReview'), madeForKids:getSw('cKids'), notifySubscribers:getSw('cNotify'),
+    reviewMode:getSw('cReview'), openStudio:getSw('cStudio'), madeForKids:getSw('cKids'), notifySubscribers:getSw('cNotify'),
     notifications:getSw('cOsNotify'), afterUpload:$('cAfter').value,
     clientId:$('cCid').value.trim(), clientSecret:$('cSec').value.trim(),
   };
