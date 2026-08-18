@@ -1,24 +1,13 @@
 // YouTube Data API v3 — resumable 업로드 (중단 지점 이어올리기 포함)
-import { Config, log } from "./paths.ts";
+import { Channel, Config, log } from "./paths.ts";
 import { accessToken } from "./auth.ts";
+import { ErrKind, UploadError } from "./errors.ts";
+export { UploadError };
+export type { ErrKind };
 
 const CHUNK = 8 * 1024 * 1024;               // 256KB 배수여야 함
 export const UPLOAD_COST = 1600;             // 업로드 1건당 쿼터
 export const DAILY_QUOTA = 10000;
-
-/** 오류 성격 — 재시도 정책이 달라진다 */
-export type ErrKind =
-  | "config"     // 사용자가 구글 설정을 고쳐야 함 (재시도해도 소용없음)
-  | "quota"      // 오늘 한도 소진 (내일 재개)
-  | "temporary"  // 일시적 (재시도하면 됨)
-  | "fatal";     // 이 파일 자체의 문제
-
-export class UploadError extends Error {
-  constructor(message: string, public kind: ErrKind = "fatal", public helpUrl = "") {
-    super(message);
-    this.name = "UploadError";
-  }
-}
 
 export interface VideoMeta {
   title: string;
@@ -59,13 +48,14 @@ export function buildBody(m: VideoMeta) {
 
 export async function uploadVideo(
   cfg: Config,
+  ch: Channel,
   path: string,
   meta: VideoMeta,
   onProgress: (sent: number, total: number) => void,
   cancelled: () => boolean = () => false,
 ): Promise<UploadResult> {
   const size = (await Deno.stat(path)).size;
-  const token = await accessToken(cfg);
+  const token = await accessToken(cfg, ch);
 
   // 1) 업로드 세션 열기
   const q = new URLSearchParams({ uploadType: "resumable", part: "snippet,status" });
@@ -181,8 +171,8 @@ export interface VerifyResult {
  * 업로드한 영상이 정말 내 채널에 올라갔는지 유튜브에 다시 물어본다.
  * 파일을 지우기 전에 이 확인을 통과해야 한다. (1 unit)
  */
-export async function verifyVideo(cfg: Config, videoId: string): Promise<VerifyResult> {
-  const token = await accessToken(cfg);
+export async function verifyVideo(cfg: Config, ch: Channel, videoId: string): Promise<VerifyResult> {
+  const token = await accessToken(cfg, ch);
   const url = "https://www.googleapis.com/youtube/v3/videos" +
     `?part=status,snippet&id=${encodeURIComponent(videoId)}`;
 

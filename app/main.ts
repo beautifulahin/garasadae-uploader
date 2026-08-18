@@ -1,6 +1,6 @@
 // 가라사대 업로더 — 진입점
 import { APP_NAME, APP_VERSION, dataDir, ensureDataDir, loadConfig, log, saveConfig } from "./paths.ts";
-import { Engine } from "./watcher.ts";
+import { Manager } from "./watcher.ts";
 import { startServer } from "./server.ts";
 import { openUrl } from "./platform.ts";
 
@@ -36,28 +36,22 @@ async function main() {
 
   const url = `http://127.0.0.1:${cfg.port}`;
 
-  const engine = new Engine();
+  const engine = new Manager();
   await engine.init();
-  await engine.ensureDirs();
 
   startServer(engine, cfg.port);
 
   // 감시 폴더 만들기는 화면을 띄운 뒤에 한다.
   // 맥에서는 "데스크탑 폴더에 접근하려고 합니다" 권한 창이 뜨는데,
   // 사용자가 답할 때까지 멈추기 때문에 이걸 먼저 하면 화면이 안 열린다.
-  (async () => {
-    try {
-      await Deno.mkdir(cfg.watchDir, { recursive: true });
-    } catch (e) {
-      await log(`⚠️  감시 폴더를 만들지 못했습니다: ${cfg.watchDir} — ${e instanceof Error ? e.message : e}`);
-    }
-  })();
+  engine.ensureDirs();
 
   console.log(`
 ┌───────────────────────────────────────────────
 │  ${APP_NAME} v${VERSION}
 │  화면    ${url}
-│  감시    ${cfg.watchDir}
+│  채널    ${cfg.channels.length}개${cfg.channels.length ? " · " + cfg.channels.map((c) => c.name).join(", ") : " (시작하기 탭에서 추가하세요)"}
+│  폴더    ${cfg.baseDir}
 │  설정    ${dataDir()}
 │  ${background ? "백그라운드 모드로 실행 중입니다." : "이 창을 닫으면 자동 업로드가 멈춥니다."}
 └───────────────────────────────────────────────`);

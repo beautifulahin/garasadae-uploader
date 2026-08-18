@@ -1,5 +1,8 @@
-// 구글 OAuth 2.0 (설치형 앱 · 루프백 + PKCE)
-import { Config, loadTokens, saveTokens, Tokens, log } from "./paths.ts";
+// 구글 OAuth 2.0 (설치형 앱 · 루프백 + PKCE) — 채널마다 따로 로그인한다
+import {
+  Channel, Config, Tokens, credsOf, findChannel, loadTokens, log, saveTokens,
+} from "./paths.ts";
+import { UploadError } from "./errors.ts";
 
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -11,41 +14,60 @@ const b64url = (buf: ArrayBuffer) =>
   btoa(String.fromCharCode(...new Uint8Array(buf)))
     .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
-let pending: { verifier: string; state: string; redirect: string } | null = null;
+/** 로그인을 시작한 채널별로 대기 상태를 들고 있는다 (여러 채널을 이어서 연결할 수 있게) */
+const pending = new Map<string, { verifier: string; redirect: string; channelId: string }>();
 
-export async function authUrl(cfg: Config): Promise<string> {
+export class ChannelError extends Error {
+  constructor(message: string, public helpUrl = "") { super(message); }
+}
+
+export async function authUrl(cfg: Config, ch: Channel): Promise<string> {
+  const { clientId } = credsOf(cfg, ch);
+  if (!clientId) throw new Error("이 채널의 클라이언트 ID가 없습니다.");
+
   const bytes = crypto.getRandomValues(new Uint8Array(48));
   const verifier = b64url(bytes.buffer);
   const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
-  const state = crypto.randomUUID();
-  // 구글은 루프백 리디렉션에 경로를 허용하지 않는다. 반드시 호스트:포트 까지만.
+  // 구글은 루프백 리디렉션에 경로를 허용하지 않는다. 어느 채널인지는 state 에 실어 보낸다.
+  const stateKey = crypto.randomUUID();
   const redirect = `http://127.0.0.1:${cfg.port}`;
-  pending = { verifier, state, redirect };
+  pending.set(stateKey, { verifier, redirect, channelId: ch.id });
 
   const q = new URLSearchParams({
-    client_id: cfg.clientId,
+    client_id: clientId,
     redirect_uri: redirect,
     response_type: "code",
     scope: SCOPE,
     access_type: "offline",
     prompt: "consent",
-    state,
+    state: stateKey,
     code_challenge: challenge,
     code_challenge_method: "S256",
   });
   return `${AUTH_URL}?${q}`;
 }
 
-/** 콜백에서 받은 code 를 토큰으로 교환한다. 실패 시 사람이 읽을 메시지를 던진다. */
-export async function exchange(cfg: Config, code: string, state: string): Promise<Tokens> {
-  if (!pending || pending.state !== state) throw new Error("인증 상태가 일치하지 않습니다. 다시 시도해 주세요.");
+/** 콜백에서 받은 code 를 토큰으로 바꾼다. 어느 채널인지는 state 로 알아낸다. */
+export async function exchange(
+  cfg: Config,
+  code: string,
+  stateKey: string,
+): Promise<{ channel: Channel; tokens: Tokens }> {
+  const p = pending.get(stateKey);
+  if (!p) throw new Error("인증 상태가 일치하지 않습니다. 프로그램에서 다시 연결해 주세요.");
+  pending.delete(stateKey);
+
+  const ch = findChannel(cfg, p.channelId);
+  if (!ch) throw new Error("연결하려던 채널을 찾을 수 없습니다.");
+  const { clientId, clientSecret } = credsOf(cfg, ch);
+
   const body = new URLSearchParams({
-    client_id: cfg.clientId,
-    client_secret: cfg.clientSecret,
+    client_id: clientId,
+    client_secret: clientSecret,
     code,
-    code_verifier: pending.verifier,
+    code_verifier: p.verifier,
     grant_type: "authorization_code",
-    redirect_uri: pending.redirect,
+    redirect_uri: p.redirect,
   });
   const r = await fetch(TOKEN_URL, {
     method: "POST",
@@ -64,21 +86,21 @@ export async function exchange(cfg: Config, code: string, state: string): Promis
     refresh_token: j.refresh_token,
     expires_at: Date.now() + (j.expires_in ?? 3600) * 1000 - 60_000,
   };
-  await saveTokens(tok);
-  pending = null;
-  await checkChannel(tok);
-  await log(`✅ 인증 완료${tok.channel ? ` · 채널: ${tok.channel.title}` : ` · ⚠️ ${tok.channelError}`}`);
-  return tok;
+  await saveTokens(ch.id, tok);
+  await checkChannel(ch.id, tok);
+  await log(`✅ [${ch.name}] 인증 완료${tok.channel ? ` · ${tok.channel.title}` : ` · ⚠️ ${tok.channelError}`}`);
+  return { channel: ch, tokens: tok };
 }
 
-export async function accessToken(cfg: Config): Promise<string> {
-  const tok = await loadTokens();
-  if (!tok) throw new Error("로그인이 필요합니다.");
+export async function accessToken(cfg: Config, ch: Channel): Promise<string> {
+  const tok = await loadTokens(ch.id);
+  if (!tok) throw new UploadError(`[${ch.name}] 아직 구글 계정이 연결되지 않았습니다. 채널 탭에서 연결해 주세요.`, "config");
   if (tok.access_token && (tok.expires_at ?? 0) > Date.now()) return tok.access_token;
 
+  const { clientId, clientSecret } = credsOf(cfg, ch);
   const body = new URLSearchParams({
-    client_id: cfg.clientId,
-    client_secret: cfg.clientSecret,
+    client_id: clientId,
+    client_secret: clientSecret,
     refresh_token: tok.refresh_token,
     grant_type: "refresh_token",
   });
@@ -88,15 +110,15 @@ export async function accessToken(cfg: Config): Promise<string> {
     body,
   });
   const j = await r.json();
-  if (!r.ok) throw new Error(explain(j));
+  if (!r.ok) throw new UploadError(explain(j), "config", consoleLinkFor(j));
   tok.access_token = j.access_token;
   tok.expires_at = Date.now() + (j.expires_in ?? 3600) * 1000 - 60_000;
-  await saveTokens(tok);
+  await saveTokens(ch.id, tok);
   return tok.access_token!;
 }
 
 /** 채널 정보를 받아 토큰 파일에 기록한다. 실패하면 원인과 해결 링크를 남긴다. */
-export async function checkChannel(tok: Tokens): Promise<Tokens> {
+export async function checkChannel(channelId: string, tok: Tokens): Promise<Tokens> {
   try {
     tok.channel = await fetchChannel(tok.access_token!);
     tok.channelError = "";
@@ -107,12 +129,8 @@ export async function checkChannel(tok: Tokens): Promise<Tokens> {
     tok.channelError = m.message;
     tok.channelErrorUrl = m.helpUrl;
   }
-  await saveTokens(tok);
+  await saveTokens(channelId, tok);
   return tok;
-}
-
-export class ChannelError extends Error {
-  constructor(message: string, public helpUrl = "") { super(message); }
 }
 
 export async function fetchChannel(token: string) {
@@ -153,8 +171,8 @@ export async function fetchChannel(token: string) {
   };
 }
 
-export async function revoke() {
-  const tok = await loadTokens();
+export async function revoke(channelId: string) {
+  const tok = await loadTokens(channelId);
   if (!tok) return;
   try {
     await fetch(REVOKE_URL, {
@@ -165,12 +183,21 @@ export async function revoke() {
   } catch { /* 무시 */ }
 }
 
+/** 고칠 수 있는 오류라면 어디로 가야 하는지 알려준다. */
+function consoleLinkFor(j: Record<string, string>): string {
+  if (j.error === "invalid_client" || j.error === "unauthorized_client") {
+    return "https://console.cloud.google.com/apis/credentials";
+  }
+  if (j.error === "invalid_grant") return "https://console.cloud.google.com/apis/credentials/consent";
+  return "";
+}
+
 /** 구글 오류 응답을 한국어 안내로 바꾼다. */
 function explain(j: Record<string, string>): string {
   const e = j.error ?? "";
   const d = j.error_description ?? "";
   const map: Record<string, string> = {
-    invalid_client: "클라이언트 ID 또는 보안 비밀번호가 올바르지 않습니다. 설정에서 다시 확인해 주세요.",
+    invalid_client: "클라이언트 ID 또는 보안 비밀번호가 올바르지 않습니다. 채널 설정에서 다시 확인해 주세요.",
     invalid_grant: "인증이 만료되었거나 취소되었습니다. 다시 로그인해 주세요. (OAuth 동의 화면이 '테스트' 상태면 7일마다 만료됩니다 — '프로덕션'으로 게시하세요)",
     redirect_uri_mismatch: "리디렉션 주소가 등록되지 않았습니다. OAuth 클라이언트 유형이 '데스크톱 앱'인지 확인해 주세요.",
     access_denied: "구글 로그인 창에서 권한을 거부하셨습니다.",

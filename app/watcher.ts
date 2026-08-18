@@ -1,6 +1,10 @@
-// 폴더 감시 엔진 — 새 영상을 감지해 안정화되면 업로드한다.
-import { Config, IS_WIN, State, join, loadConfig, loadState, loadTokens, log, saveState } from "./paths.ts";
-import { DAILY_QUOTA, ErrKind, UPLOAD_COST, UploadError, uploadVideo, verifyVideo, VideoMeta } from "./youtube.ts";
+// 폴더 감시 엔진 — 채널마다 폴더를 하나씩 지켜보며 자동으로 올린다.
+import {
+  Channel, Config, IS_WIN, State, credsOf, join, loadConfig, loadState, loadTokens,
+  log, projectKey, safeFolderName, saveState,
+} from "./paths.ts";
+import { DAILY_QUOTA, UPLOAD_COST, uploadVideo, verifyVideo, VideoMeta } from "./youtube.ts";
+import { ErrKind, UploadError } from "./errors.ts";
 import { moveToTrash, notify, openUrl } from "./platform.ts";
 
 const VIDEO_EXT = new Set([
@@ -10,10 +14,14 @@ const SKIP_SUFFIX = [".part", ".crdownload", ".download", ".tmp", ".partial", ".
 export const DONE_DIR = "_완료";
 export const FAIL_DIR = "_실패";
 export const HOLD_DIR = "_보류";
+const SUB_DIRS = new Set([DONE_DIR, FAIL_DIR, HOLD_DIR]);
 
 export type PendingStatus = "watching" | "ready" | "uploading" | "done" | "error";
 
 export interface Pending {
+  key: string;            // 채널id|파일이름 — 채널이 달라도 같은 이름을 구분한다
+  channelId: string;
+  channelName: string;
   name: string;
   path: string;
   size: number;
@@ -24,12 +32,12 @@ export interface Pending {
   progress: number;
   sent: number;
   error: string;
-  videoId: string;
-  detectedAt: number;
-  verified: boolean;    // 유튜브에서 실제로 확인됨
-  retryAt: number;      // 이 시각 이후에 다시 시도
-  tries: number;
   helpUrl: string;
+  videoId: string;
+  verified: boolean;
+  detectedAt: number;
+  retryAt: number;
+  tries: number;
 }
 
 function ext(name: string) {
@@ -47,250 +55,282 @@ export function isVideoFile(name: string): boolean {
   return VIDEO_EXT.has(ext(name));
 }
 
-export class Engine {
+/** 음악을 넣는 스튜디오 편집기 주소 */
+export function studioEditorUrl(id: string): string {
+  return `https://studio.youtube.com/video/${id}/editor`;
+}
+
+export interface ChannelBlock { message: string; url: string }
+
+export class Manager {
   cfg!: Config;
   state!: State;
   pending = new Map<string, Pending>();
   running = false;
-  uploading = false;
-  lastError = "";
-  /** 업로드가 끝나 "음악 넣으시겠어요?" 를 물어봐야 하는 영상 */
-  ask: { id: string; title: string } | null = null;
-  /** 화면(브라우저)이 마지막으로 상태를 물어본 시각 */
-  lastSeen = 0;
-  blocked = "";          // 사용자가 구글 설정을 고쳐야 하는 상태
-  blockedUrl = "";
+  uploadingKey = "";
   paused = false;
+  lastSeen = 0;
+  lastError = "";
+  /** 채널별로 "사용자가 고쳐야 하는 문제" */
+  blocks = new Map<string, ChannelBlock>();
+  /** 업로드가 끝나 음악을 넣을지 물어볼 영상 */
+  ask: { id: string; title: string; channelName: string } | null = null;
   private stop = false;
+  private rotate = 0;
 
   async init() {
-    this.cfg = await loadConfig();
+    this.cfg = await loadConfig(true);
     this.state = await loadState();
   }
 
   async reloadConfig() {
-    this.cfg = await loadConfig();
+    this.cfg = await loadConfig(true);
   }
 
-  /** 오늘 올린 개수 */
-  todayCount(): number {
-    const today = new Date().toISOString().slice(0, 10);
-    return this.state.uploads.filter((u) => u.at.slice(0, 10) === today).length;
+  channels(): Channel[] {
+    return this.cfg.channels.filter((c) => c.enabled);
   }
 
-  quotaLeft(): number {
-    const today = new Date().toISOString().slice(0, 10);
-    if (this.state.quotaDate !== today) {
-      this.state.quotaDate = today;
-      this.state.quotaUsed = 0;
+  channelById(id: string): Channel | undefined {
+    return this.cfg.channels.find((c) => c.id === id);
+  }
+
+  /** 감시할 폴더 목록. 상위 폴더에 바로 넣은 영상은 첫 번째 채널로 보낸다. */
+  scanTargets(): { folder: string; ch: Channel }[] {
+    const list = this.channels().map((ch) => ({ folder: ch.folder, ch }));
+    const base = this.cfg.baseDir;
+    if (base && list.length && !list.some((t) => samePath(t.folder, base))) {
+      list.push({ folder: base, ch: list[0].ch });
     }
-    return DAILY_QUOTA - this.state.quotaUsed;
-  }
-
-  limitReached(): boolean {
-    return this.todayCount() >= this.cfg.dailyLimit || this.quotaLeft() < UPLOAD_COST;
-  }
-
-  snapshot() {
-    return {
-      items: [...this.pending.values()].sort((a, b) => a.detectedAt - b.detectedAt),
-      uploading: this.uploading,
-      running: this.running,
-      paused: this.paused,
-      todayCount: this.todayCount(),
-      quotaUsed: this.state.quotaUsed,
-      quotaLeft: this.quotaLeft(),
-      limitReached: this.limitReached(),
-      lastError: this.lastError,
-      ask: this.ask,
-      blocked: this.blocked,
-      blockedUrl: this.blockedUrl,
-      uploads: this.state.uploads.slice(0, 50),
-      failed: this.state.failed,
-    };
+    return list;
   }
 
   async ensureDirs() {
-    await Deno.mkdir(this.cfg.watchDir, { recursive: true });
+    if (this.cfg.baseDir) {
+      try { await Deno.mkdir(this.cfg.baseDir, { recursive: true }); } catch { /* 무시 */ }
+    }
+    for (const ch of this.channels()) {
+      try { await Deno.mkdir(ch.folder, { recursive: true }); } catch (e) {
+        await log(`⚠️  [${ch.name}] 폴더를 만들지 못했습니다: ${ch.folder} — ${e instanceof Error ? e.message : e}`);
+      }
+    }
   }
 
-  /** 폴더를 훑어 pending 목록을 갱신한다. 크기가 stableChecks 번 그대로면 ready. */
+  /* ----------------------------------------- 한도 */
+
+  private today() { return new Date().toISOString().slice(0, 10); }
+
+  quotaOf(ch: Channel): { used: number; left: number } {
+    const key = projectKey(this.cfg, ch);
+    const q = this.state.quota[key];
+    if (!q || q.date !== this.today()) {
+      this.state.quota[key] = { date: this.today(), used: 0 };
+      return { used: 0, left: DAILY_QUOTA };
+    }
+    return { used: q.used, left: DAILY_QUOTA - q.used };
+  }
+
+  addQuota(ch: Channel, n: number) {
+    const key = projectKey(this.cfg, ch);
+    const q = this.state.quota[key];
+    if (!q || q.date !== this.today()) this.state.quota[key] = { date: this.today(), used: n };
+    else q.used += n;
+  }
+
+  todayCount(channelId?: string): number {
+    const d = this.today();
+    return this.state.uploads.filter((u) =>
+      u.at.slice(0, 10) === d && (!channelId || u.channelId === channelId)
+    ).length;
+  }
+
+  limitReached(ch: Channel): boolean {
+    if (this.todayCount(ch.id) >= ch.dailyLimit) return true;
+    return this.quotaOf(ch).left < UPLOAD_COST;
+  }
+
+  /* ----------------------------------------- 훑기 */
+
   async scan() {
-    await this.ensureDirs();
-    const seenNow = new Set<string>();
-    for await (const e of Deno.readDir(this.cfg.watchDir)) {
-      if (!e.isFile || !isVideoFile(e.name)) continue;
-      const path = join(this.cfg.watchDir, e.name);
-      let size = 0;
-      try { size = (await Deno.stat(path)).size; } catch { continue; }
+    const alive = new Set<string>();
+    for (const { folder, ch } of this.scanTargets()) {
+      let entries: Deno.DirEntry[] = [];
+      try {
+        entries = [];
+        for await (const e of Deno.readDir(folder)) entries.push(e);
+      } catch { continue; }        // 폴더가 없으면 다음 tick 에서 다시 만든다
 
-      // '그대로 두기' 로 이미 올린 파일이면 다시 올리지 않는다
-      if (this.state.kept[e.name] === size) continue;
-      seenNow.add(e.name);
+      for (const e of entries) {
+        if (!e.isFile || !isVideoFile(e.name)) continue;
+        const path = join(folder, e.name);
+        let size = 0;
+        try { size = (await Deno.stat(path)).size; } catch { continue; }
 
-      let p = this.pending.get(e.name);
-      if (!p) {
-        p = {
-          name: e.name, path, size,
-          title: this.decorate(stem(e.name)).slice(0, 100),
-          description: this.cfg.description,
-          stable: 0, status: "watching", progress: 0, sent: 0,
-          error: "", videoId: "", detectedAt: Date.now(),
-          verified: false, retryAt: 0, tries: 0, helpUrl: "",
-        };
-        this.pending.set(e.name, p);
-        await log(`🎬 새 영상 감지: ${e.name}`);
+        const key = `${ch.id}|${e.name}`;
+        // '그대로 두기' 로 이미 올린 파일은 다시 올리지 않는다
+        if (this.state.kept[key] === size) continue;
+        alive.add(key);
+
+        let p = this.pending.get(key);
+        if (!p) {
+          p = {
+            key, channelId: ch.id, channelName: ch.name,
+            name: e.name, path, size,
+            title: `${ch.titlePrefix}${stem(e.name)}${ch.titleSuffix}`.slice(0, 100),
+            description: ch.description,
+            stable: 0, status: "watching", progress: 0, sent: 0,
+            error: "", helpUrl: "", videoId: "", verified: false,
+            detectedAt: Date.now(), retryAt: 0, tries: 0,
+          };
+          this.pending.set(key, p);
+          await log(`🎬 [${ch.name}] 새 영상 감지: ${e.name}`);
+        }
+        p.path = path;
+        p.channelName = ch.name;
+        if (p.status === "uploading" || p.status === "done") continue;
+        if (p.size === size && size > 0) p.stable++;
+        else { p.size = size; p.stable = 0; }
+        if (p.status !== "error" && p.stable >= this.cfg.stableChecks) p.status = "ready";
       }
-      if (p.status === "uploading" || p.status === "done") continue;
-      if (p.size === size && size > 0) p.stable++;
-      else { p.size = size; p.stable = 0; }
-      if (p.status !== "error" && p.stable >= this.cfg.stableChecks) p.status = "ready";
     }
-    // 사라진 파일 정리 (업로드 중인 것은 유지)
-    for (const [name, p] of this.pending) {
-      if (!seenNow.has(name) && p.status !== "uploading" && p.status !== "done") {
-        this.pending.delete(name);
+
+    for (const [key, p] of this.pending) {
+      if (!alive.has(key) && p.status !== "uploading" && p.status !== "done") {
+        this.pending.delete(key);
       }
     }
   }
 
-  decorate(base: string): string {
-    return `${this.cfg.titlePrefix}${base}${this.cfg.titleSuffix}`;
-  }
-
-  meta(p: Pending): VideoMeta {
+  meta(p: Pending, ch: Channel): VideoMeta {
     return {
       title: p.title,
       description: p.description,
-      tags: this.cfg.tags,
-      categoryId: this.cfg.categoryId,
-      language: this.cfg.language,
-      privacy: this.cfg.privacy,
-      madeForKids: this.cfg.madeForKids,
-      notifySubscribers: this.cfg.notifySubscribers,
+      tags: ch.tags,
+      categoryId: ch.categoryId,
+      language: ch.language,
+      privacy: ch.privacy,
+      madeForKids: ch.madeForKids,
+      notifySubscribers: ch.notifySubscribers,
     };
   }
 
+  /* ----------------------------------------- 업로드 */
+
   async uploadOne(p: Pending): Promise<void> {
-    if (this.uploading) return;
+    if (this.uploadingKey) return;
+    const ch = this.channelById(p.channelId);
+    if (!ch) { this.pending.delete(p.key); return; }
+
+    this.uploadingKey = p.key;
     p.retryAt = 0;
-    this.uploading = true;
     p.status = "uploading";
     p.progress = 0;
     p.error = "";
-    await log(`📤 업로드 시작: ${p.name} (${fmtSize(p.size)})`);
+    await log(`📤 [${ch.name}] 업로드 시작: ${p.name} (${fmtSize(p.size)})`);
 
     try {
-      const res = await uploadVideo(this.cfg, p.path, this.meta(p), (sent, total) => {
+      const res = await uploadVideo(this.cfg, ch, p.path, this.meta(p, ch), (sent, total) => {
         p.sent = sent;
         p.progress = total ? Math.round((sent / total) * 100) : 0;
       });
       p.videoId = res.id;
       p.status = "done";
-      this.blocked = "";
-      this.blockedUrl = "";
       p.progress = 100;
-      this.state.quotaUsed += UPLOAD_COST;
-      delete this.state.failed[p.name];
+      this.blocks.delete(ch.id);
+      this.addQuota(ch, UPLOAD_COST);
+      delete this.state.failed[p.key];
       this.state.uploads.unshift({
         id: res.id,
         title: res.snippet?.title ?? p.title,
         file: p.name,
         size: p.size,
-        privacy: res.status?.privacyStatus ?? this.cfg.privacy,
+        privacy: res.status?.privacyStatus ?? ch.privacy,
         at: new Date().toISOString().slice(0, 19),
+        channelId: ch.id,
+        channelName: ch.name,
         verified: false,
       });
-      this.state.uploads = this.state.uploads.slice(0, 300);
+      this.state.uploads = this.state.uploads.slice(0, 500);
       await saveState(this.state);
-      await log(`✅ 완료: ${p.name} → https://youtu.be/${res.id}`);
-      if (this.cfg.notifications) await notify("가라사대 업로더 ✅", `${p.title} 업로드 완료`);
+      await log(`✅ [${ch.name}] 완료: ${p.name} → https://youtu.be/${res.id}`);
+      if (this.cfg.notifications) await notify("가라사대 업로더 ✅", `[${ch.name}] ${p.title} 업로드 완료`);
 
-      // 유튜브에 실제로 올라갔는지 확인한 뒤에야 파일을 처리한다
-      const v = await verifyVideo(this.cfg, res.id);
+      // 유튜브에 실제로 올라갔는지 확인한 뒤에야 원본을 처리한다
+      const v = await verifyVideo(this.cfg, ch, res.id);
       p.verified = v.ok;
-      this.state.quotaUsed += 1;
+      this.addQuota(ch, 1);
       if (this.state.uploads[0]?.id === res.id) this.state.uploads[0].verified = v.ok;
       await saveState(this.state);
+
       if (v.ok) {
         await log(`   🔎 유튜브 확인됨 (${v.status})`);
-        await this.disposeDone(p);
-        // 유튜브 오디오 보관함의 음악은 스튜디오에서만 붙일 수 있다
-        if (this.cfg.studioAfter === "always") {
+        await this.disposeDone(p, ch);
+        if (ch.studioAfter === "always") {
           await openUrl(studioEditorUrl(res.id));
           await log(`   🎬 스튜디오 편집기를 열었습니다`);
-        } else if (this.cfg.studioAfter === "ask") {
-          this.ask = { id: res.id, title: p.title };
-          // 백그라운드로 돌고 있어 화면이 닫혀 있으면 팝업을 볼 수 없으므로 창을 띄운다
+        } else if (ch.studioAfter === "ask") {
+          this.ask = { id: res.id, title: p.title, channelName: ch.name };
           if (Date.now() - this.lastSeen > 15_000) {
             await openUrl(`http://127.0.0.1:${this.cfg.port}`);
             await log(`   💬 음악을 넣을지 묻기 위해 화면을 열었습니다`);
           }
         }
       } else {
-        await log(`   ⚠️  ${v.message} — 파일을 지우지 않고 _완료 폴더에 보관합니다`);
-        p.error = `${v.message}. 원본 파일은 _완료 폴더에 그대로 두었습니다.`;
+        await log(`   ⚠️  ${v.message} — 원본을 지우지 않고 ${DONE_DIR} 폴더에 보관합니다`);
+        p.error = `${v.message} 원본 파일은 ${DONE_DIR} 폴더에 그대로 두었습니다.`;
         await this.moveTo(p, DONE_DIR);
         if (this.cfg.notifications) {
           await notify("가라사대 업로더 ⚠️", "유튜브 확인 실패 — 원본을 보관했습니다");
         }
       }
-      setTimeout(() => this.pending.delete(p.name), 60_000);   // 1분간 결과 표시 후 정리
+      setTimeout(() => this.pending.delete(p.key), 60_000);
     } catch (e) {
       const err = e instanceof UploadError ? e : new UploadError(e instanceof Error ? e.message : String(e));
       const kind: ErrKind = err.kind;
       p.status = "error";
       p.error = err.message;
       p.helpUrl = err.helpUrl;
-      this.lastError = err.message;
+      this.lastError = `[${ch.name}] ${err.message}`;
 
       if (kind === "config" || kind === "quota") {
-        // 재시도해도 소용없는 상태 — 횟수를 소모하지 않고 파일도 그대로 둔다
-        this.blocked = err.message;
-        this.blockedUrl = err.helpUrl;
+        this.blocks.set(ch.id, { message: err.message, url: err.helpUrl });
         p.retryAt = Date.now() + (kind === "quota" ? 60 * 60_000 : 3 * 60_000);
-        await log(`⛔ ${p.name} → ${err.message}`);
-        if (this.cfg.notifications) {
-          await notify("가라사대 업로더 ⛔", err.message.slice(0, 120));
-        }
+        await log(`⛔ [${ch.name}] ${p.name} → ${err.message}`);
+        if (this.cfg.notifications) await notify("가라사대 업로더 ⛔", `[${ch.name}] ${err.message.slice(0, 100)}`);
       } else if (kind === "temporary") {
-        // 잠깐의 문제 — 점점 간격을 늘려가며 계속 시도 (횟수 제한 없음)
         p.tries++;
         const wait = Math.min(10 * 60_000, 30_000 * 2 ** Math.min(p.tries - 1, 4));
         p.retryAt = Date.now() + wait;
-        await log(`⏳ ${p.name} → ${err.message} (${Math.round(wait / 1000)}초 후 재시도)`);
+        await log(`⏳ [${ch.name}] ${p.name} → ${err.message} (${Math.round(wait / 1000)}초 후 재시도)`);
       } else {
-        // 이 파일 자체의 문제 — 정해진 횟수만 시도하고 _실패 로 옮긴다
         p.tries++;
-        this.state.failed[p.name] = p.tries;
+        this.state.failed[p.key] = p.tries;
         await saveState(this.state);
-        await log(`❌ 실패(${p.tries}/${this.cfg.maxRetries}) ${p.name} → ${err.message}`);
-        if (p.tries >= this.cfg.maxRetries) {
+        await log(`❌ [${ch.name}] 실패(${p.tries}/3) ${p.name} → ${err.message}`);
+        if (p.tries >= 3) {
           await this.moveTo(p, FAIL_DIR);
-          this.pending.delete(p.name);
-          if (this.cfg.notifications) await notify("가라사대 업로더 ❌", `${p.name} 업로드 실패`);
+          this.pending.delete(p.key);
+          if (this.cfg.notifications) await notify("가라사대 업로더 ❌", `[${ch.name}] ${p.name} 업로드 실패`);
         } else {
           p.retryAt = Date.now() + 30_000 * p.tries;
         }
       }
     } finally {
-      this.uploading = false;
+      this.uploadingKey = "";
     }
   }
 
-  /** 업로드에 성공한 파일을 설정에 따라 처리한다. */
-  async disposeDone(p: Pending) {
-    const mode = this.cfg.afterUpload;
-
+  /** 업로드에 성공한 파일을 채널 설정에 따라 처리한다. */
+  async disposeDone(p: Pending, ch: Channel) {
+    const mode = ch.afterUpload;
     if (mode === "keep") {
-      // 그대로 두되, 다시 감지해서 또 올리지 않도록 기록해 둔다
-      this.state.kept[p.name] = p.size;
+      this.state.kept[p.key] = p.size;
       await saveState(this.state);
       return;
     }
     if (mode === "trash") {
       const ok = await moveToTrash(p.path);
-      await log(ok ? `   🗑  휴지통으로 보냈습니다: ${p.name}` : `   ⚠️  휴지통 실패 — _완료 폴더로 옮깁니다`);
+      await log(ok ? `   🗑  휴지통으로 보냈습니다: ${p.name}` : `   ⚠️  휴지통 실패 — ${DONE_DIR} 폴더로 옮깁니다`);
       if (!ok) await this.moveTo(p, DONE_DIR);
       return;
     }
@@ -299,7 +339,7 @@ export class Engine {
         await Deno.remove(p.path);
         await log(`   ❎ 파일을 삭제했습니다: ${p.name}`);
       } catch (e) {
-        await log(`   ⚠️  삭제 실패 (${e instanceof Error ? e.message : e}) — _완료 폴더로 옮깁니다`);
+        await log(`   ⚠️  삭제 실패 (${e instanceof Error ? e.message : e}) — ${DONE_DIR} 폴더로 옮깁니다`);
         await this.moveTo(p, DONE_DIR);
       }
       return;
@@ -309,7 +349,8 @@ export class Engine {
 
   async moveTo(p: Pending, dir: string) {
     try {
-      const target = join(this.cfg.watchDir, dir);
+      const parent = p.path.slice(0, Math.max(p.path.lastIndexOf("/"), p.path.lastIndexOf("\\")));
+      const target = join(parent, dir);
       await Deno.mkdir(target, { recursive: true });
       let dest = join(target, p.name);
       let i = 1;
@@ -320,29 +361,45 @@ export class Engine {
     }
   }
 
-  /** UI에서 보류: 파일을 _보류 폴더로 옮겨 감시 대상에서 제외 */
-  async hold(name: string) {
-    const p = this.pending.get(name);
+  async hold(key: string) {
+    const p = this.pending.get(key);
     if (!p || p.status === "uploading") return false;
     await this.moveTo(p, HOLD_DIR);
-    this.pending.delete(name);
-    await log(`⏸  보류: ${name}`);
+    this.pending.delete(key);
+    await log(`⏸  보류: ${p.name}`);
     return true;
+  }
+
+  /* ----------------------------------------- 순환 */
+
+  /** 올릴 수 있는 다음 영상 하나를 고른다. 채널을 돌아가며 골라 한 채널이 독차지하지 않게 한다. */
+  private async pickNext(): Promise<Pending | null> {
+    const chans = this.channels();
+    if (!chans.length) return null;
+    const now = Date.now();
+    for (let i = 0; i < chans.length; i++) {
+      const ch = chans[(this.rotate + i) % chans.length];
+      if (this.limitReached(ch)) continue;
+      if (!(await loadTokens(ch.id))) continue;         // 아직 연결 안 된 채널은 건너뛴다
+      const items = [...this.pending.values()].filter((p) => p.channelId === ch.id);
+      const ready = items.find((p) =>
+        p.status === "ready" || (p.status === "error" && p.retryAt > 0 && p.retryAt <= now)
+      );
+      if (!ready) continue;
+      if (ch.reviewMode && ready.status === "ready") continue;   // 검토 모드
+      this.rotate = (this.rotate + i + 1) % chans.length;
+      return ready;
+    }
+    return null;
   }
 
   async tick() {
     try {
+      await this.ensureDirs();
       await this.scan();
-      if (this.paused || this.uploading) return;
-      if (!(await loadTokens())) return;          // 구글 미연결이면 감지만 하고 대기
-      if (this.limitReached()) return;
-      const now = Date.now();
-      const next = [...this.pending.values()].find((p) =>
-        (p.status === "ready" || (p.status === "error" && p.retryAt > 0 && p.retryAt <= now))
-      );
-      if (!next) return;
-      if (this.cfg.reviewMode && next.status === "ready") return;   // 검토 모드
-      await this.uploadOne(next);
+      if (this.paused || this.uploadingKey) return;
+      const next = await this.pickNext();
+      if (next) await this.uploadOne(next);
     } catch (e) {
       this.lastError = e instanceof Error ? e.message : String(e);
       await log(`⚠️  감시 오류: ${this.lastError}`);
@@ -351,34 +408,79 @@ export class Engine {
 
   async loop() {
     this.running = true;
-    await log(`👀 감시 시작: ${this.cfg.watchDir} (공개범위 ${this.cfg.privacy}, ${this.cfg.pollSeconds}초 간격)`);
-    let warned = false;
+    const names = this.channels().map((c) => c.name).join(", ") || "(등록된 채널 없음)";
+    await log(`👀 감시 시작 · 채널 ${this.channels().length}개: ${names}`);
+    const warned = new Set<string>();
     while (!this.stop) {
       await this.tick();
-      if (this.limitReached() && !warned) {
-        warned = true;
-        await log("⏸  오늘 업로드 한도에 도달했습니다. 내일 자동 재개됩니다.");
-        if (this.cfg.notifications) await notify("가라사대 업로더 ⏸", "오늘 업로드 한도에 도달했습니다");
-      } else if (!this.limitReached()) warned = false;
+      for (const ch of this.channels()) {
+        if (this.limitReached(ch)) {
+          if (!warned.has(ch.id)) {
+            warned.add(ch.id);
+            await log(`⏸  [${ch.name}] 오늘 업로드 한도에 도달했습니다. 내일 자동 재개됩니다.`);
+            if (this.cfg.notifications) await notify("가라사대 업로더 ⏸", `[${ch.name}] 오늘 한도 도달`);
+          }
+        } else warned.delete(ch.id);
+      }
       await new Promise((r) => setTimeout(r, Math.max(2, this.cfg.pollSeconds) * 1000));
     }
     this.running = false;
   }
 
   halt() { this.stop = true; }
+
+  /* ----------------------------------------- 화면에 넘길 요약 */
+
+  snapshot() {
+    const items = [...this.pending.values()].sort((a, b) => a.detectedAt - b.detectedAt);
+    const chans = this.cfg.channels.map((ch) => {
+      const q = this.quotaOf(ch);
+      const block = this.blocks.get(ch.id);
+      return {
+        id: ch.id,
+        name: ch.name,
+        folder: ch.folder,
+        enabled: ch.enabled,
+        sharesWith: ch.sharesWith,
+        hasCreds: !!credsOf(this.cfg, ch).clientId,
+        todayCount: this.todayCount(ch.id),
+        dailyLimit: ch.dailyLimit,
+        quotaUsed: q.used,
+        quotaLeft: q.left,
+        capacityLeft: Math.max(0, Math.min(ch.dailyLimit - this.todayCount(ch.id), Math.floor(q.left / UPLOAD_COST))),
+        limitReached: this.limitReached(ch),
+        waiting: items.filter((p) => p.channelId === ch.id && p.status !== "done").length,
+        blocked: block?.message ?? "",
+        blockedUrl: block?.url ?? "",
+        privacy: ch.privacy,
+        afterUpload: ch.afterUpload,
+        studioAfter: ch.studioAfter,
+        reviewMode: ch.reviewMode,
+      };
+    });
+    return {
+      items,
+      channels: chans,
+      uploading: !!this.uploadingKey,
+      running: this.running,
+      paused: this.paused,
+      ask: this.ask,
+      lastError: this.lastError,
+      todayCount: this.todayCount(),
+      uploads: this.state.uploads.slice(0, 60),
+      failed: this.state.failed,
+    };
+  }
 }
 
+function samePath(a: string, b: string) {
+  const norm = (p: string) => p.replace(/[\\/]+$/, "").toLowerCase();
+  return norm(a) === norm(b);
+}
 async function fileExists(p: string) {
   try { await Deno.stat(p); return true; } catch { return false; }
 }
-/** 음악을 넣는 스튜디오 편집기 주소.
- *  브라우저에 다른 구글 계정이 함께 로그인되어 있으면 "오류가 발생했습니다" 가 뜨므로
- *  팝업에서 그 점을 안내한다. */
-export function studioEditorUrl(id: string): string {
-  return `https://studio.youtube.com/video/${id}/editor`;
-}
-
 export function fmtSize(n: number): string {
   return n > 1073741824 ? (n / 1073741824).toFixed(2) + "GB" : (n / 1048576).toFixed(1) + "MB";
 }
-export { IS_WIN };
+export { IS_WIN, safeFolderName, SUB_DIRS };
