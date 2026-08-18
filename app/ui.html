@@ -90,6 +90,111 @@ textarea.fin{resize:vertical;line-height:1.6}
 @media(max-width:900px){.side{width:100%;min-width:100%;max-height:none;position:static;border-right:none;border-bottom:1px solid var(--bdr)}.body{flex-direction:column}.stats{grid-template-columns:repeat(2,1fr)}.qc-top{flex-direction:column}.qc-th{width:100%;min-width:0}}
 </style>
 <style>
+/* ── 1.5.6 에서 이어온 규칙 (팝업·대시보드·안내 상자) ── */
+.hintline{font-size:11px;color:var(--t3);line-height:1.7;margin-top:6px}
+.hintline code,.p13 code,.sw code{background:var(--bg3);padding:1px 5px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--cyan)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media(max-width:640px){.grid2{grid-template-columns:1fr}}
+.flabel{display:block;font-size:11px;font-weight:700;color:var(--t3);margin-bottom:5px;letter-spacing:.3px}
+.p13{font-size:13px;color:var(--t2);line-height:1.9}
+.danger{margin-top:12px;padding:12px 14px;border-radius:var(--rs);background:rgba(255,68,102,.08);border:1px solid rgba(255,68,102,.35);font-size:12px;color:var(--t1);line-height:1.8}
+.card ol li{margin-bottom:6px}
+.tp.solo.on{display:block;padding:20px;max-width:900px}
+.stats{max-width:860px}
+.qlist{max-width:860px}
+.pulse{animation:pl 1.4s ease-in-out infinite}@keyframes pl{0%,100%{opacity:1}50%{opacity:.45}}
+.qc-meta{display:flex;flex-direction:column;gap:6px;padding:0 12px 12px}
+.sw small{font-size:11px}
+.tp.solo.on{max-width:1400px;margin:0 auto}
+.dash{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+@media(max-width:1000px){.dash{grid-template-columns:1fr}}
+.dash-side{display:flex;flex-direction:column;gap:12px;position:sticky;top:110px}
+@media(max-width:1000px){.dash-side{position:static}}
+
+.panel{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:14px}
+.panel-h{font-size:11px;font-weight:700;color:var(--t3);letter-spacing:.5px;margin-bottom:10px}
+.panel-link{display:block;margin-top:10px;padding:8px;border-radius:var(--rs);border:1px solid var(--bdr);color:var(--t2);font-size:11px;font-weight:600;text-align:center;text-decoration:none;transition:.15s}
+.panel-link:hover{border-color:var(--accent);color:var(--accent)}
+
+.ch-top{display:flex;gap:10px;align-items:center;margin-bottom:12px}
+.ch-top img{width:46px;height:46px;border-radius:50%;object-fit:cover;background:var(--bg3);flex-shrink:0}
+.ch-info{min-width:0}
+.ch-info b{font-size:14px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch-info span{font-size:10px;color:var(--t3);font-family:'JetBrains Mono',monospace}
+.ch-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding-top:10px;border-top:1px solid var(--bdr)}
+.ch-stats div{text-align:center;min-width:0}
+.ch-stats b{display:block;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--blue);overflow:hidden;text-overflow:ellipsis}
+.ch-stats span{font-size:9px;color:var(--t3)}
+
+.gauge{height:8px;border-radius:4px;background:var(--bg3);overflow:hidden;margin-bottom:6px}
+.gauge-f{height:100%;width:0;border-radius:4px;background:linear-gradient(90deg,var(--accent),#ff8844);transition:width .4s}
+.gauge-l{display:flex;justify-content:space-between;font-size:10px;color:var(--t3);font-family:'JetBrains Mono',monospace;margin-bottom:12px}
+.mini{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding-top:10px;border-top:1px solid var(--bdr)}
+.mini div{text-align:center}
+.mini b{display:block;font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:700;background:linear-gradient(135deg,var(--accent),#ff8844);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.mini span{font-size:9px;color:var(--t3)}
+
+.kv{display:flex;justify-content:space-between;gap:8px;font-size:11px;padding:5px 0;border-bottom:1px solid var(--bdr)}
+.kv:last-of-type{border-bottom:none}
+.kv span{color:var(--t3);flex-shrink:0}
+.kv b{color:var(--t1);font-weight:500;text-align:right;word-break:break-all;font-size:10px;font-family:'JetBrains Mono',monospace}
+
+.logmini{font-family:'JetBrains Mono',monospace;font-size:9.5px;line-height:1.75;color:var(--t2);max-height:190px;overflow:auto;white-space:pre-wrap;word-break:break-all;margin:0}
+
+.sechead{display:flex;align-items:center;justify-content:space-between;margin:18px 0 10px;font-size:12px;font-weight:700;color:var(--t2)}
+.sechead-r{font-size:10px;color:var(--t3);font-family:'JetBrains Mono',monospace;font-weight:400}
+
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.thumb{border-radius:var(--rs);overflow:hidden;background:var(--bg2);border:1px solid var(--bdr);transition:.15s;text-decoration:none;display:block}
+.thumb:hover{border-color:var(--blue);transform:translateY(-2px)}
+.thumb img{width:100%;aspect-ratio:16/9;object-fit:cover;background:var(--bg3);display:block}
+.thumb-t{padding:6px 8px;font-size:10px;color:var(--t1);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.thumb-d{padding:0 8px 7px;font-size:9px;color:var(--t3);font-family:'JetBrains Mono',monospace}
+
+.drop{border:2px dashed var(--bdr);border-radius:var(--r);padding:28px 20px;text-align:center;cursor:pointer;transition:.2s;background:var(--bg1)}
+.drop:hover,.drop.hot{border-color:var(--accent);background:var(--bg2)}
+.drop.hot{box-shadow:0 0 24px var(--accentG)}
+.drop-i{font-size:34px;margin-bottom:8px;opacity:.65}
+.drop-t{font-size:15px;font-weight:700;margin-bottom:4px}
+.drop-d{font-size:11px;color:var(--t3);line-height:1.7}
+.empty.small{padding:34px 20px}
+.empty.small .empty-i{font-size:34px}
+.empty.small .empty-t{font-size:14px}
+.empty.small .empty-d{font-size:11px}
+
+.modal{display:none;position:fixed;inset:0;background:rgba(11,11,17,.78);backdrop-filter:blur(8px);z-index:400;align-items:center;justify-content:center;padding:20px}
+.modal.on{display:flex}
+.modal-box{background:var(--bg1);border:1px solid var(--bdr);border-radius:14px;padding:26px 24px;width:420px;max-width:100%;text-align:center;animation:fu .25s ease both}
+.modal-emoji{font-size:40px;margin-bottom:8px}
+.modal-box h3{font-size:17px;font-weight:800;margin-bottom:8px}
+.modal-title{font-size:12px;color:var(--cyan);font-weight:600;margin-bottom:12px;word-break:break-all;line-height:1.5}
+.modal-desc{font-size:12px;color:var(--t2);line-height:1.85;margin-bottom:20px}
+.howto{text-align:left;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rs);padding:12px 14px;margin-bottom:14px}
+.howto div{display:flex;gap:9px;align-items:flex-start;font-size:12px;color:var(--t2);line-height:1.7;margin-bottom:5px}
+.howto div:last-child{margin-bottom:0}
+.howto b:first-child{flex-shrink:0;width:17px;height:17px;margin-top:2px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center}
+.modal-note{font-size:11px;color:var(--gold);background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.28);border-radius:var(--rs);padding:8px 10px;line-height:1.6;margin-bottom:16px}
+.modal-btns{display:flex;gap:8px}
+.mbtn{flex:1;padding:12px;border-radius:var(--r);border:1px solid var(--bdr);font-size:13px;font-weight:700;transition:.15s}
+.mbtn.ghost{background:var(--bg2);color:var(--t2)}
+.mbtn.ghost:hover{color:var(--t1);border-color:var(--t3)}
+.mbtn.primary{border:none;background:linear-gradient(135deg,var(--accent),#ff8844);color:#fff}
+.mbtn.primary:hover{filter:brightness(1.1)}
+.modal-remember{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:14px;font-size:10px;color:var(--t3)}
+.mlink{background:none;border:none;color:var(--t3);font-size:10px;text-decoration:underline;padding:2px}
+.mlink:hover{color:var(--blue)}
+.must{font-size:10px;font-weight:700;color:#0b0b11;background:var(--gold);padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle}
+.blockcard{border-color:var(--accent);background:rgba(255,68,102,.07)}
+.blockcard h3{color:var(--accent)}
+.dirbox{margin-top:10px;padding:11px 13px;background:var(--bg);border:1px solid var(--bdr);border-radius:var(--rs);font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--cyan);word-break:break-all;line-height:1.6}
+.tro{border-top:1px solid var(--bdr);padding:12px 0;display:grid;grid-template-columns:230px 1fr;gap:14px}
+.tro-q{font-size:12px;font-weight:700;color:var(--gold);line-height:1.6}
+.tro-q span{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--t3);font-weight:400}
+.tro-a{font-size:12px;color:var(--t2);line-height:1.8}
+@media(max-width:700px){.tro{grid-template-columns:1fr;gap:6px}}
+.st-val{overflow:hidden}
+</style>
+<style>
 /* ── 여러 채널용 ─────────────────────────────── */
 .chcard{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:13px;margin-bottom:9px;transition:.15s}
 .chcard.off{opacity:.5}
@@ -271,6 +376,13 @@ textarea.fin{resize:vertical;line-height:1.6}
 
   <div class="card">
     <h3>🔧 동작</h3>
+    <div style="padding:8px 0">
+      <label class="flabel">화면을 띄울 브라우저</label>
+      <select class="fin" id="cBrowser"></select>
+      <div class="hintline">기본값으로 두면 이 컴퓨터의 기본 브라우저로 열립니다.
+      편집기 같은 프로그램이 기본으로 잡혀 있어 화면이 이상하게 열린다면 여기서 브라우저를 골라주세요.</div>
+      <button class="tb" style="margin-top:8px" onclick="testBrowser()">🔎 이 브라우저로 열어보기</button>
+    </div>
     <div class="sw" onclick="tglSw('cOsNotify')"><span>업로드 완료·오류 시 알림 표시</span><div class="tgl" id="cOsNotify"></div></div>
     <div class="sw" onclick="tglAutoStart()"><span>컴퓨터 켤 때 자동 실행</span><div class="tgl" id="cAuto"></div></div>
     <div class="grid2" style="margin-top:10px">
@@ -1005,6 +1117,11 @@ function fillSettings(){
   if(!ST)return;
   const s=ST.settings;
   $('cBase').value=s.baseDir; $('cPoll').value=s.pollSeconds; $('cStable').value=s.stableChecks;
+  const bl=ST.browsers||[];
+  $('cBrowser').innerHTML='<option value="">시스템 기본 브라우저</option>'
+    +bl.map(b=>`<option value="${esc(b.id)}" ${s.browser===b.id?'selected':''}>${esc(b.name)}</option>`).join('');
+  if(s.browser&&!bl.some(b=>b.id===s.browser))
+    $('cBrowser').insertAdjacentHTML('beforeend',`<option value="${esc(s.browser)}" selected>${esc(s.browser)}</option>`);
   setSw('cOsNotify',s.notifications); setSw('cAuto',ST.autoStart);
   $('sVer').textContent='v'+(ST.version||'-');
   $('sData').textContent=ST.dataDir||'-';
@@ -1012,9 +1129,15 @@ function fillSettings(){
 async function saveSettings(){
   const r=await api('/api/settings',{
     baseDir:$('cBase').value.trim(), pollSeconds:+$('cPoll').value,
-    stableChecks:+$('cStable').value, notifications:getSw('cOsNotify')});
+    stableChecks:+$('cStable').value, notifications:getSw('cOsNotify'), browser:$('cBrowser').value});
   r.error?msg(r.error,'err'):msg('저장했습니다','ok');
   poll();
+}
+async function testBrowser(){
+  const r=await api('/api/settings',{browser:$('cBrowser').value});
+  if(r.error)return msg(r.error,'err');
+  await api('/api/openself',{});
+  msg('고른 브라우저로 화면을 열었습니다. 그쪽 창에서 계속 쓰세요','ok');
 }
 async function pickBase(){
   const r=await api('/api/channel/pickfolder',{id:''});

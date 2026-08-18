@@ -121,6 +121,7 @@ export interface Config {
   autoStartAsked: boolean;
   updateDeclines: Record<string, number>;
   baseDir: string;          // 채널 폴더들이 들어가는 상위 폴더
+  browser: string;          // 화면을 띄울 브라우저. 비어 있으면 시스템 기본값
   channels: Channel[];
 }
 
@@ -134,6 +135,7 @@ export const DEFAULTS: Config = {
   autoStartAsked: false,
   updateDeclines: {},
   baseDir: "",
+  browser: "",
   channels: [],
 };
 

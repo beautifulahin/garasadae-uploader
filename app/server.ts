@@ -6,7 +6,7 @@ import {
 } from "./paths.ts";
 import { accessToken, authUrl, checkChannel, exchange, revoke } from "./auth.ts";
 import { Manager, studioEditorUrl } from "./watcher.ts";
-import { autoStartEnabled, isCompiled, openPath, openUrl, pickFolder, setAutoStart } from "./platform.ts";
+import { autoStartEnabled, isCompiled, listBrowsers, openPath, openUrl, pickFolder, setAutoStart } from "./platform.ts";
 import { checkUpdate, installUpdate, UpdateInfo } from "./update.ts";
 
 const UI = await Deno.readTextFile(new URL("./ui.html", import.meta.url));
@@ -111,7 +111,9 @@ export function startServer(engine: Manager, port: number) {
             stableChecks: cfg.stableChecks,
             notifications: cfg.notifications,
             baseDir: cfg.baseDir,
+            browser: cfg.browser,
           },
+          browsers: await listBrowsers(),
           channelList: views,
           autoStart: await autoStartEnabled(),
           askAutoStart: isCompiled() && views.some((v) => v.authed) && !cfg.autoStartAsked &&
@@ -133,6 +135,7 @@ export function startServer(engine: Manager, port: number) {
         if (patch.pollSeconds !== undefined) cfg.pollSeconds = clamp(patch.pollSeconds, 2, 3600, 5);
         if (patch.stableChecks !== undefined) cfg.stableChecks = clamp(patch.stableChecks, 1, 60, 3);
         if (patch.notifications !== undefined) cfg.notifications = !!patch.notifications;
+        if (typeof patch.browser === "string") cfg.browser = patch.browser.trim();
         await saveConfig(cfg);
         await engine.reloadConfig();
         await engine.ensureDirs();
@@ -438,6 +441,12 @@ export function startServer(engine: Manager, port: number) {
         return json({ ok: true, url: issueUrl, saved });
       }
 
+      if (p === "/api/openself" && req.method === "POST") {
+        const cfg = await loadConfig(true);
+        await openUrl(`http://127.0.0.1:${cfg.port}`, cfg.browser);
+        return json({ ok: true });
+      }
+
       if (p === "/api/openfeedback" && req.method === "POST") {
         const f = join(await desktopDir(), "가라사대_피드백.txt");
         try { await Deno.stat(f); } catch {
@@ -452,7 +461,7 @@ export function startServer(engine: Manager, port: number) {
         const { open, remember, channelId } = await req.json();
         const target = engine.ask;
         engine.ask = null;
-        if (open && target) await openUrl(studioEditorUrl(target.id));
+        if (open && target) await openUrl(studioEditorUrl(target.id), engine.cfg.browser);
         if (remember === "always" || remember === "never") {
           const cfg = await loadConfig(true);
           const ch = cfg.channels.find((c) => c.id === channelId) ??

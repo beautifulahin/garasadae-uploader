@@ -1,6 +1,8 @@
 // OS 별 동작: 알림 · 폴더/브라우저 열기 · 자동 시작 등록
 import { APP_ID, APP_NAME, IS_MAC, IS_WIN, dataDir, exists, homeDir, join, log } from "./paths.ts";
 
+function env(k: string) { try { return Deno.env.get(k) ?? ""; } catch { return ""; } }
+
 async function spawn(cmd: string[], detach = true) {
   try {
     const c = new Deno.Command(cmd[0], {
@@ -43,7 +45,47 @@ export async function openPath(p: string) {
   else await spawn(["xdg-open", p]);
 }
 
-export async function openUrl(u: string) {
+/** 이 컴퓨터에서 쓸 수 있는 브라우저 목록 */
+export async function listBrowsers(): Promise<{ id: string; name: string }[]> {
+  const found: { id: string; name: string }[] = [];
+  if (IS_MAC) {
+    const macApps = [
+      ["Google Chrome", "크롬"], ["Safari", "사파리"], ["Microsoft Edge", "엣지"],
+      ["Firefox", "파이어폭스"], ["Whale", "웨일"], ["Arc", "Arc"], ["Brave Browser", "브레이브"],
+    ];
+    for (const [app, label] of macApps) {
+      if (await exists(`/Applications/${app}.app`)) found.push({ id: app, name: label });
+    }
+  } else if (IS_WIN) {
+    const winApps = [
+      ["chrome.exe", "크롬"], ["msedge.exe", "엣지"], ["firefox.exe", "파이어폭스"],
+      ["whale.exe", "웨일"], ["brave.exe", "브레이브"],
+    ];
+    const roots = [env("PROGRAMFILES"), env("PROGRAMFILES(X86)"), env("LOCALAPPDATA")].filter(Boolean);
+    const paths: Record<string, string[]> = {
+      "chrome.exe": ["Google\\Chrome\\Application\\chrome.exe"],
+      "msedge.exe": ["Microsoft\\Edge\\Application\\msedge.exe"],
+      "firefox.exe": ["Mozilla Firefox\\firefox.exe"],
+      "whale.exe": ["Naver\\Naver Whale\\Application\\whale.exe"],
+      "brave.exe": ["BraveSoftware\\Brave-Browser\\Application\\brave.exe"],
+    };
+    for (const [exe, label] of winApps) {
+      for (const root of roots) {
+        for (const rel of paths[exe] ?? []) {
+          if (await exists(join(root, rel))) { found.push({ id: exe, name: label }); break; }
+        }
+        if (found.some((f) => f.id === exe)) break;
+      }
+    }
+  }
+  return found;
+}
+
+export async function openUrl(u: string, browser = "") {
+  if (browser) {
+    if (IS_MAC) { await spawn(["open", "-a", browser, u]); return; }
+    if (IS_WIN) { await spawn(["cmd", "/c", "start", "", browser, u]); return; }
+  }
   if (IS_MAC) await spawn(["open", u]);
   else if (IS_WIN) await spawn(["cmd", "/c", "start", "", u]);
   else await spawn(["xdg-open", u]);

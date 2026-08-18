@@ -266,12 +266,12 @@ export class Manager {
         await log(`   🔎 유튜브 확인됨 (${v.status})`);
         await this.disposeDone(p, ch);
         if (ch.studioAfter === "always") {
-          await openUrl(studioEditorUrl(res.id));
+          await openUrl(studioEditorUrl(res.id), this.cfg.browser);
           await log(`   🎬 스튜디오 편집기를 열었습니다`);
         } else if (ch.studioAfter === "ask") {
           this.ask = { id: res.id, title: p.title, channelName: ch.name };
           if (Date.now() - this.lastSeen > 15_000) {
-            await openUrl(`http://127.0.0.1:${this.cfg.port}`);
+            await openUrl(`http://127.0.0.1:${this.cfg.port}`, this.cfg.browser);
             await log(`   💬 음악을 넣을지 묻기 위해 화면을 열었습니다`);
           }
         }

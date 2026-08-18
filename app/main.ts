@@ -19,7 +19,7 @@ async function main() {
     if (await isOurApp(cfg.port)) {
       const url = `http://127.0.0.1:${cfg.port}`;
       console.log(`${APP_NAME} 가 이미 실행 중입니다 → ${url}`);
-      if (!background) await openUrl(url);
+      if (!background) await openUrl(url, cfg.browser);
       Deno.exit(0);
     }
     // 다른 프로그램이 쓰는 중 → 빈 포트를 찾아 옮긴다
@@ -57,7 +57,7 @@ async function main() {
 └───────────────────────────────────────────────`);
   await log(`▶️  ${APP_NAME} v${VERSION} 시작 (${background ? "백그라운드" : "일반"})`);
 
-  if (!background) await openUrl(url);
+  if (!background) await openUrl(url, cfg.browser);
 
   for (const sig of ["SIGINT", "SIGTERM"] as const) {
     try {
