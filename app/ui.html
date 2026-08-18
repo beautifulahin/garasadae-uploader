@@ -646,13 +646,26 @@ const api=(p,body)=>fetch(p,body?{method:'POST',headers:{'content-type':'applica
 function ext(u){window.open(u,'_blank','noopener')}
 
 /* ---------------- 상태 폴링 ---------------- */
+let wasUpdating=false, lostAt=0;
 async function poll(){
   try{
     ST=await api('/api/state');
+    if(lostAt){ location.reload(); return; }        // 다시 살아나면 새 화면으로
+    wasUpdating=!!(ST.updating&&ST.updating.running);
     paint();
   }catch(e){
-    $('stTxt').textContent='앱 연결 끊김';
+    $('stTxt').textContent = wasUpdating ? '다시 시작하는 중…' : '앱 연결 끊김';
     $('dot').className='dot err';
+    if(wasUpdating){
+      if(!lostAt)lostAt=Date.now();
+      const m=$('upModal');
+      m.classList.add('on');
+      $('upProg').style.display='block'; $('upBtns').style.display='none';
+      $('upBar').style.width='100%'; $('upPct').textContent='100%';
+      $('upText').textContent = (Date.now()-lostAt>45000)
+        ? '자동으로 다시 켜지지 않았습니다. 프로그램을 직접 실행해 주세요.'
+        : '교체 완료 — 프로그램을 다시 켜는 중입니다…';
+    }
   }
 }
 function paint(){

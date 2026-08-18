@@ -201,8 +201,14 @@ async function swapMac(extracted: string) {
   try { await Deno.remove(backup, { recursive: true }); } catch { /* 무시 */ }
 
   await log("⬆️  새 버전으로 교체 완료 — 다시 시작합니다");
-  new Deno.Command("open", { args: ["-n", current], stdout: "null", stderr: "null" }).spawn().unref?.();
-  setTimeout(() => Deno.exit(0), 1200);
+  // 지금 프로그램이 완전히 꺼진 뒤에 켜야 한다.
+  // 겹쳐서 켜면 새 프로그램이 "이미 실행 중"으로 보고 스스로 종료해 버린다.
+  const esc = current.replace(/(["\\$`])/g, "\\$1");
+  new Deno.Command("/bin/sh", {
+    args: ["-c", `sleep 4; open -n "${esc}"`],
+    stdout: "null", stderr: "null", stdin: "null",
+  }).spawn().unref?.();
+  setTimeout(() => Deno.exit(0), 300);
 }
 
 /** 윈도우: 실행 중인 exe 는 못 바꾸므로 도우미 스크립트에 맡긴다. */
