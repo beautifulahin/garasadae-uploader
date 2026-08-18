@@ -71,29 +71,31 @@ export async function checkUpdate(force = false): Promise<UpdateInfo> {
   if (!force && cached && Date.now() - checkedAt < 5 * 60_000) return cached;
 
   try {
+    // 깃허브 API 는 IP 당 시간 60회 제한이 있어 쓰지 않는다.
+    // 최신 릴리스 주소가 태그 주소로 넘겨주는 것을 이용해 버전을 알아낸다.
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), 8000);
-    const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
-      headers: { Accept: "application/vnd.github+json" },
+    const r = await fetch(`https://github.com/${REPO}/releases/latest`, {
+      redirect: "manual",
       signal: c.signal,
     });
+    const loc = r.headers.get("location") ?? "";
+    await r.body?.cancel();
     clearTimeout(t);
-    if (!r.ok) return none;
-    const j = await r.json();
-    const latest: string = (j.tag_name ?? "").replace(/^v/, "");
+    const latest = (loc.match(/\/releases\/tag\/v?([0-9]+\.[0-9]+\.[0-9]+)/) ?? [])[1] ?? "";
     if (!latest) return none;
 
     const want = assetName();
-    const asset = (j.assets ?? []).find((a: { name: string }) => a.name === want);
     const inst = installable();
     const info: UpdateInfo = {
       available: cmpVersion(latest, APP_VERSION) > 0,
       version: latest,
       current: APP_VERSION,
-      url: asset?.browser_download_url ?? "",
+      // 최신 파일 주소는 항상 이 형태다
+      url: want ? `https://github.com/${REPO}/releases/latest/download/${want}` : "",
       page,
-      canInstall: inst.ok && !!asset,
-      reason: inst.ok ? (asset ? "" : "이 컴퓨터에 맞는 파일을 찾지 못했습니다.") : inst.reason,
+      canInstall: inst.ok && !!want,
+      reason: inst.ok ? (want ? "" : "이 컴퓨터에 맞는 파일을 찾지 못했습니다.") : inst.reason,
     };
     cached = info;
     checkedAt = Date.now();
