@@ -80,7 +80,7 @@ export interface Config {
   madeForKids: boolean;
   notifySubscribers: boolean;
   reviewMode: boolean;      // true = 사용자가 확인 버튼을 눌러야 업로드
-  openStudio: boolean;      // 업로드 후 스튜디오 편집 화면을 자동으로 열기
+  studioAfter: "ask" | "always" | "never";   // 업로드 후 스튜디오를 열지 묻기/항상/안함
   afterUpload: "move" | "trash" | "delete" | "keep";
   maxRetries: number;
   dailyLimit: number;
@@ -95,7 +95,7 @@ export const DEFAULTS: Config = {
   privacy: "private", categoryId: "22", language: "ko",
   tags: [], description: "", titlePrefix: "", titleSuffix: "",
   madeForKids: false, notifySubscribers: true,
-  reviewMode: false, openStudio: false, afterUpload: "move",
+  reviewMode: false, studioAfter: "ask", afterUpload: "move",
   maxRetries: 3, dailyLimit: 6, notifications: true,
   autoStart: false, port: 8777,
 };

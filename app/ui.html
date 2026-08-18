@@ -161,6 +161,22 @@ textarea.fin{resize:vertical;line-height:1.6}
 .empty.small .empty-t{font-size:14px}
 .empty.small .empty-d{font-size:11px}
 
+.modal{display:none;position:fixed;inset:0;background:rgba(11,11,17,.78);backdrop-filter:blur(8px);z-index:400;align-items:center;justify-content:center;padding:20px}
+.modal.on{display:flex}
+.modal-box{background:var(--bg1);border:1px solid var(--bdr);border-radius:14px;padding:26px 24px;width:420px;max-width:100%;text-align:center;animation:fu .25s ease both}
+.modal-emoji{font-size:40px;margin-bottom:8px}
+.modal-box h3{font-size:17px;font-weight:800;margin-bottom:8px}
+.modal-title{font-size:12px;color:var(--cyan);font-weight:600;margin-bottom:12px;word-break:break-all;line-height:1.5}
+.modal-desc{font-size:12px;color:var(--t2);line-height:1.85;margin-bottom:20px}
+.modal-btns{display:flex;gap:8px}
+.mbtn{flex:1;padding:12px;border-radius:var(--r);border:1px solid var(--bdr);font-size:13px;font-weight:700;transition:.15s}
+.mbtn.ghost{background:var(--bg2);color:var(--t2)}
+.mbtn.ghost:hover{color:var(--t1);border-color:var(--t3)}
+.mbtn.primary{border:none;background:linear-gradient(135deg,var(--accent),#ff8844);color:#fff}
+.mbtn.primary:hover{filter:brightness(1.1)}
+.modal-remember{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:14px;font-size:10px;color:var(--t3)}
+.mlink{background:none;border:none;color:var(--t3);font-size:10px;text-decoration:underline;padding:2px}
+.mlink:hover{color:var(--blue)}
 .must{font-size:10px;font-weight:700;color:#0b0b11;background:var(--gold);padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle}
 .blockcard{border-color:var(--accent);background:rgba(255,68,102,.07)}
 .blockcard h3{color:var(--accent)}
@@ -344,7 +360,15 @@ textarea.fin{resize:vertical;line-height:1.6}
   <div class="card">
     <h3>🔧 동작 방식</h3>
     <div class="sw" onclick="tglSw('cReview')"><span>검토 후 업로드 <small style="color:var(--t3)">— 자동으로 올리지 않고 확인 버튼을 기다립니다</small></span><div class="tgl" id="cReview"></div></div>
-    <div class="sw" onclick="tglSw('cStudio')"><span>업로드 후 스튜디오 편집 화면 자동으로 열기 <small style="color:var(--t3)">— 음악·자막·썸네일을 바로 붙일 수 있습니다</small></span><div class="tgl" id="cStudio"></div></div>
+    <div style="padding:8px 0">
+      <label class="flabel">업로드가 끝나면 (음악·자막 넣기)</label>
+      <select class="fin" id="cStudio">
+        <option value="ask">🎵 음악 넣을지 물어보기 (권장)</option>
+        <option value="always">항상 스튜디오 편집기 열기</option>
+        <option value="never">열지 않기</option>
+      </select>
+      <div class="hintline">유튜브 오디오 보관함의 무료 음악은 스튜디오에서만 넣을 수 있어, 해당 영상의 편집기를 바로 띄워 드립니다.</div>
+    </div>
     <div class="sw" onclick="tglSw('cKids')"><span>아동용 영상</span><div class="tgl" id="cKids"></div></div>
     <div class="sw" onclick="tglSw('cNotify')"><span>구독자에게 알림</span><div class="tgl" id="cNotify"></div></div>
     <div class="sw" onclick="tglSw('cOsNotify')"><span>업로드 완료 시 알림 표시</span><div class="tgl" id="cOsNotify"></div></div>
@@ -532,6 +556,28 @@ textarea.fin{resize:vertical;line-height:1.6}
   </div>
 </div>
 
+<!-- 업로드 후 음악 넣을지 묻는 팝업 -->
+<div class="modal" id="askModal">
+  <div class="modal-box">
+    <div class="modal-emoji">🎵</div>
+    <h3>음악을 넣으시겠어요?</h3>
+    <div class="modal-title" id="askTitle"></div>
+    <p class="modal-desc">
+      유튜브 오디오 보관함의 무료 음악은 <b>유튜브 스튜디오</b>에서만 넣을 수 있습니다.<br>
+      「음악 넣기」를 누르면 이 영상의 편집기가 열립니다. 왼쪽 <b>오디오</b> 탭에서 고르시면 됩니다.
+    </p>
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="answerAsk(false)">그냥 두기</button>
+      <button class="mbtn primary" onclick="answerAsk(true)">🎵 음악 넣기</button>
+    </div>
+    <div class="modal-remember">
+      <button class="mlink" onclick="answerAsk(true,'always')">앞으로 항상 열기</button>
+      <span>·</span>
+      <button class="mlink" onclick="answerAsk(false,'never')">다시 묻지 않기</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -594,6 +640,8 @@ function paint(){
   $('kAfter').textContent=({move:'_완료 폴더로',trash:'휴지통으로',delete:'완전 삭제',keep:'그대로 두기'})[s.config.afterUpload]||'-';
   $('kAuto').textContent=s.autoStart?'켜짐':'꺼짐';
 
+  paintAsk(s.ask);
+
   // 최근 올린 영상
   renderThumbs(s.uploads.slice(0,8));
   if($('wDir'))$('wDir').textContent=s.config.watchDir;
@@ -624,6 +672,21 @@ function paint(){
 
   renderCards(s.items);
   if(tab==='t2')renderHist(s.uploads);
+}
+
+let askShown='';
+function paintAsk(a){
+  const m=$('askModal');
+  if(a&&a.id){
+    if(askShown!==a.id){ askShown=a.id; $('askTitle').textContent=a.title; m.classList.add('on'); }
+  } else { m.classList.remove('on'); askShown=''; }
+}
+async function answerAsk(open,remember){
+  $('askModal').classList.remove('on'); askShown='';
+  await api('/api/ask/answer',{open:!!open,remember:remember||null});
+  if(remember==='always')msg('앞으로 업로드가 끝나면 바로 편집기가 열립니다','ok');
+  if(remember==='never')msg('앞으로 묻지 않습니다. 설정에서 다시 켤 수 있습니다','ok');
+  poll();
 }
 
 const num=v=>Number(v||0).toLocaleString();
@@ -799,7 +862,7 @@ function fillSettings(){
   $('cStable').value=c.stableChecks; $('cPrefix').value=c.titlePrefix; $('cSuffix').value=c.titleSuffix;
   $('cTags').value=(c.tags||[]).join(', '); $('cDesc').value=c.description;
   $('cCid').value=c.clientId; $('cSec').value=c.clientSecret?'********':'';
-  setSw('cReview',c.reviewMode); setSw('cStudio',c.openStudio); setSw('cKids',c.madeForKids); setSw('cNotify',c.notifySubscribers);
+  setSw('cReview',c.reviewMode); $('cStudio').value=c.studioAfter||'ask'; setSw('cKids',c.madeForKids); setSw('cNotify',c.notifySubscribers);
   setSw('cOsNotify',c.notifications); setSw('cAuto',ST.autoStart);
   $('cAfter').value=c.afterUpload||'move'; afterHint();
 }
@@ -837,7 +900,7 @@ async function saveAll(){
     language:$('cLang').value, dailyLimit:+$('cLimit').value, pollSeconds:+$('cPoll').value,
     stableChecks:+$('cStable').value, titlePrefix:$('cPrefix').value, titleSuffix:$('cSuffix').value,
     tags:$('cTags').value, description:$('cDesc').value,
-    reviewMode:getSw('cReview'), openStudio:getSw('cStudio'), madeForKids:getSw('cKids'), notifySubscribers:getSw('cNotify'),
+    reviewMode:getSw('cReview'), studioAfter:$('cStudio').value, madeForKids:getSw('cKids'), notifySubscribers:getSw('cNotify'),
     notifications:getSw('cOsNotify'), afterUpload:$('cAfter').value,
     clientId:$('cCid').value.trim(), clientSecret:$('cSec').value.trim(),
   };

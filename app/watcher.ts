@@ -54,6 +54,8 @@ export class Engine {
   running = false;
   uploading = false;
   lastError = "";
+  /** 업로드가 끝나 "음악 넣으시겠어요?" 를 물어봐야 하는 영상 */
+  ask: { id: string; title: string } | null = null;
   blocked = "";          // 사용자가 구글 설정을 고쳐야 하는 상태
   blockedUrl = "";
   paused = false;
@@ -98,6 +100,7 @@ export class Engine {
       quotaLeft: this.quotaLeft(),
       limitReached: this.limitReached(),
       lastError: this.lastError,
+      ask: this.ask,
       blocked: this.blocked,
       blockedUrl: this.blockedUrl,
       uploads: this.state.uploads.slice(0, 50),
@@ -210,10 +213,12 @@ export class Engine {
       if (v.ok) {
         await log(`   🔎 유튜브 확인됨 (${v.status})`);
         await this.disposeDone(p);
-        if (this.cfg.openStudio) {
-          // 유튜브 오디오 보관함·자막 등은 스튜디오에서만 붙일 수 있어 편집 화면을 띄워준다
-          await openUrl(`https://studio.youtube.com/video/${res.id}/edit`);
-          await log(`   🎬 스튜디오 편집 화면을 열었습니다`);
+        // 유튜브 오디오 보관함의 음악은 스튜디오에서만 붙일 수 있다
+        if (this.cfg.studioAfter === "always") {
+          await openUrl(studioEditorUrl(res.id));
+          await log(`   🎬 스튜디오 편집기를 열었습니다`);
+        } else if (this.cfg.studioAfter === "ask") {
+          this.ask = { id: res.id, title: p.title };
         }
       } else {
         await log(`   ⚠️  ${v.message} — 파일을 지우지 않고 _완료 폴더에 보관합니다`);
@@ -359,6 +364,11 @@ export class Engine {
 async function fileExists(p: string) {
   try { await Deno.stat(p); return true; } catch { return false; }
 }
+/** 음악·자막을 붙이는 스튜디오 편집기 주소 */
+export function studioEditorUrl(id: string): string {
+  return `https://studio.youtube.com/video/${id}/editor`;
+}
+
 export function fmtSize(n: number): string {
   return n > 1073741824 ? (n / 1073741824).toFixed(2) + "GB" : (n / 1048576).toFixed(1) + "MB";
 }

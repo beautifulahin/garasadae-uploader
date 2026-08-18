@@ -4,8 +4,8 @@ import {
   loadConfig, loadTokens, log, saveConfig, clearTokens, tailLog,
 } from "./paths.ts";
 import { accessToken, authUrl, checkChannel, exchange, revoke } from "./auth.ts";
-import { Engine } from "./watcher.ts";
-import { autoStartEnabled, isCompiled, openPath, pickFolder, setAutoStart } from "./platform.ts";
+import { Engine, studioEditorUrl } from "./watcher.ts";
+import { autoStartEnabled, isCompiled, openPath, openUrl, pickFolder, setAutoStart } from "./platform.ts";
 
 const UI = await Deno.readTextFile(new URL("./ui.html", import.meta.url));
 
@@ -199,6 +199,21 @@ export function startServer(engine: Engine, port: number) {
         await Deno.rename(tmp, dest);
         await log(`📥 화면에서 받은 파일: ${dest.split(/[/\\]/).pop()}`);
         return json({ ok: true, name: dest.split(/[/\\]/).pop() });
+      }
+
+      // "음악 넣으시겠어요?" 팝업의 답변
+      if (p === "/api/ask/answer" && req.method === "POST") {
+        const { open, remember } = await req.json();
+        const target = engine.ask;
+        engine.ask = null;
+        if (open && target) await openUrl(studioEditorUrl(target.id));
+        if (remember === "always" || remember === "never") {
+          const cfg = await loadConfig();
+          cfg.studioAfter = remember;
+          await saveConfig(cfg);
+          await engine.reloadConfig();
+        }
+        return json({ ok: true });
       }
 
       if (p === "/api/openfolder" && req.method === "POST") {
