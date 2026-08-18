@@ -168,6 +168,10 @@ textarea.fin{resize:vertical;line-height:1.6}
 .modal-box h3{font-size:17px;font-weight:800;margin-bottom:8px}
 .modal-title{font-size:12px;color:var(--cyan);font-weight:600;margin-bottom:12px;word-break:break-all;line-height:1.5}
 .modal-desc{font-size:12px;color:var(--t2);line-height:1.85;margin-bottom:20px}
+.howto{text-align:left;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rs);padding:12px 14px;margin-bottom:14px}
+.howto div{display:flex;gap:9px;align-items:flex-start;font-size:12px;color:var(--t2);line-height:1.7;margin-bottom:5px}
+.howto div:last-child{margin-bottom:0}
+.howto b:first-child{flex-shrink:0;width:17px;height:17px;margin-top:2px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center}
 .modal-note{font-size:11px;color:var(--gold);background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.28);border-radius:var(--rs);padding:8px 10px;line-height:1.6;margin-bottom:16px}
 .modal-btns{display:flex;gap:8px}
 .mbtn{flex:1;padding:12px;border-radius:var(--r);border:1px solid var(--bdr);font-size:13px;font-weight:700;transition:.15s}
@@ -614,10 +618,13 @@ textarea.fin{resize:vertical;line-height:1.6}
     <h3>음악을 넣으시겠어요?</h3>
     <div class="modal-title" id="askTitle"></div>
     <p class="modal-desc">
-      유튜브 오디오 보관함의 무료 음악은 <b>유튜브 스튜디오</b>에서만 넣을 수 있습니다.<br>
-      「음악 넣기」를 누르면 이 영상의 <b>편집기</b>가 열립니다.<br>
-      왼쪽 <b>오디오</b> 를 누르면 무료 음악을 고를 수 있습니다.
+      유튜브 오디오 보관함의 무료 음악은 <b>유튜브 스튜디오</b>에서만 넣을 수 있습니다.
     </p>
+    <div class="howto">
+      <div><b>1</b> 아래 <b>음악 넣기</b> 를 누르면 편집기가 열립니다</div>
+      <div><b>2</b> 목록에서 <b>♪ 오디오</b> 오른쪽의 <b>＋</b> 를 누릅니다</div>
+      <div><b>3</b> 무료 음악 목록에서 곡을 고르고 <b>저장</b></div>
+    </div>
     <p class="modal-note">⚠️ 누르기 전에 <b>다른 구글 계정 창은 모두 닫아 주세요.</b><br>
     여러 계정이 함께 로그인되어 있으면 「오류가 발생했습니다」 가 뜹니다.</p>
     <div class="modal-btns">
@@ -832,7 +839,7 @@ function renderThumbs(ups){
     box.innerHTML='<div style="grid-column:1/-1;padding:22px;text-align:center;color:var(--t3);font-size:11px;border:1px dashed var(--bdr);border-radius:var(--r)">아직 올린 영상이 없습니다</div>';
     return;
   }
-  const html=ups.map(u=>`<a class="thumb" href="https://studio.youtube.com/video/${u.id}/editor" target="_blank" rel="noopener" title="누르면 음악을 넣을 수 있는 편집기가 열립니다">
+  const html=ups.map(u=>`<a class="thumb" href="https://studio.youtube.com/video/${u.id}/editor" target="_blank" rel="noopener" title="편집기가 열립니다 · 오디오 옆 ＋ 를 누르면 무료 음악을 고를 수 있습니다">
     <img src="https://i.ytimg.com/vi/${u.id}/mqdefault.jpg" alt="" onerror="this.style.opacity=.15"/>
     <div class="thumb-t">${esc(u.title)}</div>
     <div class="thumb-d">${u.at.replace('T',' ').slice(5,16)}${u.verified?' · 🔎':''} <span style="color:var(--cyan)">· 🎵 음악</span></div>
@@ -915,7 +922,7 @@ function renderCards(items){
     if(it.status!=='uploading'&&it.status!=='done')html+=`<button class="tb" onclick="holdItem('${jsEsc(it.name)}')">⏸ 보류</button>`;
     if(it.status==='done'&&it.verified)html+=`<span style="font-size:10px;color:var(--cyan)">🔎 유튜브에서 확인됨</span>`;
     if(it.status==='done'&&it.videoId){
-      html+=`<a class="tb on" href="https://studio.youtube.com/video/${it.videoId}/editor" target="_blank" rel="noopener" style="text-decoration:none">🎵 음악 넣기</a>`
+      html+=`<a class="tb on" href="https://studio.youtube.com/video/${it.videoId}/editor" target="_blank" rel="noopener" style="text-decoration:none">🎵 음악 넣기 (편집기 → 오디오 ＋)</a>`
            +`<a class="tb" href="https://www.youtube.com/watch?v=${it.videoId}" target="_blank" rel="noopener" style="text-decoration:none">▶️ 영상 보기</a>`
            +`<a class="tb" href="https://studio.youtube.com/video/${it.videoId}/edit" target="_blank" rel="noopener" style="text-decoration:none">✏️ 세부정보</a>`;
     }
@@ -973,7 +980,7 @@ function renderHist(ups){
         <div class="hrow-m">${u.at.replace('T',' ').slice(0,16)} · ${esc(u.file)} · ${fmtSize(u.size)}${u.verified?' · <span style="color:var(--cyan)">🔎 유튜브 확인됨</span>':''}</div>
       </div>
       <span class="pv ${u.privacy}">${({public:'공개',unlisted:'일부공개',private:'비공개'})[u.privacy]||u.privacy}</span>
-      <a class="tb on" href="https://studio.youtube.com/video/${u.id}/editor" target="_blank" rel="noopener" style="text-decoration:none">🎵 음악</a>
+      <a class="tb on" href="https://studio.youtube.com/video/${u.id}/editor" target="_blank" rel="noopener" style="text-decoration:none" title="편집기가 열리면 오디오 옆 ＋ 를 누르세요">🎵 음악</a>
       <a class="tb" href="https://www.youtube.com/watch?v=${u.id}" target="_blank" rel="noopener" style="text-decoration:none">▶️ 보기</a>
       <a class="tb" href="https://studio.youtube.com/video/${u.id}/edit" target="_blank" rel="noopener" style="text-decoration:none">✏️ 편집</a>
     </div>`).join('');
