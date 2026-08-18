@@ -369,35 +369,58 @@ export function startServer(engine: Manager, port: number) {
       /* ---------------- 화면에 끌어다 놓은 파일 ---------------- */
       if (p === "/api/drop" && req.method === "POST") {
         const raw = req.headers.get("x-filename") ?? "";
-        const channelId = req.headers.get("x-channel") ?? "";
-        let name = decodeURIComponent(raw).replace(/[/\\]/g, "_").trim();
+        const want = (req.headers.get("x-channel") ?? "").trim();   // 쉼표로 여러 개, "*" 는 전체
+        const name = decodeURIComponent(raw).replace(/[/\\]/g, "_").trim();
         if (!name) return json({ error: "파일 이름을 읽지 못했습니다." }, 400);
         if (!req.body) return json({ error: "파일 내용이 비어 있습니다." }, 400);
 
         const cfg = engine.cfg;
-        const ch = cfg.channels.find((c) => c.id === channelId && c.enabled) ??
-          cfg.channels.find((c) => c.enabled);
-        if (!ch) return json({ error: "먼저 채널을 하나 만들어 주세요." }, 400);
+        const enabled = cfg.channels.filter((c) => c.enabled);
+        if (!enabled.length) return json({ error: "먼저 채널을 하나 만들어 주세요." }, 400);
+
+        let targets: Channel[];
+        if (want === "*") targets = enabled;
+        else {
+          const ids = want.split(",").map((x) => x.trim()).filter(Boolean);
+          targets = ids.length
+            ? enabled.filter((c) => ids.includes(c.id))
+            : [enabled[0]];
+          if (!targets.length) targets = [enabled[0]];
+        }
 
         await engine.ensureDirs();
-        const dot = name.lastIndexOf(".");
-        const [base, ext2] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
-        let dest = join(ch.folder, name);
-        let i = 1;
-        while (await fileExists(dest)) dest = join(ch.folder, `${base} (${i++})${ext2}`);
 
-        const tmp = dest + ".part";
-        const f = await Deno.open(tmp, { write: true, create: true, truncate: true });
+        // 여러 채널로 보낼 수 있으므로 먼저 임시 파일로 받아 둔다
+        const tmp = await Deno.makeTempFile({ prefix: "garasadae_drop_" });
         try {
+          const f = await Deno.open(tmp, { write: true, truncate: true });
           await req.body.pipeTo(f.writable);
         } catch (e) {
-          try { f.close(); } catch { /* 이미 닫힘 */ }
           try { await Deno.remove(tmp); } catch { /* 무시 */ }
-          return json({ error: `파일을 저장하지 못했습니다: ${e instanceof Error ? e.message : e}` }, 500);
+          return json({ error: `파일을 받지 못했습니다: ${e instanceof Error ? e.message : e}` }, 500);
         }
-        await Deno.rename(tmp, dest);
-        await log(`📥 [${ch.name}] 화면에서 받은 파일: ${name}`);
-        return json({ ok: true, channel: ch.name });
+
+        const dot = name.lastIndexOf(".");
+        const [base, ext2] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+        const sent: string[] = [];
+        for (const ch of targets) {
+          try {
+            let dest = join(ch.folder, name);
+            let i = 1;
+            while (await fileExists(dest)) dest = join(ch.folder, `${base} (${i++})${ext2}`);
+            // 아직 쓰는 중인 파일로 오인하지 않도록 임시 이름으로 놓고 옮긴다
+            const part = dest + ".part";
+            await Deno.copyFile(tmp, part);
+            await Deno.rename(part, dest);
+            sent.push(ch.name);
+          } catch (e) {
+            await log(`⚠️  [${ch.name}] 파일을 넣지 못했습니다: ${e instanceof Error ? e.message : e}`);
+          }
+        }
+        try { await Deno.remove(tmp); } catch { /* 무시 */ }
+        if (!sent.length) return json({ error: "파일을 넣지 못했습니다." }, 500);
+        await log(`📥 화면에서 받은 파일: ${name} → ${sent.join(", ")}`);
+        return json({ ok: true, channels: sent });
       }
 
       /* ---------------- 의견 ---------------- */
@@ -444,6 +467,16 @@ export function startServer(engine: Manager, port: number) {
       if (p === "/api/openself" && req.method === "POST") {
         const cfg = await loadConfig(true);
         await openUrl(`http://127.0.0.1:${cfg.port}`, cfg.browser);
+        return json({ ok: true });
+      }
+
+      if (p === "/api/openbroadcast" && req.method === "POST") {
+        const dir = engine.broadcastDir();
+        if (!dir || !engine.useBroadcast()) {
+          return json({ error: "채널이 둘 이상일 때 쓸 수 있습니다." }, 400);
+        }
+        try { await Deno.mkdir(dir, { recursive: true }); } catch { /* 무시 */ }
+        await openPath(dir);
         return json({ ok: true });
       }
 
