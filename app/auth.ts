@@ -39,7 +39,10 @@ export async function authUrl(cfg: Config, ch: Channel): Promise<string> {
     response_type: "code",
     scope: SCOPE,
     access_type: "offline",
-    prompt: "consent",
+    // select_account 를 함께 보내야 **계정·채널 고르는 화면이 매번 뜬다.**
+    // consent 만 보내면 구글이 지난번 고른 것으로 조용히 넘어가, 채널이 여러 개인
+    // 사람(브랜드·위임 채널)이 다른 채널을 붙일 방법이 없어진다.
+    prompt: "select_account consent",
     state: stateKey,
     code_challenge: challenge,
     code_challenge_method: "S256",
