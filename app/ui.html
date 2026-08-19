@@ -565,18 +565,29 @@ textarea.fin{resize:vertical;line-height:1.6}
   </div>
 
   <div class="card">
-    <h3>3️⃣ 동의 화면 만들고 게시하기</h3>
+    <h3>3️⃣ 인증 플랫폼 만들고 게시하기</h3>
+    <div class="p13">구글이 이 화면을 <b>「Google 인증 플랫폼」</b>으로 새로 바꿨습니다. 예전 <b>「OAuth 동의 화면」</b>과 같은 것인데,
+    왼쪽에 <b>브랜딩 · 대상 · 클라이언트 · 데이터 액세스</b> 로 갈라져 있습니다.</div>
     <ol>
-      <li>아래 버튼 → User Type <b>외부</b> 선택 → 만들기</li>
-      <li>앱 이름·이메일을 채우고 계속 (개발자 연락처에도 같은 이메일)</li>
-      <li>범위 단계에서 <b>범위 추가 또는 삭제</b> → 검색창에 <code>youtube.upload</code> → 체크 → 업데이트</li>
-      <li>저장하고 계속을 눌러 끝까지 진행합니다.</li>
+      <li>아래 버튼으로 들어가 <b>시작하기</b> 를 누릅니다. (이미 만드셨으면 이 버튼이 안 보입니다 — 그냥 다음으로)</li>
+      <li><b>앱 정보</b> — 앱 이름은 아무거나, 사용자 지원 이메일은 본인 지메일</li>
+      <li><b>대상</b> — <b>외부</b> 를 고릅니다</li>
+      <li><b>연락처 정보</b> — 본인 지메일을 채웁니다</li>
+      <li>정책 동의에 체크하고 <b>만들기</b></li>
     </ol>
-    <button class="tb" onclick="ext('https://console.cloud.google.com/apis/credentials/consent')">🔗 동의 화면 열기</button>
+    <div class="p13" style="margin-top:10px"><b>그 다음 — 왼쪽 메뉴에서 두 가지를 더 합니다. 순서가 중요합니다.</b></div>
+    <ol>
+      <li><b>데이터 액세스</b> → <b>범위 추가 또는 삭제</b> → 필터에 <code>youtube.upload</code> → 체크 →
+      <b>업데이트</b> → <b>저장</b><br>
+      <span style="color:var(--t3);font-size:11px">필터에 쳐도 안 나오면 같은 패널의 <b>범위를 수동으로 추가</b> 칸에
+      <code>https://www.googleapis.com/auth/youtube.upload</code> 를 붙여넣고 <b>테이블에 추가</b></span></li>
+      <li><b>대상</b> → <b>앱 게시</b> 를 눌러 <b>프로덕션</b>으로 바꿉니다</li>
+    </ol>
+    <button class="tb" onclick="ext('https://console.cloud.google.com/apis/credentials/consent')">🔗 인증 플랫폼 열기</button>
     <div class="danger">
-      <b>⚠️ 꼭 하세요 — 앱 게시</b><br>
-      동의 화면 첫 페이지의 <b>앱 게시</b>(PUBLISH APP) 버튼을 누르세요.
-      누르지 않고 <b>테스트</b> 상태로 두면 <b>7일마다 로그인이 풀립니다.</b>
+      <b>⚠️ 범위가 먼저, 앱 게시가 나중입니다.</b><br>
+      <b>범위</b>는 동의 화면 만들기 안에 없습니다. 왼쪽 <b>데이터 액세스</b> 메뉴에 따로 있습니다. 저장까지 꼭 누르세요.<br>
+      <b>앱 게시</b>를 안 하고 <b>테스트</b> 상태로 두면 <b>7일마다 로그인이 풀립니다.</b>
     </div>
   </div>
 
@@ -588,6 +599,8 @@ textarea.fin{resize:vertical;line-height:1.6}
       <li>만들면 <b>클라이언트 ID</b>와 <b>보안 비밀번호</b>가 나옵니다. 둘 다 복사해 두세요.</li>
     </ol>
     <button class="tb" onclick="ext('https://console.cloud.google.com/apis/credentials')">🔗 사용자 인증 정보 열기</button>
+    <div class="p13" style="color:var(--t3);font-size:11px;margin-top:8px">새 화면(인증 플랫폼)에서는 왼쪽
+    <b>클라이언트</b> → <b>클라이언트 만들기</b> 로도 똑같이 만들 수 있습니다. 이름만 다르고 같은 것입니다.</div>
     <div class="danger">
       <b>⚠️ 「웹 애플리케이션」을 고르면</b> 로그인할 때 <b>「액세스가 차단됨」</b> 오류가 납니다. 꼭 <b>데스크톱 앱</b>입니다.
     </div>
