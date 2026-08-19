@@ -236,6 +236,20 @@ textarea.fin{resize:vertical;line-height:1.6}
 .chsel{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
 .chsel button{padding:6px 11px;border-radius:14px;border:1px solid var(--bdr);background:none;color:var(--t2);font-size:11px;transition:.15s}
 .chsel button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.guide{display:flex;gap:12px;padding:14px 0;border-top:1px solid var(--bdr)}
+.guide:first-of-type{border-top:none;padding-top:4px}
+.guide-n{flex-shrink:0;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.guide-b{min-width:0;flex:1}
+.guide-t{font-size:13.5px;font-weight:700;margin-bottom:5px}
+.guide-d{font-size:12.5px;color:var(--t2);line-height:1.85}
+.guide-tree{background:var(--bg);border:1px solid var(--bdr);border-radius:var(--rs);padding:11px 13px;margin:9px 0 0;font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--cyan);line-height:1.75;overflow-x:auto}
+.guide-tbl{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:9px}
+.guide-tbl div{background:var(--bg3);border-radius:var(--rs);padding:9px 11px}
+.guide-tbl b{display:block;font-size:12px;margin-bottom:2px}
+.guide-tbl span{font-size:10.5px;color:var(--t3);line-height:1.5}
+.guide-warn{margin-top:9px;padding:9px 11px;border-radius:var(--rs);background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.28);font-size:11.5px;color:var(--t2);line-height:1.7}
+.guide-warn b{color:var(--gold)}
+@media(max-width:640px){.guide-tbl{grid-template-columns:1fr}}
 .bcpanel{background:var(--bg2);border:1px solid var(--cyan);border-radius:var(--r);padding:12px;margin-bottom:6px}
 .bclist{display:flex;flex-direction:column;gap:5px;margin-bottom:10px;max-height:260px;overflow:auto}
 .bcrow{display:flex;align-items:center;gap:9px;padding:8px 10px;background:var(--bg1);border:1px solid var(--bdr);border-radius:var(--rs);transition:.15s;cursor:pointer}
@@ -350,6 +364,60 @@ textarea.fin{resize:vertical;line-height:1.6}
 <div class="tp solo" id="t3">
   <div class="stit">📺 채널 관리</div>
   <div class="ssub">채널마다 폴더가 하나씩 생깁니다. 그 폴더에 영상을 넣으면 해당 채널로 올라갑니다.</div>
+
+  <div class="card">
+    <h3>📖 여러 채널 쓰는 법</h3>
+
+    <div class="guide">
+      <div class="guide-n">①</div>
+      <div class="guide-b">
+        <div class="guide-t">채널마다 폴더가 하나씩 생깁니다</div>
+        <div class="guide-d">채널을 만들면 그 이름으로 폴더가 자동으로 만들어집니다.
+        <b>그 폴더에 영상을 저장하면 해당 채널로만 올라갑니다.</b> 손댈 것이 없습니다.</div>
+        <pre class="guide-tree">업로드대기/
+├── 모든채널/   ← 여러 채널에 같이 올릴 때
+├── 채널1/     ← 넣으면 채널1 로 자동
+├── 채널2/     ← 넣으면 채널2 로 자동
+└── 채널3/</pre>
+      </div>
+    </div>
+
+    <div class="guide">
+      <div class="guide-n">②</div>
+      <div class="guide-b">
+        <div class="guide-t">같은 영상을 여러 채널에 올리려면</div>
+        <div class="guide-d"><b>모든채널</b> 폴더에 몰아넣으세요. 이 폴더의 영상은 <b>바로 올라가지 않고 기다립니다.</b><br>
+        첫 화면의 <b>🌐 전체 업로드 대기</b> 칸에서 <b>보낼 영상</b>과 <b>보낼 채널</b>을 고른 뒤
+        <b>📤 보내기</b>를 누르면 각 채널로 들어갑니다. 영상마다 다른 채널 조합으로 보낼 수도 있습니다.</div>
+      </div>
+    </div>
+
+    <div class="guide">
+      <div class="guide-n">③</div>
+      <div class="guide-b">
+        <div class="guide-t">채널을 추가하려면 구글 설정을 한 번 더</div>
+        <div class="guide-d">채널마다 <b>구글 클라우드 프로젝트</b>를 따로 만들어야 하루 업로드 개수를 각각 받습니다.
+        <b>시작하기</b> 탭의 1~4단계를 채널 수만큼 반복하시면 됩니다. 구글 계정은 하나여도 됩니다.</div>
+        <div class="guide-tbl">
+          <div><b>프로젝트 따로</b><span>채널당 하루 6개 · 채널 3개면 18개</span></div>
+          <div><b>프로젝트 공유</b><span>여러 채널이 하루 6개를 나눠 씀</span></div>
+        </div>
+        <div class="guide-d" style="margin-top:6px">가끔만 올리는 채널이라면 아래 <b>기존 채널과 같이 쓰기</b>로 설정을 건너뛸 수 있습니다.</div>
+      </div>
+    </div>
+
+    <div class="guide">
+      <div class="guide-n">④</div>
+      <div class="guide-b">
+        <div class="guide-t">채널마다 다르게 둘 수 있는 것</div>
+        <div class="guide-d">공개 범위 · 카테고리 · 제목 앞뒤 문구 · 태그 · 설명 · 하루 한도 ·
+        올린 뒤 파일 처리 · 음악 팝업 · 검토 후 업로드.
+        아래 채널을 눌러 펼치면 각각 정할 수 있습니다.</div>
+        <div class="guide-warn">⚠️ 같은 영상을 여러 채널에 올릴 때는 <b>제목과 설명을 채널마다 다르게</b> 두세요.
+        유튜브가 완전히 똑같은 영상을 <b>재사용된 콘텐츠</b>로 볼 수 있습니다.</div>
+      </div>
+    </div>
+  </div>
 
   <div id="chList"></div>
 
@@ -513,9 +581,25 @@ textarea.fin{resize:vertical;line-height:1.6}
 
   <div class="card">
     <h3>6️⃣ 채널을 더 늘리려면</h3>
-    <div class="p13">채널마다 <b>1️⃣~5️⃣ 를 다시</b> 하시면 됩니다. 구글 계정이 다르면 그 계정으로 로그인해서 만드세요.<br>
+    <div class="p13">채널마다 <b>1️⃣~5️⃣ 를 다시</b> 하시면 됩니다. 구글 계정은 하나여도 됩니다 —
+    한 계정 안에서 프로젝트를 여러 개 만들 수 있고, 로그인할 때 어느 채널에 연결할지 고르게 됩니다.<br>
     가끔만 올리는 채널이라면 채널 추가에서 <b>기존 채널과 같이 쓰기</b> 를 골라 설정을 건너뛸 수 있습니다.
     다만 그 경우 <b>하루 6개를 두 채널이 나눠 씁니다.</b></div>
+  </div>
+
+  <div class="card">
+    <h3>7️⃣ 채널이 여러 개일 때 영상 넣는 법</h3>
+    <div class="p13">
+      <b>정해진 채널에 올릴 영상</b> — 그 채널 폴더에 저장하면 끝입니다. 자동으로 올라갑니다.<br>
+      <b>여러 채널에 같이 올릴 영상</b> — <b>모든채널</b> 폴더에 넣고, 첫 화면
+      <b>🌐 전체 업로드 대기</b> 에서 영상과 채널을 골라 <b>보내기</b>를 누르세요.
+    </div>
+    <pre class="guide-tree">업로드대기/
+├── 모든채널/   ← 몰아넣고 화면에서 골라서 보냄
+├── 채널1/     ← 넣으면 채널1 로 자동
+├── 채널2/
+└── 채널3/</pre>
+    <button class="tb on" style="margin-top:6px" onclick="swTab('t3')">📺 채널 탭에서 자세히 보기</button>
   </div>
 
   <div class="card">
