@@ -71,11 +71,39 @@ cp 배포/맥_처음읽어주세요.txt "$OUT/맥-인텔/처음 읽어주세요.
 cp 배포/윈도우_처음읽어주세요.txt "$OUT/윈도우/처음 읽어주세요.txt"
 
 # ---------- 압축 ----------
+# 맥용은 zip 명령을 그대로 쓴다 (.app 의 실행권한·서명 파일을 온전히 보존한다).
 cd "$OUT"
-for d in 맥-애플실리콘 맥-인텔 윈도우; do
+for d in 맥-애플실리콘 맥-인텔; do
   zip -qry "가라사대업로더-$d.zip" "$d"
 done
 cd ..
+
+# 윈도우용은 파이썬으로 압축한다.
+# 맥의 zip 은 한글 이름을 UTF-8 로 넣으면서 'UTF-8 이름' 표시(플래그 11)를 켜지 않는다.
+# 그러면 한국어 윈도우 탐색기가 CP949 로 잘못 읽어 이름이 깨지고 "파일을 찾을 수 없습니다" 가 난다.
+# 파이썬 zipfile 은 이 플래그를 제대로 켠다. (2026-08-19 실제 사고)
+python3 - "$OUT" <<'PY'
+import os, sys, zipfile
+out = sys.argv[1]
+src, dst = "윈도우", os.path.join(out, "가라사대업로더-윈도우.zip")
+os.chdir(out)
+with zipfile.ZipFile("가라사대업로더-윈도우.zip", "w", zipfile.ZIP_DEFLATED) as z:
+    for root, dirs, files in os.walk(src):
+        z.write(root, root + "/")
+        for f in sorted(files):
+            z.write(os.path.join(root, f))
+PY
+
+# 윈도우 압축파일이 실제로 UTF-8 플래그를 켰는지 확인한다 (안 켜졌으면 빌드 실패).
+python3 - "$OUT" <<'PY'
+import sys, zipfile
+z = zipfile.ZipFile(sys.argv[1] + "/가라사대업로더-윈도우.zip")
+bad = [i.orig_filename for i in z.infolist() if not (i.flag_bits & 0x800)]
+if bad:
+    print("❌ 윈도우 압축파일의 이름이 UTF-8 로 표시되지 않았습니다:", bad)
+    sys.exit(1)
+print("  ↳ 윈도우 압축파일 이름 UTF-8 확인 (%d 항목)" % len(z.infolist()))
+PY
 
 echo
 find "$OUT" -maxdepth 2 -name "*.zip" -o -maxdepth 2 -name "*.app" -o -maxdepth 2 -name "*.exe" | sort
