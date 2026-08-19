@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>오류 사전 — 가라사대 업로더</title>
+<meta name="description" content="가라사대 업로더에서 나오는 오류를 네 종류로 나누고, 화면에 뜨는 문구 그대로 찾아 해결하는 목록.">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0b0b11;--bg1:#111119;--bg2:#1a1a25;--bg3:#22222f;--accent:#ff4466;--cyan:#2dd4a8;--gold:#f0b429;--blue:#4c8dff;--t1:#ededf4;--t2:#8e8ea8;--t3:#5a5a72;--bdr:#262638}
+body{background:var(--bg);color:var(--t1);font-family:'Noto Sans KR',-apple-system,sans-serif;line-height:1.7;word-break:keep-all}
+.wrap{max-width:760px;margin:0 auto;padding:40px 20px 80px}
+.back{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--t3);text-decoration:none;margin-bottom:26px;transition:.15s}
+.back:hover{color:var(--accent)}
+.back em{width:24px;height:24px;background:linear-gradient(135deg,var(--accent),#ff8844);border-radius:7px;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:13px}
+h1{font-size:32px;font-weight:900;line-height:1.35;margin-bottom:12px;letter-spacing:-.5px}
+h1 span{background:linear-gradient(135deg,var(--accent),#ff8844);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.lead{font-size:14.5px;color:var(--t2);margin-bottom:34px}
+
+h2{font-size:17px;font-weight:800;margin:40px 0 8px}
+.h2d{font-size:12.5px;color:var(--t2);margin-bottom:16px}
+
+.kinds{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:8px}
+.kind{background:var(--bg2);border:1px solid var(--bdr);border-radius:12px;padding:15px 17px}
+.kind-n{font-size:13.5px;font-weight:800;margin-bottom:5px}
+.kind-d{font-size:12px;color:var(--t2);line-height:1.75}
+.kind-d b{color:var(--t1)}
+.k-fix{border-color:rgba(255,68,102,.35);background:rgba(255,68,102,.07)}.k-fix .kind-n{color:var(--accent)}
+.k-wait{border-color:rgba(240,180,41,.3);background:rgba(240,180,41,.07)}.k-wait .kind-n{color:var(--gold)}
+.k-auto{border-color:rgba(76,141,255,.3);background:rgba(76,141,255,.07)}.k-auto .kind-n{color:var(--blue)}
+.k-file{border-color:var(--bdr)}.k-file .kind-n{color:var(--t2)}
+
+.e{border-top:1px solid var(--bdr);padding:16px 0}
+.e-h{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:8px}
+.chip{font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:999px;white-space:nowrap;flex:none}
+.c-fix{color:var(--accent);background:rgba(255,68,102,.1);border:1px solid rgba(255,68,102,.35)}
+.c-wait{color:var(--gold);background:rgba(240,180,41,.1);border:1px solid rgba(240,180,41,.3)}
+.c-auto{color:var(--blue);background:rgba(76,141,255,.1);border:1px solid rgba(76,141,255,.3)}
+.c-file{color:var(--t2);background:var(--bg3);border:1px solid var(--bdr)}
+.e-t{font-size:14px;font-weight:700;min-width:0}
+.q{background:var(--bg1);border:1px solid var(--bdr);border-left:3px solid var(--bg3);border-radius:9px;padding:10px 13px;margin-bottom:9px;font-size:12px;line-height:1.8;color:var(--cyan);white-space:pre-line;overflow-x:auto}
+.a{font-size:12.5px;color:var(--t2)}
+.a b{color:var(--t1)}
+.a code{background:var(--bg3);padding:1px 6px;border-radius:4px;font-size:11px;color:var(--cyan)}
+.w{font-size:12px;color:var(--t3);margin-top:6px}
+
+.fixed{border-top:1px solid var(--bdr);padding:12px 0;display:flex;justify-content:space-between;align-items:baseline;gap:14px;font-size:12.5px;color:var(--t2)}
+.fixed b{color:var(--cyan);font-size:11px;font-weight:700;border:1px solid rgba(45,212,168,.3);background:rgba(45,212,168,.08);border-radius:999px;padding:2px 9px;white-space:nowrap}
+.note{background:rgba(45,212,168,.07);border:1px solid rgba(45,212,168,.28);border-radius:12px;padding:16px 18px;font-size:12.5px;color:var(--t2);margin-top:16px}
+.note b{color:var(--cyan)}
+.ask{background:rgba(255,68,102,.08);border:1px solid rgba(255,68,102,.32);border-radius:12px;padding:16px 18px;font-size:12.5px;color:var(--t2);margin-bottom:14px}
+.ask b{color:var(--accent)}
+.alt{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.alt a{flex:1;min-width:150px;padding:11px;border-radius:9px;border:1px solid var(--bdr);color:var(--t2);font-size:12px;text-align:center;text-decoration:none;transition:.15s}
+.alt a:hover{border-color:var(--accent);color:var(--accent)}
+.foot{margin-top:44px;padding-top:20px;border-top:1px solid var(--bdr);font-size:12px;color:var(--t3);display:flex;gap:14px;flex-wrap:wrap}
+.foot a{color:var(--t3)}
+.foot a:hover{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <a class="back" href="./"><em>▶</em> 가라사대 업로더</a>
+
+  <h1><span>오류 사전</span></h1>
+  <p class="lead">화면에 뜬 문구를 이 페이지에서 찾으세요. 지금까지 나온 오류를 종류별로 모았습니다.</p>
+
+  <h2>먼저 — 이 오류가 어떤 종류인가</h2>
+  <div class="h2d">오류가 떴다고 다 손을 봐야 하는 것은 아닙니다. 넷 중 어느 것인지부터 보세요. 아래 각 항목에도 같은 표시를 붙여 두었습니다.</div>
+  <div class="kinds">
+    <div class="kind k-fix"><div class="kind-n">고쳐야 합니다</div>
+      <div class="kind-d">구글 설정을 손봐야 풀립니다. 그냥 두면 계속 같은 자리에서 멈춥니다. <b>다만 영상은 안전합니다</b> — 재시도 횟수를 쓰지 않고 파일도 그대로 둡니다.</div></div>
+    <div class="kind k-wait"><div class="kind-n">내일이면 됩니다</div>
+      <div class="kind-d">하루 한도를 다 썼습니다. 손댈 것 없습니다. 기다리던 영상은 <b>다음 날 자동으로</b> 올라갑니다.</div></div>
+    <div class="kind k-auto"><div class="kind-n">저절로 다시 합니다</div>
+      <div class="kind-d">네트워크나 유튜브 쪽 일시적인 문제입니다. <b>아무것도 하지 마세요.</b> 프로그램이 알아서 다시 시도합니다.</div></div>
+    <div class="kind k-file"><div class="kind-n">그 영상의 문제입니다</div>
+      <div class="kind-d">제목·설명·파일 자체에 문제가 있습니다. 다른 영상은 계속 올라갑니다. 그 영상만 고쳐서 다시 넣으세요.</div></div>
+  </div>
+
+  <h2>프로그램이 안 켜질 때</h2>
+  <div class="h2d">아직 앱을 열기 전에 생기는 문제들입니다.</div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-fix">고쳐야 함</span><span class="e-t">압축이 안 풀립니다 (윈도우)</span></div>
+    <div class="q">지정된 파일을 찾을 수 없습니다</div>
+    <div class="a"><b>8월 19일 오후 4시 이전에 받은 파일입니다.</b> 그때까지의 윈도우용 압축은 한글 이름 표시가 빠져 탐색기가 풀지 못했습니다. 지금 <b>다시 받으면</b> 해결됩니다. 설정과 로그인은 그대로 남아 있어 다시 설정하실 필요가 없습니다.
+    <div class="w">반디집·7-Zip 으로는 풀렸기 때문에 되는 분과 안 되는 분이 갈렸습니다.</div></div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-fix">고쳐야 함</span><span class="e-t">파란 경고창이 뜹니다 (윈도우)</span></div>
+    <div class="q">Windows의 PC 보호</div>
+    <div class="a"><b>추가 정보</b> → <b>실행</b> 을 누르세요. 서명하지 않은 프로그램이라 나오는 안내이고, 처음 한 번만 나옵니다. 이상이 있는 것이 아닙니다.</div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-fix">고쳐야 함</span><span class="e-t">「확인되지 않은 개발자」 라며 안 열립니다 (맥)</span></div>
+    <div class="a">아이콘을 <b>더블클릭하지 말고</b>, 마우스 오른쪽 버튼(또는 Control+클릭) → <b>열기</b> 를 누르세요. 경고가 한 번 더 나오면 다시 <b>열기</b>. 처음 한 번만 이렇게 하면 됩니다.</div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-fix">고쳐야 함</span><span class="e-t">갑자기 업로드가 멈췄습니다</span></div>
+    <div class="a"><b>검은 명령창을 닫으셨을 가능성이 큽니다.</b> 그 창이 곧 프로그램입니다. 닫으면 자동 업로드도 멈춥니다. 다시 실행하시고, 다음부터는 <b>최소화만</b> 하세요.</div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-auto">그냥 두세요</span><span class="e-t">설정 화면이 안 보입니다</span></div>
+    <div class="a">브라우저 창만 닫힌 것이고 프로그램은 돌고 있습니다. 주소창에 <code>http://127.0.0.1:8777</code> 을 넣으면 다시 열립니다.</div>
+  </div>
+
+  <h2>구글 설정·로그인할 때</h2>
+  <div class="h2d">구글 클라우드 콘솔과 구글 로그인 창에서 나오는 것들입니다. 로그인 화면의 <b>작은 글씨 한 줄</b>이 원인을 알려줍니다.</div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-fix">고쳐야 함</span><span class="e-t">「앱 게시」를 눌렀더니 오류가 납니다</span></div>
+    <div class="q">Error: 앱을 업데이트하는 중에 오류가 발생했습니다.</div>
+    <div class="a">차례로 보세요. <b>①</b> 개발자 연락처 이메일이 비었는지 — 가장 흔합니다. <b>②</b> 앱 로고를 올렸는지 — 로고를 넣으면 구글 브랜드 심사 대상이 되어 게시가 막힙니다. 지우세요. <b>③</b> 홈페이지·개인정보처리방침 주소를 적었는지 — 내 컴퓨터에서만 도는 프로그램이라 필요 없습니다. 비우세요. <b>④</b> 회사·학교 계정인지 — 개인 지메일이어야 합니다.
+    <div class="w">끝내 안 되면 게시하지 않아도 됩니다. 테스트 사용자에 본인 지메일을 넣으면 업로드는 정상으로 되고, 다만 7일마다 다시 연결해야 합니다.</div></div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-fix">고쳐야 함</span><span class="e-t">「액세스가 차단됨」</span></div>
+    <div class="q">오류 403: access_denied
+앱이 Google 인증 절차를 완료하지 않았습니다</div>
+    <div class="a">동의 화면이 아직 <b>테스트</b> 상태입니다. <b>앱 게시</b>를 누르거나, 테스트 사용자에 본인 지메일을 추가하세요. <b>가장 흔한 로그인 오류입니다.</b></div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-fix">고쳐야 함</span><span class="e-t">「이 앱의 요청이 잘못되었습니다」</span></div>
+    <div class="q">오류 400: redirect_uri_mismatch</div>
+    <div class="a">열쇠(OAuth 클라이언트)를 만들 때 유형을 <b>웹 애플리케이션</b>으로 고르셨습니다. 반드시 <b>데스크톱 앱</b>으로 다시 만드세요.</div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-fix">고쳐야 함</span><span class="e-t">「관리자가 액세스를 차단했습니다」</span></div>
+    <div class="a">회사·학교(Workspace) 계정입니다. 조직 정책에 막힙니다. <b>개인 지메일</b> 계정으로 프로젝트를 만드세요.</div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-fix">고쳐야 함</span><span class="e-t">연결은 됐는데 유튜브 채널 이름이 안 나옵니다</span></div>
+    <div class="q">이 구글 계정에 유튜브 채널이 없습니다. 유튜브에서 채널을 먼저 만들어 주세요.</div>
+    <div class="a">지메일만 있고 <b>유튜브 채널을 아직 안 만든 계정</b>입니다. 유튜브에서 채널을 먼저 만든 뒤 <b>🔍 연결 점검</b>을 다시 누르세요.</div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-fix">고쳐야 함</span><span class="e-t">엉뚱한 채널로 영상이 올라갑니다</span></div>
+    <div class="a">오류 문구가 <b>하나도 안 뜨는 사고</b>입니다. 지메일 하나에 유튜브 채널이 여러 개 매달려 있으면 로그인 중에 채널 선택 화면이 나오는데, 여기서 잘못 고른 것입니다. 그 채널의 연결을 해제하고 다시 연결하면서 <b>채널을 정확히 고르세요.</b>
+    <div class="w">채널을 붙일 때마다 <b>🔍 연결 점검</b>으로 유튜브 채널 이름을 확인하면 이 사고는 생기지 않습니다.</div></div>
+  </div>
+
+  <h2>영상을 올리는 중에</h2>
+  <div class="h2d">프로그램 화면에 그대로 뜨는 문구들입니다.</div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-fix">고쳐야 함</span><span class="e-t">API 가 안 켜져 있습니다</span></div>
+    <div class="q">구글 클라우드에서 'YouTube Data API v3' 가 아직 켜져 있지 않습니다.</div>
+    <div class="a"><b>처음 설정할 때 가장 많이 빠뜨리는 단계입니다.</b> 이걸 안 켜도 로그인까지는 멀쩡히 되기 때문에 다 된 줄 알기 쉽습니다. 화면의 버튼으로 열어 <b>사용</b>을 누르고 <b>1~2분</b> 기다린 뒤 다시 하세요.</div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-fix">고쳐야 함</span><span class="e-t">로그인이 풀렸습니다</span></div>
+    <div class="q">인증이 만료되었거나 취소되었습니다. 다시 로그인해 주세요.
+(OAuth 동의 화면이 '테스트' 상태면 7일마다 만료됩니다 — '프로덕션'으로 게시하세요)</div>
+    <div class="a">동의 화면을 <b>게시하지 않아서</b> 7일마다 풀리는 경우가 대부분입니다. <b>채널</b> 탭에서 다시 연결하면 기다리던 영상이 그대로 올라갑니다. 매주 반복되는 것이 귀찮으시면 동의 화면을 <b>프로덕션으로 게시</b>하세요.</div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-fix">고쳐야 함</span><span class="e-t">열쇠가 틀렸습니다</span></div>
+    <div class="q">클라이언트 ID 또는 보안 비밀번호가 올바르지 않습니다.</div>
+    <div class="a">붙여넣을 때 <b>앞뒤 공백</b>이 섞였거나, 다른 프로젝트의 값을 넣으셨습니다. 채널 설정에서 두 값을 다시 확인하세요.</div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-fix">고쳐야 함</span><span class="e-t">클라이언트 유형이 잘못됐습니다</span></div>
+    <div class="q">리디렉션 주소가 등록되지 않았습니다. OAuth 클라이언트 유형이 '데스크톱 앱'인지 확인해 주세요.</div>
+    <div class="a">열쇠를 <b>데스크톱 앱</b>으로 다시 만들어 채널 설정에 넣으세요.</div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-fix">고쳐야 함</span><span class="e-t">아직 계정을 안 붙였습니다</span></div>
+    <div class="q">아직 구글 계정이 연결되지 않았습니다. 채널 탭에서 연결해 주세요.</div>
+    <div class="a">채널은 만들었는데 <b>🔑 구글 계정 연결</b>을 아직 안 누른 상태입니다.</div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-fix">고쳐야 함</span><span class="e-t">권한이 없다고 합니다</span></div>
+    <div class="q">권한이 없습니다. 연결한 구글 계정과 채널을 확인해 주세요.</div>
+    <div class="a">연결한 구글 계정이 <b>그 유튜브 채널의 주인이 아닌</b> 경우입니다. <b>🔍 연결 점검</b>으로 어느 채널에 붙어 있는지 확인하세요.</div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-wait">내일이면 됨</span><span class="e-t">오늘 몫을 다 썼습니다</span></div>
+    <div class="q">오늘 쓸 수 있는 구글 API 사용량을 모두 썼습니다. 내일 자동으로 다시 시작합니다.</div>
+    <div class="a">구글이 <b>프로젝트마다</b> 하루 10,000점을 주고 업로드 한 건에 1,600점이 듭니다. 그래서 <b>프로젝트당 하루 6개</b>입니다. 더 올리려면 채널마다 구글 프로젝트를 따로 만들어야 합니다.
+    <div class="w">기다리는 영상은 사라지지 않습니다. 한 채널이 한도를 다 써도 다른 채널은 계속 올라갑니다.</div></div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-wait">내일이면 됨</span><span class="e-t">채널의 하루 한도입니다</span></div>
+    <div class="q">이 채널의 하루 업로드 한도를 넘었습니다. 내일 다시 시도합니다.</div>
+    <div class="a">위와 달리 <b>유튜브가 채널에 매긴</b> 한도입니다. 새 채널이거나 인증이 안 된 채널에서 나옵니다. 손댈 것은 없습니다.</div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-auto">그냥 두세요</span><span class="e-t">일시적인 문제들</span></div>
+    <div class="q">요청이 너무 잦습니다. 잠시 후 자동으로 다시 시도합니다.
+유튜브 쪽 일시적인 오류입니다. 잠시 후 다시 시도합니다.
+유튜브 서버가 응답하지 않습니다 (503)
+네트워크가 불안정합니다</div>
+    <div class="a"><b>아무것도 하지 마세요.</b> 프로그램이 알아서 다시 시도합니다. 몇 시간이 지나도 계속 같은 자리라면 인터넷 연결을 확인하세요.</div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-file">그 영상 문제</span><span class="e-t">제목·설명에 못 쓰는 문자가 있습니다</span></div>
+    <div class="q">제목에 쓸 수 없는 문자가 있습니다. (&lt; 나 &gt; 기호는 쓸 수 없습니다)
+제목이나 설명이 유튜브 규칙에 맞지 않습니다. 특수문자를 줄여보세요.</div>
+    <div class="a">파일 이름이 그대로 제목이 되므로, <b>파일 이름에서 특수문자를 빼고</b> 다시 넣으세요. 채널 설정의 제목 앞뒤 문구에 들어 있을 수도 있습니다.</div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-file">그 영상 문제</span><span class="e-t">파일 자체의 문제</span></div>
+    <div class="q">영상 파일이 비어 있습니다.
+파일 이름에 문제가 있습니다. 이름을 바꿔서 다시 넣어주세요.</div>
+    <div class="a">저장이 덜 끝난 파일을 넣으셨거나, 이름에 쓸 수 없는 문자가 있습니다. 이름을 바꿔 다시 넣어보세요.</div>
+  </div>
+
+  <div class="e">
+    <div class="e-h"><span class="chip c-fix">고쳐야 함</span><span class="e-t">카테고리 설정</span></div>
+    <div class="q">카테고리 설정이 올바르지 않습니다. 설정 탭에서 다시 골라주세요.</div>
+    <div class="a">채널 설정에서 카테고리를 다시 고르면 됩니다.</div>
+  </div>
+
+  <h2>이미 고쳐진 것들</h2>
+  <div class="h2d">예전 판에서 나왔던 문제입니다. <b>최신판으로 올리면 끝납니다.</b> 겪으셨다면 버전부터 확인하세요.</div>
+
+  <div class="fixed"><span>윈도우 압축파일이 풀리지 않음</span><b>1.7.0 재배포</b></div>
+  <div class="fixed"><span>업데이트한 뒤 프로그램이 다시 안 켜짐</span><b>고쳐짐</b></div>
+  <div class="fixed"><span>새벽에 「오늘 올린 개수」와 한도가 하루 어긋남</span><b>고쳐짐</b></div>
+  <div class="fixed"><span>열쇠가 틀렸는데 영상이 <code>_실패</code> 폴더로 옮겨짐</span><b>1.6.0</b></div>
+  <div class="fixed"><span>프로그램이 자기 버전을 1.0.0 으로 표시</span><b>고쳐짐</b></div>
+
+  <div class="note">
+    <b>이제는 열쇠가 틀려도 영상이 안전합니다.</b><br>
+    인증 문제는 재시도 횟수를 쓰지 않고 원본 파일도 그대로 둡니다. 무엇을 고쳐야 하는지 화면에 안내하고, 해결하러 갈 링크도 함께 나옵니다. 고치고 나면 기다리던 영상이 그대로 올라갑니다.
+  </div>
+
+  <h2>여기에 없는 오류라면</h2>
+  <div class="ask">
+    <b>알려주세요 — 이 목록에 넣겠습니다.</b><br>
+    프로그램의 <b>💬 의견 보내기</b> 탭에서 보내시면 어떤 컴퓨터·어떤 버전인지가 자동으로 채워집니다.
+    화면에 뜬 문구를 <b>그대로</b> 적어 주시면 가장 빠릅니다.
+  </div>
+  <div class="alt">
+    <a href="https://github.com/beautifulahin/garasadae-uploader/issues/new?template=1_bug.yml" target="_blank" rel="noopener">🐞 오류가 나요</a>
+    <a href="https://github.com/beautifulahin/garasadae-uploader/issues" target="_blank" rel="noopener">📋 접수된 의견 보기</a>
+  </div>
+
+  <div class="e">
+    <div class="a">기록이 필요하면 설정 폴더에 남습니다.</div>
+    <div class="q" style="margin-top:9px;margin-bottom:0">윈도우  %APPDATA%\가라사대업로더\uploader.log
+맥      ~/Library/Application Support/가라사대업로더/uploader.log</div>
+  </div>
+
+  <div class="foot">
+    <a href="./">← 가라사대 업로더</a>
+    <a href="https://github.com/beautifulahin/garasadae-uploader/releases">모든 버전</a>
+    <a href="https://github.com/beautifulahin/garasadae-uploader">소스 코드</a>
+  </div>
+
+</div>
+</body>
+</html>
