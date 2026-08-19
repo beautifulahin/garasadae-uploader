@@ -1,5 +1,5 @@
 // OS 별 동작: 알림 · 폴더/브라우저 열기 · 자동 시작 등록
-import { APP_ID, APP_NAME, IS_MAC, IS_WIN, dataDir, exists, homeDir, join, log } from "./paths.ts";
+import { APP_ID, APP_NAME, IS_MAC, IS_WIN, dataDir, exists, fromBase64, homeDir, join, log } from "./paths.ts";
 
 function env(k: string) { try { return Deno.env.get(k) ?? ""; } catch { return ""; } }
 
@@ -102,6 +102,8 @@ return POSIX path of f`;
       return out.trim() ? out.trim().replace(/\/$/, "") : null;
     }
     if (IS_WIN) {
+      // 한글 윈도우의 콘솔은 한글을 UTF-8 로 내보내지 않는다.
+      // 그래서 경로를 Base64(영문·숫자뿐)로 받아 이쪽에서 되돌린다.
       const ps = `
 Add-Type -AssemblyName System.Windows.Forms
 $d = New-Object System.Windows.Forms.FolderBrowserDialog
@@ -110,10 +112,12 @@ $d.ShowNewFolderButton = $true
 $d.SelectedPath = "${start.replace(/\\/g, "\\\\")}"
 $t = New-Object System.Windows.Forms.Form
 $t.TopMost = $true
-if ($d.ShowDialog($t) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }
+if ($d.ShowDialog($t) -eq [System.Windows.Forms.DialogResult]::OK) {
+  Write-Output ([Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($d.SelectedPath)))
+}
 $t.Dispose()`.trim();
       const out = await capture(["powershell", "-STA", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps]);
-      return out.trim() || null;
+      return fromBase64(out.trim()) || null;
     }
     const out = await capture(["zenity", "--file-selection", "--directory"]);
     return out.trim() || null;

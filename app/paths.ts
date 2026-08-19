@@ -36,12 +36,13 @@ export async function desktopDir(): Promise<string> {
   if (!IS_WIN) return join(home, "Desktop");
 
   try {
-    const out = await run(["reg", "query",
-      "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders",
-      "/v", "Desktop"]);
-    const m = out.match(/Desktop\s+REG_(?:EXPAND_)?SZ\s+(.+)/i);
-    if (m) {
-      const p = m[1].trim().replace(/%([^%]+)%/g, (_, k) => env(k));
+    // 한글 윈도우의 콘솔은 한글을 UTF-8 로 내보내지 않는다.
+    // 그래서 경로를 Base64(영문·숫자뿐)로 받아 이쪽에서 되돌린다.
+    const ps = `$v = (Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders').Desktop
+[Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($v))`;
+    const out = await runBase64(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps]);
+    if (out) {
+      const p = out.replace(/%([^%]+)%/g, (_, k) => env(k));
       if (await exists(p)) return p;
     }
   } catch { /* 무시 */ }
@@ -57,10 +58,25 @@ export async function exists(p: string): Promise<boolean> {
   try { await Deno.stat(p); return true; } catch { return false; }
 }
 
-export async function run(cmd: string[]): Promise<string> {
+/** Base64 로 받은 글자를 UTF-8 로 되돌린다. 빈 값이거나 형식이 틀리면 빈 문자열. */
+export function fromBase64(s: string): string {
+  if (!s) return "";
+  try {
+    const bin = atob(s);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return "";
+  }
+}
+
+/** 명령을 실행해 Base64 로 나온 결과를 글자로 되돌려 받는다. 실패하면 빈 문자열. */
+export async function runBase64(cmd: string[]): Promise<string> {
   const c = new Deno.Command(cmd[0], { args: cmd.slice(1), stdout: "piped", stderr: "null" });
-  const { stdout } = await c.output();
-  return new TextDecoder().decode(stdout);
+  const { stdout, code } = await c.output();
+  if (code !== 0) return "";
+  return fromBase64(new TextDecoder().decode(stdout).trim());
 }
 
 /* ============================================================ 설정 */
