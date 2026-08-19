@@ -365,6 +365,39 @@ textarea.fin{resize:vertical;line-height:1.6}
   <div class="stit">📺 채널 관리</div>
   <div class="ssub">채널마다 폴더가 하나씩 생깁니다. 그 폴더에 영상을 넣으면 해당 채널로 올라갑니다.</div>
 
+  <div id="chList"></div>
+
+  <div class="card addch" style="max-width:820px">
+    <h3>➕ 채널 추가</h3>
+    <label class="flabel">채널 이름</label>
+    <input class="fin" id="newName" maxlength="60" placeholder="예: 채널1 · 메인채널 · 부계정"/>
+    <div class="hintline">이 이름으로 폴더가 만들어집니다. 유튜브 채널 이름과 달라도 됩니다.</div>
+
+    <div class="subhead">구글 설정을 어떻게 할까요?</div>
+    <div class="seg">
+      <button id="segNew" class="on" onclick="pickCredMode('new')">새 구글 프로젝트 쓰기</button>
+      <button id="segShare" onclick="pickCredMode('share')">기존 채널과 같이 쓰기</button>
+    </div>
+
+    <div id="credNew">
+      <div class="hintline" style="margin-bottom:8px">채널마다 따로 만들면 <b>하루 6개씩 따로</b> 올릴 수 있습니다.
+      만드는 방법은 <b>시작하기</b> 탭에 있습니다.</div>
+      <label class="flabel">클라이언트 ID</label>
+      <input class="fin" id="newCid" placeholder="....apps.googleusercontent.com"/>
+      <label class="flabel" style="margin-top:10px">클라이언트 보안 비밀번호</label>
+      <input class="fin" id="newSec" type="password" placeholder="GOCSPX-..."/>
+    </div>
+
+    <div id="credShare" style="display:none">
+      <div class="hintline" style="margin-bottom:8px">기존 채널의 구글 설정을 같이 씁니다. 설정은 편하지만
+      <b style="color:var(--gold)">하루 6개를 두 채널이 나눠 씁니다.</b> 가끔만 올리는 채널에 적합합니다.</div>
+      <label class="flabel">어느 채널의 설정을 같이 쓸까요?</label>
+      <div class="chsel" id="shareTargets"></div>
+    </div>
+
+    <button class="go" style="margin-top:14px" onclick="addChannel()">➕ 채널 만들기</button>
+  </div>
+
   <div class="card">
     <h3>📖 여러 채널 쓰는 법</h3>
 
@@ -419,38 +452,6 @@ textarea.fin{resize:vertical;line-height:1.6}
     </div>
   </div>
 
-  <div id="chList"></div>
-
-  <div class="card addch" style="max-width:820px">
-    <h3>➕ 채널 추가</h3>
-    <label class="flabel">채널 이름</label>
-    <input class="fin" id="newName" maxlength="60" placeholder="예: 채널1 · 메인채널 · 부계정"/>
-    <div class="hintline">이 이름으로 폴더가 만들어집니다. 유튜브 채널 이름과 달라도 됩니다.</div>
-
-    <div class="subhead">구글 설정을 어떻게 할까요?</div>
-    <div class="seg">
-      <button id="segNew" class="on" onclick="pickCredMode('new')">새 구글 프로젝트 쓰기</button>
-      <button id="segShare" onclick="pickCredMode('share')">기존 채널과 같이 쓰기</button>
-    </div>
-
-    <div id="credNew">
-      <div class="hintline" style="margin-bottom:8px">채널마다 따로 만들면 <b>하루 6개씩 따로</b> 올릴 수 있습니다.
-      만드는 방법은 <b>시작하기</b> 탭에 있습니다.</div>
-      <label class="flabel">클라이언트 ID</label>
-      <input class="fin" id="newCid" placeholder="....apps.googleusercontent.com"/>
-      <label class="flabel" style="margin-top:10px">클라이언트 보안 비밀번호</label>
-      <input class="fin" id="newSec" type="password" placeholder="GOCSPX-..."/>
-    </div>
-
-    <div id="credShare" style="display:none">
-      <div class="hintline" style="margin-bottom:8px">기존 채널의 구글 설정을 같이 씁니다. 설정은 편하지만
-      <b style="color:var(--gold)">하루 6개를 두 채널이 나눠 씁니다.</b> 가끔만 올리는 채널에 적합합니다.</div>
-      <label class="flabel">어느 채널의 설정을 같이 쓸까요?</label>
-      <div class="chsel" id="shareTargets"></div>
-    </div>
-
-    <button class="go" style="margin-top:14px" onclick="addChannel()">➕ 채널 만들기</button>
-  </div>
 </div>
 
 <!-- ============ 설정 ============ -->
