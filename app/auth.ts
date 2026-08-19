@@ -171,6 +171,34 @@ export async function fetchChannel(token: string) {
   };
 }
 
+/** 연결할 때 붙잡아 둔 그 유튜브 채널이 맞는지 **올리기 직전에** 다시 본다.
+ *
+ * 채널을 여러 개 쓰면 구글 로그인 중 채널 선택에서 잘못 고르는 일이 생기는데,
+ * 그때 오류가 하나도 나지 않아 남의 채널에 영상이 올라가고도 한참 모른다.
+ * 이 조회는 1점이라 업로드 1건(1,600점) 옆에서는 없는 것과 같다.
+ */
+export async function assertSameChannel(cfg: Config, ch: Channel): Promise<void> {
+  const tok = await loadTokens(ch.id);
+  if (!tok?.channel?.id) return;          // 옛 연결 — 견줄 기준이 없다
+  const token = await accessToken(cfg, ch);
+  let now: { id: string; title: string };
+  try {
+    now = await fetchChannel(token);
+  } catch (e) {
+    // 채널 조회가 막힌 것(API 꺼짐 등)은 설정 문제다 — 파일 문제로 취급하면 안 된다
+    const m = e instanceof ChannelError ? e : new ChannelError(e instanceof Error ? e.message : String(e));
+    throw new UploadError(m.message, "config", m.helpUrl);
+  }
+  if (now.id !== tok.channel.id) {
+    throw new UploadError(
+      `연결된 유튜브 채널이 바뀌었습니다. 「${tok.channel.title}」 에 올리려던 영상인데 ` +
+      `지금 연결된 곳은 「${now.title}」 입니다. 잘못 올라가지 않도록 멈췄습니다. ` +
+      `채널 탭에서 연결을 해제하고 올바른 채널로 다시 연결해 주세요.`,
+      "config",
+    );
+  }
+}
+
 export async function revoke(channelId: string) {
   const tok = await loadTokens(channelId);
   if (!tok) return;

@@ -5,6 +5,7 @@ import {
 } from "./paths.ts";
 import { DAILY_QUOTA, UPLOAD_COST, uploadVideo, verifyVideo, VideoMeta } from "./youtube.ts";
 import { ErrKind, UploadError } from "./errors.ts";
+import { accessToken, assertSameChannel } from "./auth.ts";
 import { moveToTrash, notify, openUrl } from "./platform.ts";
 
 const VIDEO_EXT = new Set([
@@ -71,6 +72,9 @@ export class Manager {
   running = false;
   uploadingKey = "";
   paused = false;
+  /** 로그인이 풀린 채널 — 채널id → 까닭. 올리려다 실패하기 전에 미리 알린다. */
+  loginAlerts = new Map<string, string>();
+  private lastLoginCheck = 0;
   lastSeen = 0;
   lastError = "";
   /** 채널별로 "사용자가 고쳐야 하는 문제" */
@@ -345,6 +349,10 @@ export class Manager {
     await log(`📤 [${ch.name}] 업로드 시작: ${p.name} (${fmtSize(p.size)})`);
 
     try {
+      // 올리기 직전에 채널이 맞는지 본다 — 1점, 잘못 올라가면 되돌릴 수 없다
+      await assertSameChannel(this.cfg, ch);
+      this.addQuota(ch, 1);
+
       const res = await uploadVideo(this.cfg, ch, p.path, this.meta(p, ch), (sent, total) => {
         p.sent = sent;
         p.progress = total ? Math.round((sent / total) * 100) : 0;
@@ -477,7 +485,35 @@ export class Manager {
     }
   }
 
-  async hold(key: string) {
+/** 로그인이 살아 있는지 미리 확인한다.
+   *
+   * 동의 화면을 게시하지 않으면 7일마다 풀리는데, 지금까지는 **올리려다 실패해야** 알았다.
+   * 채널이 여러 개면 그중 하나가 조용히 풀려 있어도 모르고 지나간다.
+   * 토큰 갱신은 유튜브 사용량을 쓰지 않으므로 하루 한도와 무관하다.
+   */
+  async checkLogins(force = false) {
+    const EVERY = 6 * 60 * 60_000;
+    if (!force && Date.now() - this.lastLoginCheck < EVERY) return;
+    this.lastLoginCheck = Date.now();
+
+    for (const ch of this.channels()) {
+      if (!(await loadTokens(ch.id))) continue;          // 아직 연결 안 한 채널
+      try {
+        await accessToken(this.cfg, ch);
+        if (this.loginAlerts.delete(ch.id)) await log(`🔑 [${ch.name}] 로그인이 되살아났습니다`);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (this.loginAlerts.get(ch.id) === msg) continue;   // 같은 까닭으로 두 번 알리지 않는다
+        this.loginAlerts.set(ch.id, msg);
+        await log(`🔑 [${ch.name}] 로그인이 풀렸습니다 — ${msg}`);
+        if (this.cfg.notifications) {
+          await notify("가라사대 업로더 🔑", `[${ch.name}] 로그인이 풀렸습니다. 다시 연결해 주세요`);
+        }
+      }
+    }
+  }
+
+    async hold(key: string) {
     const p = this.pending.get(key);
     if (!p || p.status === "uploading") return false;
     await this.moveTo(p, HOLD_DIR);
@@ -514,6 +550,7 @@ export class Manager {
       await this.ensureDirs();
       await this.scanBroadcast();
       await this.scan();
+      await this.checkLogins();
       if (this.paused || this.uploadingKey) return;
       const next = await this.pickNext();
       if (next) await this.uploadOne(next);
@@ -584,6 +621,9 @@ export class Manager {
       running: this.running,
       paused: this.paused,
       ask: this.ask,
+      loginAlerts: [...this.loginAlerts].map(([id, message]) => ({
+        id, name: this.channelById(id)?.name ?? "", message,
+      })),
       lastError: this.lastError,
       todayCount: this.todayCount(),
       uploads: this.state.uploads.slice(0, 60),

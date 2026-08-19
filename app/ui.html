@@ -313,12 +313,13 @@ textarea.fin{resize:vertical;line-height:1.6}
         </div>
       </div>
 
-      <div class="sechead"><span>📋 대기열</span><span class="sechead-r" id="qCount"></span></div>
+      <div class="sechead"><span>📋 대기열 <span style="font-weight:400;color:var(--t3);font-size:10px">— 파일 이름이 그대로 영상 제목이 됩니다. 올라가기 전까지는 여기서 고칠 수 있습니다</span></span><span class="sechead-r" id="qCount"></span></div>
       <div class="qlist" id="qlist"></div>
       <div class="empty small" id="qEmpty">
         <div class="empty-i">📭</div>
         <div class="empty-t">대기 중인 영상이 없습니다</div>
-        <div class="empty-d">채널 폴더에 영상을 저장하거나 위에 끌어다 놓으면 여기에 나타납니다.</div>
+        <div class="empty-d">채널 폴더에 영상을 저장하거나 위에 끌어다 놓으면 여기에 나타납니다.<br>
+        <b>파일 이름이 그대로 영상 제목이 됩니다</b> — 올릴 이름 그대로 저장해 두시면 손댈 것이 없습니다.</div>
       </div>
 
       <div class="sechead"><span>🕐 최근 올린 영상 <span style="font-weight:400;color:var(--t3);font-size:10px">— 누르면 음악을 넣을 수 있습니다</span></span>
@@ -845,6 +846,15 @@ function paint(){
     nr.innerHTML='<div class="card warn"><h3>🔑 구글 계정이 연결되지 않았습니다</h3>'
       +'<div class="p13">채널 탭에서 각 채널의 <b>구글 계정 연결</b>을 눌러주세요. 연결 전에는 영상을 감지만 하고 올리지 않습니다.</div>'
       +'<button class="tb" style="margin-top:10px" onclick="swTab(\'t3\')">📺 채널 탭 열기</button></div>';
+  }else if((s.loginAlerts||[]).length){
+    // 올리려다 실패하기 전에 알린다 — 동의 화면이 '테스트' 면 7일마다 풀린다
+    const al=s.loginAlerts;
+    nr.innerHTML='<div class="card warn"><h3>🔑 로그인이 풀린 채널이 있습니다</h3>'
+      +'<div class="p13">이 채널은 지금 영상을 올리지 못합니다. <b>채널 탭에서 다시 연결</b>하시면 기다리던 영상이 그대로 올라갑니다.</div>'
+      +al.map(a=>'<div class="p13" style="margin-top:8px"><b>📺 '+esc(a.name)+'</b><br><span style="color:var(--t3)">'+esc(a.message)+'</span></div>').join('')
+      +'<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
+      +'<button class="tb on" onclick="swTab(\'t3\')">📺 채널 탭 열기</button>'
+      +'<button class="tb" onclick="ext(\'https://beautifulahin.github.io/garasadae-uploader/errors.html\')">🩺 왜 풀리나요?</button></div></div>';
   }else nr.innerHTML='';
 
   // 오늘 전체
