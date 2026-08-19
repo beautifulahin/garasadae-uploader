@@ -236,6 +236,16 @@ textarea.fin{resize:vertical;line-height:1.6}
 .chsel{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
 .chsel button{padding:6px 11px;border-radius:14px;border:1px solid var(--bdr);background:none;color:var(--t2);font-size:11px;transition:.15s}
 .chsel button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.bcpanel{background:var(--bg2);border:1px solid var(--cyan);border-radius:var(--r);padding:12px;margin-bottom:6px}
+.bclist{display:flex;flex-direction:column;gap:5px;margin-bottom:10px;max-height:260px;overflow:auto}
+.bcrow{display:flex;align-items:center;gap:9px;padding:8px 10px;background:var(--bg1);border:1px solid var(--bdr);border-radius:var(--rs);transition:.15s;cursor:pointer}
+.bcrow.on{border-color:var(--cyan);background:var(--cyanG)}
+.bcrow .mark{width:17px;height:17px;border-radius:5px;border:1px solid var(--bdr);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:transparent}
+.bcrow.on .mark{background:var(--cyan);border-color:var(--cyan);color:#0b0b11}
+.bcrow-n{flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bcrow-m{font-size:10px;color:var(--t3);font-family:"JetBrains Mono",monospace;flex-shrink:0}
+.bcbar{border-top:1px solid var(--bdr);padding-top:10px}
+.bcbtns{display:flex;gap:6px;justify-content:flex-end;margin-top:8px;flex-wrap:wrap}
 .bcbox{margin:8px 0 4px;padding:10px 12px;border-radius:var(--rs);background:var(--cyanG);border:1px solid rgba(45,212,168,.35);font-size:11.5px;color:var(--t2);line-height:1.7}
 .bcbox b{color:var(--cyan)}
 </style>
@@ -273,7 +283,21 @@ textarea.fin{resize:vertical;line-height:1.6}
         <input type="file" id="vfile" accept="video/*" multiple hidden/>
       </div>
       <div class="chsel" id="dropChannels"></div>
-      <div id="bcNote"></div>
+
+      <div id="bcSection" style="display:none">
+        <div class="sechead"><span>🌐 전체 업로드 대기 <span style="font-weight:400;color:var(--t3);font-size:10px">— 보낼 영상과 채널을 골라 주세요</span></span>
+          <button class="tb" onclick="openBroadcast()">📂 폴더 열기</button></div>
+        <div class="bcpanel">
+          <div class="bclist" id="bcList"></div>
+          <div class="bcbar">
+            <div class="chsel" id="bcChannels"></div>
+            <div class="bcbtns">
+              <button class="tb" onclick="bcHold()">⏸ 고른 것 보류</button>
+              <button class="go" style="width:auto;padding:10px 18px" onclick="bcSend()">📤 고른 영상 보내기</button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div class="sechead"><span>📋 대기열</span><span class="sechead-r" id="qCount"></span></div>
       <div class="qlist" id="qlist"></div>
@@ -712,12 +736,7 @@ function paint(){
   $('mTotal').textContent=s.uploads.length;
   $('qCount').textContent=waiting?waiting+'개 대기 중':'';
 
-  const bc=$('bcNote');
-  bc.innerHTML = s.broadcastDir
-    ? `<div class="bcbox">🌐 <b>모든채널</b> 폴더에 영상을 넣으면 <b>사용 중인 채널 ${chans.filter(c=>c.enabled).length}개 전부</b>로 각각 올라갑니다.
-       파일을 여러 번 넣지 않아도 됩니다.
-       <button class="tb" style="margin-left:6px" onclick="openBroadcast()">📂 모든채널 폴더 열기</button></div>`
-    : '';
+  renderBroadcast(s);
   renderChannelCards(s.channels,chans);
   renderDropChannels(chans);
   renderCards(s.items);
@@ -728,6 +747,69 @@ function paint(){
   const upOpen=$('upModal').classList.contains('on');
   if(!upOpen)paintAutoAsk(s.askAutoStart);
   if(!upOpen&&!$('autoModal').classList.contains('on'))paintAsk(s.ask);
+}
+
+/* ================= 전체 업로드 대기 ================= */
+let bcPicked=new Set(), bcChans=[];
+function renderBroadcast(s){
+  const sec=$('bcSection'), staged=s.staged||[];
+  if(!s.broadcastDir){ sec.style.display='none'; return; }
+  const on=(s.channelList||[]).filter(c=>c.enabled);
+
+  if(!staged.length){
+    sec.style.display='block';
+    $('bcList').innerHTML=`<div style="padding:16px;text-align:center;color:var(--t3);font-size:11px">
+      <b style="color:var(--cyan)">모든채널</b> 폴더에 영상을 넣으면 여기에 나타납니다.
+      보낼 영상과 채널을 골라 <b>보내기</b>를 누르면 각 채널로 들어갑니다.</div>`;
+  }else{
+    sec.style.display='block';
+    // 없어진 파일은 선택에서 뺀다
+    const names=new Set(staged.map(x=>x.name));
+    [...bcPicked].forEach(n=>{ if(!names.has(n))bcPicked.delete(n); });
+    $('bcList').innerHTML=staged.map(x=>`
+      <div class="bcrow ${bcPicked.has(x.name)?'on':''}" onclick="bcToggle('${jsEsc(x.name)}')">
+        <div class="mark">✓</div>
+        <div class="bcrow-n">${esc(x.name)}</div>
+        <div class="bcrow-m">${fmtSize(x.size)}${x.ready?'':' · 저장 중…'}</div>
+      </div>`).join('');
+  }
+
+  // 보낼 채널 고르기 (기본: 전체)
+  bcChans=bcChans.filter(id=>on.some(c=>c.id===id));
+  if(!bcChans.length)bcChans=on.map(c=>c.id);
+  const all=bcChans.length===on.length;
+  $('bcChannels').innerHTML='<span style="font-size:10px;color:var(--t3);align-self:center;margin-right:2px">보낼 채널</span>'
+    +`<button class="${all?'on':''}" onclick="bcAll()">🌐 전체 (${on.length})</button>`
+    +on.map(c=>`<button class="${bcChans.includes(c.id)?'on':''}" onclick="bcChanToggle('${c.id}')">${esc(c.name)}</button>`).join('');
+}
+function bcToggle(name){ bcPicked.has(name)?bcPicked.delete(name):bcPicked.add(name); paint(); }
+function bcChanToggle(id){
+  bcChans.includes(id) ? bcChans=bcChans.filter(x=>x!==id) : bcChans.push(id);
+  const on=(ST.channelList||[]).filter(c=>c.enabled);
+  if(!bcChans.length)bcChans=[id];
+  paint();
+}
+function bcAll(){
+  const on=(ST.channelList||[]).filter(c=>c.enabled);
+  bcChans = bcChans.length===on.length ? [on[0].id] : on.map(c=>c.id);
+  paint();
+}
+async function bcSend(){
+  if(!bcPicked.size)return msg('보낼 영상을 골라 주세요','err');
+  const notReady=(ST.staged||[]).filter(x=>bcPicked.has(x.name)&&!x.ready);
+  if(notReady.length)return msg(`${notReady[0].name} 은 아직 저장 중입니다. 잠시 뒤에 보내주세요`,'err');
+  const names=[...bcPicked];
+  const r=await api('/api/broadcast/send',{names,channels:bcChans});
+  if(r.error)return msg(r.error,'err');
+  bcPicked.clear();
+  const chNames=(ST.channelList||[]).filter(c=>bcChans.includes(c.id)).map(c=>c.name);
+  msg(`${r.sent.length}개 영상을 ${chNames.join(' · ')} 로 보냈습니다`,'ok');
+  poll();
+}
+async function bcHold(){
+  if(!bcPicked.size)return msg('보류할 영상을 골라 주세요','err');
+  await api('/api/broadcast/hold',{names:[...bcPicked]});
+  bcPicked.clear(); msg('_보류 폴더로 옮겼습니다'); poll();
 }
 
 /* ================= 채널 카드 (오른쪽) ================= */

@@ -218,67 +218,103 @@ export class Manager {
     }
   }
 
-  /** 모든채널 폴더에 들어온 영상을 채널마다 하나씩 복사해 준다.
-   *  저장이 끝난 파일만 옮기고, 원본은 모든채널/_완료 로 보관한다. */
-  async fanout() {
-    if (!this.useBroadcast()) return;
+  /** 모든채널 폴더에 들어온 영상 목록. 자동으로 뿌리지 않고 사용자가 고를 때까지 기다린다. */
+  staged: { name: string; path: string; size: number; ready: boolean; at: number }[] = [];
+
+  /** 모든채널 폴더를 훑어 '보낼 수 있는 영상' 목록을 갱신한다. */
+  async scanBroadcast() {
+    if (!this.useBroadcast()) { this.staged = []; return; }
     const dir = this.broadcastDir();
-    const targets = this.channels();
+    const list: typeof this.staged = [];
     const alive = new Set<string>();
 
-    let entries: Deno.DirEntry[] = [];
     try {
-      for await (const e of Deno.readDir(dir)) entries.push(e);
-    } catch { return; }
+      for await (const e of Deno.readDir(dir)) {
+        if (!e.isFile || !isVideoFile(e.name)) continue;
+        const path = join(dir, e.name);
+        let size = 0;
+        try { size = (await Deno.stat(path)).size; } catch { continue; }
+        alive.add(e.name);
 
-    for (const e of entries) {
-      if (!e.isFile || !isVideoFile(e.name)) continue;
-      const path = join(dir, e.name);
-      let size = 0;
-      try { size = (await Deno.stat(path)).size; } catch { continue; }
-      alive.add(e.name);
+        const prev = this.fanSeen.get(e.name);
+        if (prev && prev.size === size && size > 0) prev.count++;
+        else this.fanSeen.set(e.name, { size, count: 0 });
+        const cnt = this.fanSeen.get(e.name)?.count ?? 0;
 
-      const prev = this.fanSeen.get(e.name);
-      if (prev && prev.size === size && size > 0) prev.count++;
-      else this.fanSeen.set(e.name, { size, count: 0 });
-      if ((this.fanSeen.get(e.name)?.count ?? 0) < this.cfg.stableChecks) continue;
+        const known = this.staged.find((x) => x.name === e.name);
+        if (!known) await log(`📥 [모든채널] 대기: ${e.name} — 화면에서 보낼 채널을 골라주세요`);
+        list.push({ name: e.name, path, size, ready: cnt >= this.cfg.stableChecks, at: known?.at ?? Date.now() });
+      }
+    } catch { /* 폴더가 없으면 다음에 만든다 */ }
 
-      const sent: string[] = [];
+    for (const name of [...this.fanSeen.keys()]) if (!alive.has(name)) this.fanSeen.delete(name);
+    this.staged = list.sort((a, b) => a.at - b.at);
+  }
+
+  /** 고른 영상을 고른 채널들로 보낸다. 원본은 모든채널/_완료 에 보관한다. */
+  async sendBroadcast(names: string[], channelIds: string[]): Promise<{ sent: string[]; failed: string[] }> {
+    const targets = channelIds.length
+      ? this.channels().filter((c) => channelIds.includes(c.id))
+      : this.channels();
+    const sent: string[] = [], failed: string[] = [];
+    if (!targets.length) return { sent, failed: names };
+
+    for (const name of names) {
+      const item = this.staged.find((x) => x.name === name);
+      if (!item) { failed.push(name); continue; }
+      const done: string[] = [];
       for (const ch of targets) {
         try {
           await Deno.mkdir(ch.folder, { recursive: true });
-          let dest = join(ch.folder, e.name);
+          let dest = join(ch.folder, name);
           let i = 1;
-          while (await fileExists(dest)) dest = join(ch.folder, `${stem(e.name)} (${i++})${ext(e.name)}`);
-          await Deno.copyFile(path, dest);
-          sent.push(ch.name);
-        } catch (err) {
-          await log(`   ⚠️  [${ch.name}] 복사 실패: ${err instanceof Error ? err.message : err}`);
+          while (await fileExists(dest)) dest = join(ch.folder, `${stem(name)} (${i++})${ext(name)}`);
+          const part = dest + ".part";
+          await Deno.copyFile(item.path, part);
+          await Deno.rename(part, dest);
+          done.push(ch.name);
+        } catch (e) {
+          await log(`   ⚠️  [${ch.name}] 복사 실패: ${e instanceof Error ? e.message : e}`);
         }
       }
-      if (!sent.length) continue;
-
-      // 원본은 보관해 둔다 (다시 복사되지 않도록 폴더 밖으로 옮긴다)
+      if (!done.length) { failed.push(name); continue; }
       try {
-        const keep = join(dir, DONE_DIR);
+        const keep = join(this.broadcastDir(), DONE_DIR);
         await Deno.mkdir(keep, { recursive: true });
-        let dest = join(keep, e.name);
+        let dest = join(keep, name);
         let i = 1;
-        while (await fileExists(dest)) dest = join(keep, `${stem(e.name)} (${i++})${ext(e.name)}`);
-        await Deno.rename(path, dest);
-      } catch (err) {
-        await log(`   ⚠️  원본 보관 실패: ${err instanceof Error ? err.message : err}`);
+        while (await fileExists(dest)) dest = join(keep, `${stem(name)} (${i++})${ext(name)}`);
+        await Deno.rename(item.path, dest);
+      } catch (e) {
+        await log(`   ⚠️  원본 보관 실패: ${e instanceof Error ? e.message : e}`);
       }
-      this.fanSeen.delete(e.name);
-      await log(`📤 [모든채널] ${e.name} → ${sent.join(", ")} (${sent.length}개 채널로 보냄)`);
-      if (this.cfg.notifications) {
-        await notify("가라사대 업로더 📤", `${e.name} → ${sent.length}개 채널로 보냈습니다`);
-      }
+      this.fanSeen.delete(name);
+      sent.push(name);
+      await log(`📤 [모든채널] ${name} → ${done.join(", ")} (${done.length}개 채널)`);
     }
+    await this.scanBroadcast();
+    return { sent, failed };
+  }
 
-    for (const name of [...this.fanSeen.keys()]) {
-      if (!alive.has(name)) this.fanSeen.delete(name);
+  /** 고른 영상을 보내지 않고 치운다 */
+  async holdBroadcast(names: string[]) {
+    for (const name of names) {
+      const item = this.staged.find((x) => x.name === name);
+      if (!item) continue;
+      try {
+        const keep = join(this.broadcastDir(), HOLD_DIR);
+        await Deno.mkdir(keep, { recursive: true });
+        let dest = join(keep, name);
+        let i = 1;
+        while (await fileExists(dest)) dest = join(keep, `${stem(name)} (${i++})${ext(name)}`);
+        await Deno.rename(item.path, dest);
+        this.fanSeen.delete(name);
+        await log(`⏸  [모든채널] 보류: ${name}`);
+      } catch (e) {
+        await log(`   ⚠️  보류 실패: ${e instanceof Error ? e.message : e}`);
+      }
     }
+    await this.scanBroadcast();
   }
 
   meta(p: Pending, ch: Channel): VideoMeta {
@@ -476,7 +512,7 @@ export class Manager {
   async tick() {
     try {
       await this.ensureDirs();
-      await this.fanout();
+      await this.scanBroadcast();
       await this.scan();
       if (this.paused || this.uploadingKey) return;
       const next = await this.pickNext();
@@ -543,6 +579,7 @@ export class Manager {
       items,
       channels: chans,
       broadcastDir: this.useBroadcast() ? this.broadcastDir() : "",
+      staged: this.staged,
       uploading: !!this.uploadingKey,
       running: this.running,
       paused: this.paused,

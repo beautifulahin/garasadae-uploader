@@ -470,6 +470,22 @@ export function startServer(engine: Manager, port: number) {
         return json({ ok: true });
       }
 
+      if (p === "/api/broadcast/send" && req.method === "POST") {
+        const { names, channels } = await req.json();
+        const list: string[] = Array.isArray(names) ? names : [];
+        if (!list.length) return json({ error: "보낼 영상을 골라 주세요." }, 400);
+        const ids: string[] = Array.isArray(channels) ? channels : [];
+        const r = await engine.sendBroadcast(list, ids);
+        if (!r.sent.length) return json({ error: "보내지 못했습니다. 채널을 골랐는지 확인해 주세요." }, 400);
+        return json({ ok: true, ...r });
+      }
+
+      if (p === "/api/broadcast/hold" && req.method === "POST") {
+        const { names } = await req.json();
+        await engine.holdBroadcast(Array.isArray(names) ? names : []);
+        return json({ ok: true });
+      }
+
       if (p === "/api/openbroadcast" && req.method === "POST") {
         const dir = engine.broadcastDir();
         if (!dir || !engine.useBroadcast()) {
