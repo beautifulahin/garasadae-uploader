@@ -657,6 +657,13 @@ textarea.fin{resize:vertical;line-height:1.6}
   </div>
 
   <div class="card">
+    <h3>🩺 그 밖의 오류는 오류 사전에서</h3>
+    <div class="p13">지금까지 나온 오류를 종류별로 모아 두었습니다. <b>화면에 뜬 문구를 그대로</b> 찾으시면 됩니다.
+    설치·구글 설정·업로드 중에 나오는 것을 모두 담았습니다.</div>
+    <button class="tb on" onclick="ext('https://beautifulahin.github.io/garasadae-uploader/errors.html')">🩺 오류 사전 열기</button>
+  </div>
+
+  <div class="card">
     <h3>📊 하루에 몇 개까지 올릴 수 있나요?</h3>
     <ul>
       <li>구글이 <b>구글 프로젝트마다</b> 하루 10,000점을 주고, 업로드 1건에 1,600점이 듭니다.</li>
@@ -1039,6 +1046,7 @@ function renderCards(items){
     if(it.status==='error'){
       html+=`<button class="tb" onclick="uploadNow('${jsEsc(it.key)}')">🔄 다시 시도</button>`;
       if(it.helpUrl)html+=`<button class="tb on" onclick="ext('${it.helpUrl}')">🔗 해결하러 가기</button>`;
+      html+=`<button class="tb" onclick="ext('https://beautifulahin.github.io/garasadae-uploader/errors.html')">🩺 오류 사전</button>`;
       if(it.retryAt>Date.now())html+=`<span style="font-size:10px;color:var(--t3)">${Math.ceil((it.retryAt-Date.now())/1000)}초 뒤 자동 재시도</span>`;
     }
     if(it.status!=='uploading'&&it.status!=='done')html+=`<button class="tb" onclick="holdItem('${jsEsc(it.key)}')">⏸ 보류</button>`;
