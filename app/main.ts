@@ -1,7 +1,7 @@
 // 가라사대 업로더 — 진입점
 import { APP_NAME, APP_VERSION, dataDir, ensureDataDir, loadConfig, log, saveConfig } from "./paths.ts";
 import { Manager } from "./watcher.ts";
-import { startServer } from "./server.ts";
+import { autoUpdateOnStart, startServer } from "./server.ts";
 import { openUrl } from "./platform.ts";
 
 const VERSION = APP_VERSION;
@@ -58,6 +58,9 @@ async function main() {
   await log(`▶️  ${APP_NAME} v${VERSION} 시작 (${background ? "백그라운드" : "일반"})`);
 
   if (!background) await openUrl(url, cfg.browser);
+
+  // 켠 직후 새 버전이 있으면 묻지 않고 받는다 (화면에는 진행 막대가 보인다)
+  autoUpdateOnStart(engine);
 
   for (const sig of ["SIGINT", "SIGTERM"] as const) {
     try {

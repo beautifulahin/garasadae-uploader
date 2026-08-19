@@ -761,7 +761,7 @@ textarea.fin{resize:vertical;line-height:1.6}
       <button class="mbtn ghost" id="upNo" onclick="closeUp()">취소</button>
       <button class="mbtn primary" id="upYes" onclick="doUpdate()">확인</button>
     </div>
-    <div class="modal-remember">
+    <div class="modal-remember" id="upRemember">
       <button class="mlink" onclick="ext(ST&&ST.update?ST.update.page:'#')">바뀐 내용 보기</button>
       <span>·</span>
       <button class="mlink" onclick="closeUp()">닫기 (Esc)</button>
@@ -1454,10 +1454,15 @@ function paintUpdate(u,upd,prompt){
   const m=$('upModal');
   if(upd&&upd.running){
     m.classList.add('on');
-    $('upProg').style.display='block'; $('upBtns').style.display='none';
+    $('upTitle').textContent='업데이트 하는 중입니다';
+    $('upDesc').innerHTML='새 버전을 받아서 교체하고 있습니다. 끝나면 저절로 다시 시작합니다.<br><b>설정과 로그인은 그대로 유지됩니다.</b> 잠시만 기다려 주세요.';
+    $('upVer').textContent=(u&&u.available)?`${u.current} → ${u.version}`:'';
+    $('upProg').style.display='block'; $('upBtns').style.display='none'; $('upRemember').style.display='none';
     $('upBar').style.width=upd.pct+'%'; $('upPct').textContent=upd.pct+'%'; $('upText').textContent=upd.text;
+    try{ if(u&&u.version)localStorage.setItem('justUpdatedTo',u.version); }catch(_){}
     return;
   }
+  $('upRemember').style.display='';
   if(upd&&upd.error)msg('업데이트 실패: '+upd.error,'err');
   if(!u||!u.available||!prompt||!prompt.show||upSkipped===u.version){
     if(!upd||!upd.running)m.classList.remove('on');

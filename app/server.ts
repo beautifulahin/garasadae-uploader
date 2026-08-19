@@ -13,6 +13,30 @@ const UI = await Deno.readTextFile(new URL("./ui.html", import.meta.url));
 
 let upState = { running: false, pct: 0, text: "", error: "" };
 
+/** 켠 직후 딱 한 번, 묻지 않고 새 버전을 받는다.
+ *  올리는 중이거나 전에 거절한 버전이면 건너뛰고 예전처럼 물어본다.
+ *  성공하면 프로그램이 스스로 다시 시작하므로 여기서 돌아오지 않는다. */
+export async function autoUpdateOnStart(engine: Manager) {
+  await new Promise((r) => setTimeout(r, 5000));   // 화면이 먼저 뜨도록 잠깐 기다린다
+  const wasPaused = engine.paused;
+  try {
+    if (upState.running || engine.uploadingKey) return;
+    const info = await checkUpdate(false);
+    if (!info.available || !info.canInstall) return;
+    // 사용자가 전에 "아니오" 를 누른 버전은 몰래 밀어 넣지 않는다
+    if ((engine.cfg.updateDeclines[info.version] ?? 0) > 0) return;
+
+    await log(`⬆️  새 버전 ${info.version} — 묻지 않고 바로 받습니다`);
+    engine.paused = true;                          // 받는 동안 새 업로드가 시작되지 않게 한다
+    upState = { running: true, pct: 0, text: "준비 중…", error: "" };
+    await installUpdate(info, (pct, text) => { upState.pct = pct; upState.text = text; });
+  } catch (e) {
+    engine.paused = wasPaused;
+    upState = { running: false, pct: 0, text: "", error: e instanceof Error ? e.message : String(e) };
+    await log(`⚠️  자동 업데이트 실패: ${upState.error} — 화면에서 다시 시도할 수 있습니다`);
+  }
+}
+
 /** 안내 페이지에서만 말을 걸 수 있게 허용한다. 다른 사이트는 접근할 수 없다. */
 const ALLOWED_ORIGINS = [
   "https://beautifulahin.github.io",
