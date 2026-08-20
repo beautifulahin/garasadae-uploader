@@ -156,6 +156,7 @@ export function startServer(engine: Manager, port: number) {
           app: APP_NAME,
           version: APP_VERSION,
           label: buildLabel(),
+          panels: engine.cfg.panels,          // 이 컴퓨터에만 있는 끼움 화면
           platform: IS_WIN ? "windows" : IS_MAC ? "mac" : "linux",
           compiled: isCompiled(),
           dataDir: dataDir(),
