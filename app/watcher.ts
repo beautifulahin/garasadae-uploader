@@ -363,6 +363,17 @@ export class Manager {
     await log(`📤 [${ch.name}] 업로드 시작: ${p.name} (${fmtSize(p.size)})`);
 
     try {
+      // ★쪽지를 **올리기 직전에 한 번 더** 본다.
+      //   영상을 먼저 떨구고 쪽지를 나중에 만드는 흐름이 있다(설명을 뽑는 데 시간이
+      //   걸린다). 처음 봤을 때 없었다고 그대로 두면 채널 기본값으로 올라가 버린다.
+      if (!p.sidecar) {
+        p.sidecar = await readSidecar(p.path);
+        if (p.sidecar) {
+          await log(`   📝 쪽지를 뒤늦게 찾았습니다: ${stem(p.name)}.json`);
+          if (p.sidecar.title) p.title = p.sidecar.title.slice(0, 100);
+          if (p.sidecar.description) p.description = p.sidecar.description;
+        }
+      }
       // 올리기 직전에 채널이 맞는지 본다 — 1점, 잘못 올라가면 되돌릴 수 없다
       await assertSameChannel(this.cfg, ch);
       this.addQuota(ch, 1);
