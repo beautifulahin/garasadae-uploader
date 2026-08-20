@@ -134,4 +134,10 @@ PY
 echo
 find "$OUT" -maxdepth 2 -name "*.zip" -o -maxdepth 2 -name "*.app" -o -maxdepth 2 -name "*.exe" | sort
 du -sh "$OUT"/*.zip 2>/dev/null || du -sh "$OUT"/*/*.zip 2>/dev/null
+# 패치 내용을 릴리스에 함께 올린다 — 앱이 업데이트 창에 이것을 보여 준다
+if [ -f "배포/릴리스노트_$VER.md" ]; then
+  cp "배포/릴리스노트_$VER.md" "$OUT/notes.md"
+  echo "  ↳ notes.md (업데이트 창에 보일 패치 내용)"
+fi
+
 echo "✅ 완료 — dist 폴더의 zip 3개를 그대로 릴리스에 올리세요 (이름을 바꾸면 안 됩니다)."

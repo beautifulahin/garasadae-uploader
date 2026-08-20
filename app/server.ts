@@ -1,6 +1,6 @@
 // 로컬 웹 UI + API
 import {
-  APP_NAME, APP_VERSION, CHANNEL_DEFAULTS, Channel, Config, IS_MAC, IS_WIN, REPO,
+  APP_NAME, APP_VERSION, buildLabel, CHANNEL_DEFAULTS, Channel, Config, IS_MAC, IS_WIN, REPO,
   clearTokens, credsOf, dataDir, desktopDir, join, loadConfig, loadTokens, log,
   newChannelId, safeFolderName, saveConfig, tailLog,
 } from "./paths.ts";
@@ -151,6 +151,7 @@ export function startServer(engine: Manager, port: number) {
           주인: 주인표,                       // 이 표를 가진 창만 화면을 쓴다
           app: APP_NAME,
           version: APP_VERSION,
+          label: buildLabel(),
           platform: IS_WIN ? "windows" : IS_MAC ? "mac" : "linux",
           compiled: isCompiled(),
           dataDir: dataDir(),
