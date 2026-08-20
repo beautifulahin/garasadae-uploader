@@ -126,6 +126,31 @@ $t.Dispose()`.trim();
   }
 }
 
+/** 자동 시작 등록 파일을 지운다. 실패하면 왜 안 됐는지 그대로 알려 준다.
+ *  전에는 오류를 삼키고 "껐습니다" 라고만 해서, 꺼지지 않았는데 껐다고
+ *  답하고 화면은 다시 켜짐으로 돌아갔다. (2026-08-20 실제 사고) */
+async function turnOff(f: string): Promise<string> {
+  try {
+    await Deno.remove(f);
+  } catch (e) {
+    if (!(e instanceof Deno.errors.NotFound)) {
+      const m = e instanceof Error ? e.message : String(e);
+      await log(`⚠️  자동 시작을 끄지 못했습니다: ${f} — ${m}`);
+      throw new Error(
+        `자동 시작 파일을 지우지 못했습니다.\n${f}\n\n` +
+          `이유: ${m}\n\n` +
+          `보안 프로그램이 시작 폴더를 지키고 있을 수 있습니다. ` +
+          `탐색기 주소창에 shell:startup 을 넣고 그 파일을 직접 지워 주세요.`,
+      );
+    }
+  }
+  // 정말 사라졌는지 확인하고 답한다
+  if (await exists(f)) {
+    throw new Error(`자동 시작 파일이 아직 남아 있습니다.\n${f}\n직접 지워 주세요 (탐색기 주소창에 shell:startup).`);
+  }
+  return "자동 시작을 껐습니다.";
+}
+
 /** 윈도우가 알아보는 글자 형식(UTF-16, 앞에 표시 붙임)으로 바꾼다. */
 function utf16le(s: string): Uint8Array {
   const out = new Uint8Array(2 + s.length * 2);
@@ -201,7 +226,7 @@ export async function setAutoStart(on: boolean): Promise<string> {
 
   if (IS_WIN) {
     const f = winStartupFile();
-    if (!on) { try { await Deno.remove(f); } catch { /* 무시 */ } return "자동 시작을 껐습니다."; }
+    if (!on) return await turnOff(f);
     await Deno.mkdir(f.slice(0, f.lastIndexOf("\\")), { recursive: true });
     // 윈도우의 스크립트 실행기는 .vbs 를 UTF-8 로 읽지 않는다.
     // UTF-8 로 쓰면 폴더 이름에 한글이 있을 때 경로가 깨져 조용히 실패한다.

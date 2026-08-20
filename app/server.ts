@@ -643,7 +643,13 @@ export function startServer(engine: Manager, port: number) {
       /* ---------------- 기타 ---------------- */
       if (p === "/api/autostart" && req.method === "POST") {
         const { on, asked } = await req.json();
-        const m = await setAutoStart(!!on);
+        let m = "";
+        try {
+          m = await setAutoStart(!!on);
+        } catch (e) {
+          // 왜 안 됐는지 그대로 보여 준다. 조용히 넘어가면 껐다고 답하고 다시 켜진다.
+          return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+        }
         const cfg = await loadConfig(true);
         cfg.autoStart = !!on;
         if (asked) cfg.autoStartAsked = true;

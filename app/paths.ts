@@ -3,7 +3,7 @@ export const IS_WIN = Deno.build.os === "windows";
 export const IS_MAC = Deno.build.os === "darwin";
 export const APP_NAME = "가라사대업로더";
 export const APP_ID = "com.garasadae.uploader";
-export const APP_VERSION = "1.7.2";
+export const APP_VERSION = "1.7.3";
 export const REPO = "beautifulahin/garasadae-uploader";
 
 function env(k: string) {
