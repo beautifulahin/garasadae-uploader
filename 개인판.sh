@@ -83,6 +83,9 @@ pkill -f GarasadaeUploader || true
 sleep 2
 rm -rf "/Applications/가라사대 업로더.app"
 cp -R "dist/맥-애플실리콘/가라사대 업로더.app" /Applications/
+# 화면에서 공개판과 구분되게 이름표를 붙인다 — 버전 숫자는 바탕이 된 공개판과 같아서
+# 그것만으로는 "이거 공개판 아니야?" 하고 헷갈린다(실제로 그랬다).
+echo "개인판" > "/Applications/가라사대 업로더.app/Contents/Resources/label.txt"
 open "/Applications/가라사대 업로더.app"
 로그 "갈아끼웠다 — v$ver (쪽지 포함)"
 텔레그램 "⬆️ 업로더 개인판을 공개판 v$ver 에 맞춰 다시 지었다 (쪽지 기능 그대로)"
