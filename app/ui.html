@@ -71,7 +71,7 @@ textarea.fin{resize:vertical;line-height:1.6}
 .empty{text-align:center;padding:60px 30px}.empty-i{font-size:48px;margin-bottom:12px;opacity:.4}.empty-t{font-size:17px;font-weight:700;margin-bottom:6px}.empty-d{font-size:13px;color:var(--t3);line-height:1.7}
 
 .hrow{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rs);margin-bottom:6px;transition:.15s}.hrow:hover{border-color:var(--blue)}
-.hrow-th{width:64px;min-width:64px;aspect-ratio:16/9;border-radius:5px;overflow:hidden;background:var(--bg3)}.hrow-th img{width:100%;height:100%;object-fit:cover}
+.hrow-th{cursor:pointer;width:64px;min-width:64px;aspect-ratio:16/9;border-radius:5px;overflow:hidden;background:var(--bg3)}.hrow-th img{width:100%;height:100%;object-fit:cover}
 .hrow-i{flex:1;min-width:0}.hrow-t{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hrow-m{font-size:10px;color:var(--t3);font-family:'JetBrains Mono',monospace}
 .pv{font-size:9px;padding:2px 7px;border-radius:8px;font-weight:700;flex-shrink:0}.pv.public{background:var(--accentG);color:var(--accent)}.pv.unlisted{background:var(--blueG);color:var(--blue)}.pv.private{background:var(--bg4);color:var(--t2)}
 
@@ -1206,13 +1206,13 @@ function renderHist(ups){
   if(!list.length){box.innerHTML='<div class="empty"><div class="empty-i">🗂</div><div class="empty-t">아직 올린 영상이 없습니다</div><div class="empty-d">채널 폴더에 영상을 넣어보세요.</div></div>';return}
   box.innerHTML=list.map(u=>`
     <div class="hrow">
-      <div class="hrow-th"><img src="https://i.ytimg.com/vi/${u.id}/mqdefault.jpg" alt="" onerror="this.style.display='none'"/></div>
+      <a class="hrow-th" href="https://studio.youtube.com/video/${u.id}/edit" target="_blank" rel="noopener" title="동영상 세부정보가 열립니다 · 미리보기 이미지(썸네일)를 바꿀 수 있습니다"><img src="https://i.ytimg.com/vi/${u.id}/mqdefault.jpg" alt="" onerror="this.style.display='none'"/></a>
       <div class="hrow-i">
-        <div class="hrow-t">${esc(u.title)}</div>
+        <div class="hrow-t"><a href="https://studio.youtube.com/video/${u.id}/edit" target="_blank" rel="noopener" style="color:inherit;text-decoration:none" title="썸네일을 바꾸는 곳이 열립니다">${esc(u.title)}</a></div>
         <div class="hrow-m">📺 ${esc(u.channelName||'')} · ${u.at.replace('T',' ').slice(0,16)} · ${fmtSize(u.size)}${u.verified?' · <span style="color:var(--cyan)">🔎 확인됨</span>':''}</div>
       </div>
       <span class="pv ${u.privacy}">${({public:'공개',unlisted:'일부공개',private:'비공개'})[u.privacy]||u.privacy}</span>
-      <a class="tb on" href="https://studio.youtube.com/video/${u.id}/editor" target="_blank" rel="noopener" style="text-decoration:none" title="편집기가 열리면 오디오 옆 ＋ 를 누르세요">🎵 음악</a>
+      <a class="tb on" href="https://studio.youtube.com/video/${u.id}/editor" target="_blank" rel="noopener" style="text-decoration:none" title="편집기가 열리면 오디오 옆 ＋ 를 누르세요 (쇼츠는 편집기가 열리지 않을 수 있습니다)">🎵 음악</a>
       <a class="tb" href="https://www.youtube.com/watch?v=${u.id}" target="_blank" rel="noopener" style="text-decoration:none">▶️ 보기</a>
       <a class="tb" href="https://studio.youtube.com/video/${u.id}/edit" target="_blank" rel="noopener" style="text-decoration:none">✏️ 편집</a>
     </div>`).join('');
