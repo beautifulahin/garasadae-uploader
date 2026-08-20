@@ -1190,7 +1190,7 @@ function renderThumbs(ups){
   // 스튜디오는 **보고 있는 채널**을 세션에 기억한다. 다른 채널을 보고 있으면 영상
   // 주소를 눌러도 "오류가 발생했습니다" 가 뜬다 — 주소로는 채널을 못 박는다(pageId 도
   // 안 통한다). 그래서 **한 번 눌러 바꾸는 길**을 옆에 둔다.
-  const cid=((ST&&ST.channels&&ST.channels[0]&&ST.channels[0].youtube)||{}).id||'';
+  const cid=((ST&&ST.channelList&&ST.channelList[0]&&ST.channelList[0].youtube)||{}).id||'';
   const sw=$('chSwitch');
   if(sw){ if(cid){ sw.href='https://studio.youtube.com/channel/'+cid; sw.style.display=''; }
           else sw.style.display='none'; }
