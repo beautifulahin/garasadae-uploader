@@ -45,6 +45,28 @@ const ALLOWED_ORIGINS = [
 ];
 const PUBLIC_PATHS = ["/api/state", "/api/update/check", "/api/update/install"];
 
+/* ── 화면은 한 번에 하나만 ──────────────────────────────────
+   업로드가 끝날 때마다 화면이 새로 열려 탭이 쌓였다. 어느 창이 최신인지 헷갈리고,
+   창마다 1.5초에 한 번씩 서버를 두드렸다.
+
+   ★처음엔 브라우저의 BroadcastChannel 로 창끼리 이야기하게 했는데, 창 사이에 말이
+     아예 오가지 않는 조합이 있었다(실측). 그래서 **서버가 주인을 정한다.** 어차피
+     모든 창이 1.5초마다 여기를 두드리므로, 주인이 아닌 창은 그때 알고 물러난다.
+   ★주인이 8초 넘게 안 보이면(창을 닫았다는 뜻) 다음에 두드리는 창이 주인이 된다.
+     안 그러면 닫은 창이 주인 자리를 붙들고 있어 아무 창도 못 쓴다. */
+let 주인표 = "";
+let 주인본때 = 0;
+const 주인놓침 = 8000;
+
+function 주인정하기(표: string, 새로켬: boolean) {
+  const 이제 = Date.now();
+  if (!표) return;
+  if (새로켬 || !주인표 || 이제 - 주인본때 > 주인놓침) {
+    주인표 = 표;
+  }
+  if (표 === 주인표) 주인본때 = 이제;
+}
+
 function corsFor(req: Request, path: string): Record<string, string> {
   const origin = req.headers.get("origin") ?? "";
   if (!origin || !ALLOWED_ORIGINS.includes(origin) || !PUBLIC_PATHS.includes(path)) return {};
@@ -118,12 +140,15 @@ export function startServer(engine: Manager, port: number) {
       /* ---------------- 상태 ---------------- */
       if (p === "/api/state") {
         engine.lastSeen = Date.now();
+        주인정하기(url.searchParams.get("tab") ?? "",
+                   url.searchParams.get("claim") === "1");
         const cfg = engine.cfg;
         const snap = engine.snapshot();
         const views = await Promise.all(cfg.channels.map((c) => channelView(cfg, c)));
         const up = await checkUpdate(false);
         const times = up.version ? (cfg.updateDeclines[up.version] ?? 0) : 0;
         return json({
+          주인: 주인표,                       // 이 표를 가진 창만 화면을 쓴다
           app: APP_NAME,
           version: APP_VERSION,
           platform: IS_WIN ? "windows" : IS_MAC ? "mac" : "linux",

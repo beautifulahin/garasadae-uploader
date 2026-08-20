@@ -1,7 +1,7 @@
 // 폴더 감시 엔진 — 채널마다 폴더를 하나씩 지켜보며 자동으로 올린다.
 import {
   Channel, Config, IS_WIN, State, credsOf, join, loadConfig, loadState, loadTokens,
-  localDate, localStamp, log, projectKey, safeFolderName, saveState,
+  localDate, localStamp, log, projectKey, quotaDate, quotaResetAt, safeFolderName, saveState,
 } from "./paths.ts";
 import { DAILY_QUOTA, UPLOAD_COST, uploadVideo, verifyVideo, VideoMeta } from "./youtube.ts";
 import { ErrKind, UploadError } from "./errors.ts";
@@ -141,11 +141,12 @@ export class Manager {
 
   private today() { return localDate(); }
 
+  /** 할당량은 **태평양 날짜**로 센다 — 구글이 그 날짜로 세기 때문이다(paths.quotaDate). */
   quotaOf(ch: Channel): { used: number; left: number } {
     const key = projectKey(this.cfg, ch);
     const q = this.state.quota[key];
-    if (!q || q.date !== this.today()) {
-      this.state.quota[key] = { date: this.today(), used: 0 };
+    if (!q || q.date !== quotaDate()) {
+      this.state.quota[key] = { date: quotaDate(), used: 0 };
       return { used: 0, left: DAILY_QUOTA };
     }
     return { used: q.used, left: DAILY_QUOTA - q.used };
@@ -601,6 +602,8 @@ export class Manager {
         dailyLimit: ch.dailyLimit,
         quotaUsed: q.used,
         quotaLeft: q.left,
+        quotaResetAt: quotaResetAt(),          // 할당량이 다시 차오르는 때
+        quotaDate: quotaDate(),
         capacityLeft: Math.max(0, Math.min(ch.dailyLimit - this.todayCount(ch.id), Math.floor(q.left / UPLOAD_COST))),
         limitReached: this.limitReached(ch),
         waiting: items.filter((p) => p.channelId === ch.id && p.status !== "done").length,

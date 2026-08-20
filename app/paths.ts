@@ -3,7 +3,7 @@ export const IS_WIN = Deno.build.os === "windows";
 export const IS_MAC = Deno.build.os === "darwin";
 export const APP_NAME = "가라사대업로더";
 export const APP_ID = "com.garasadae.uploader";
-export const APP_VERSION = "1.7.4";
+export const APP_VERSION = "1.7.5";
 export const REPO = "beautifulahin/garasadae-uploader";
 
 function env(k: string) {
@@ -197,6 +197,36 @@ export function credsOf(cfg: Config, ch: Channel): { clientId: string; clientSec
 export function localDate(d = new Date()): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** 유튜브 할당량이 세는 **그날**. 태평양 날짜다.
+ *
+ * ★유튜브 API 할당량은 **태평양 자정**에 리셋된다. 한국시간으로는 오후 4시(서머타임 중)
+ *   또는 오후 5시다. 그런데 여태 `localDate()`(그 컴퓨터의 날짜)로 셌다. 시차가 있는
+ *   곳에서는 우리 카운터만 먼저 0 이 되고 구글 것은 그대로라, **"오늘 0편 썼다"고 믿고
+ *   계속 시도하다 quotaExceeded 를 받았다.** 세는 자리를 구글과 같은 날짜로 맞춘다.
+ *
+ * ★사람에게 보여 주는 "오늘 몇 편"(todayCount)은 그대로 그 컴퓨터의 날짜를 쓴다 —
+ *   그건 사용자의 하루지 구글의 하루가 아니다.
+ */
+export function quotaDate(d = new Date()): string {
+  // en-CA 로 뽑으면 2026-08-20 꼴로 나온다
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(d);
+}
+
+/** 할당량이 다시 차오르는 때 — 태평양 자정을 이 컴퓨터 시각으로 옮긴 것 */
+export function quotaResetAt(d = new Date()): string {
+  const 태평양오늘 = quotaDate(d);
+  // 태평양 자정 = 그 날짜의 00:00 (PDT −07:00 / PST −08:00). 두 시각 중 아직 안 온 쪽.
+  for (const 시차 of ["-07:00", "-08:00"]) {
+    const t = new Date(`${태평양오늘}T00:00:00${시차}`);
+    const 내일 = new Date(t.getTime() + 24 * 3600_000);
+    if (내일 > d) return 내일.toISOString();
+  }
+  return new Date(d.getTime() + 24 * 3600_000).toISOString();
 }
 
 /** 기록에 남기는 시각. localDate() 와 앞 10자리가 일치해야 한다. */
