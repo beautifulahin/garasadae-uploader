@@ -126,6 +126,19 @@ $t.Dispose()`.trim();
   }
 }
 
+/** 윈도우가 알아보는 글자 형식(UTF-16, 앞에 표시 붙임)으로 바꾼다. */
+function utf16le(s: string): Uint8Array {
+  const out = new Uint8Array(2 + s.length * 2);
+  out[0] = 0xFF;
+  out[1] = 0xFE;                       // 이 표시가 있어야 윈도우가 UTF-16 인 줄 안다
+  for (let i = 0, o = 2; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    out[o++] = c & 0xFF;
+    out[o++] = c >> 8;
+  }
+  return out;
+}
+
 async function capture(cmd: string[]): Promise<string> {
   const c = new Deno.Command(cmd[0], { args: cmd.slice(1), stdout: "piped", stderr: "null" });
   const { stdout, code } = await c.output();
@@ -190,9 +203,12 @@ export async function setAutoStart(on: boolean): Promise<string> {
     const f = winStartupFile();
     if (!on) { try { await Deno.remove(f); } catch { /* 무시 */ } return "자동 시작을 껐습니다."; }
     await Deno.mkdir(f.slice(0, f.lastIndexOf("\\")), { recursive: true });
-    await Deno.writeTextFile(
+    // 윈도우의 스크립트 실행기는 .vbs 를 UTF-8 로 읽지 않는다.
+    // UTF-8 로 쓰면 폴더 이름에 한글이 있을 때 경로가 깨져 조용히 실패한다.
+    // 그래서 윈도우가 알아보는 UTF-16 으로 쓴다. (2026-08-20 실제 사고)
+    await Deno.writeFile(
       f,
-      `' ${APP_NAME} 자동 시작\r\nCreateObject("WScript.Shell").Run """${exe}"" --background", 0, False\r\n`,
+      utf16le(`' ${APP_NAME} 자동 시작\r\nCreateObject("WScript.Shell").Run """${exe}"" --background", 0, False\r\n`),
     );
     return "윈도우 시작 시 자동 실행되도록 등록했습니다.";
   }

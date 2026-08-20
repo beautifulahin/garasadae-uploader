@@ -514,6 +514,7 @@ textarea.fin{resize:vertical;line-height:1.6}
   <div class="card">
     <h3>ℹ️ 프로그램 정보</h3>
     <div class="kv"><span>버전</span><b id="sVer">-</b></div>
+    <div class="kv"><span>실행 파일 위치</span><b id="sExe">-</b></div>
     <div class="kv"><span>설정 저장 위치</span><b id="sData">-</b></div>
     <button class="tb" style="margin-top:10px" onclick="checkUp()">🔄 새 버전 확인</button>
   </div>
@@ -1422,6 +1423,7 @@ function fillSettings(){
   setSw('cOsNotify',s.notifications); setSw('cAuto',ST.autoStart);
   $('sVer').textContent='v'+(ST.version||'-');
   $('sData').textContent=ST.dataDir||'-';
+  $('sExe').textContent=ST.exePath||'-';
 }
 async function saveSettings(){
   const r=await api('/api/settings',{

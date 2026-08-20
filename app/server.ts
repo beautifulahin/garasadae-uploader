@@ -129,6 +129,7 @@ export function startServer(engine: Manager, port: number) {
           platform: IS_WIN ? "windows" : IS_MAC ? "mac" : "linux",
           compiled: isCompiled(),
           dataDir: dataDir(),
+          exePath: Deno.execPath(),
           settings: {
             port: cfg.port,
             pollSeconds: cfg.pollSeconds,
