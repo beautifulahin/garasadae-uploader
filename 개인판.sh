@@ -15,6 +15,11 @@
 set -e
 cd "$(dirname "$0")"
 
+# ★도중에 엎어지면 **조용히 죽지 않는다.** 점검이나 빌드가 실패하면 옛 판이 그대로
+#   돌고 있는데, 그걸 모르면 "새 공개판 기능이 왜 없지?" 하고 헤매게 된다.
+trap 'rc=$?; [ $rc -ne 0 ] && 텔레그램 "⚠️ 업로더 개인판 갱신이 ${rc} 로 멈췄다 — 옛 판이 그대로 돈다. 터미널에서 개인판.sh 를 돌려 무엇이 막혔는지 보라."' EXIT
+
+# ※ 변수 이름은 영문만 쓴다 — bash 가 한글 변수를 못 읽는다.
 로그() { echo "[$(date '+%m-%d %H:%M')] $*"; }
 텔레그램() {
   local 글="$1"
@@ -26,12 +31,12 @@ cd "$(dirname "$0")"
 }
 
 git fetch -q origin main
-합칠것=$(git rev-list --count 개인판..origin/main 2>/dev/null || echo 0)
-if [ "$합칠것" = "0" ]; then
+ahead=$(git rev-list --count 개인판..origin/main 2>/dev/null || echo 0)
+if [ "$ahead" = "0" ]; then
   로그 "공개판에 새로운 것이 없다 — 그대로 둔다"
   exit 0
 fi
-로그 "공개판에 새 것 ${합칠것}개 — 개인판을 다시 짓는다"
+로그 "공개판에 새 것 ${ahead}개 — 개인판을 다시 짓는다"
 
 # 올리는 중이면 미룬다. 교체하다 업로드가 끊기면 그 편이 반쯤 올라간다.
 if curl -s --max-time 3 "http://127.0.0.1:8777/api/state" 2>/dev/null | grep -q '"uploading":true'; then
@@ -41,21 +46,28 @@ if curl -s --max-time 3 "http://127.0.0.1:8777/api/state" 2>/dev/null | grep -q 
 fi
 
 git checkout -q 개인판
+# ★유일하게 사람 손이 필요한 자리 — 공개판이 쪽지와 **같은 줄**을 고쳤을 때다.
+#   그때는 억지로 합치지 않고 되돌린 뒤 알린다. 반쯤 합쳐진 것으로 빌드하면 안 된다.
 if ! git merge -q origin/main -m "공개판을 개인판에 합친다"; then
+  git merge --abort || true
   로그 "합치다 부딪혔다 — 손으로 풀어야 한다"
-  텔레그램 "⚠️ 업로더 개인판 합치기 실패 — 손으로 풀어야 한다 (git status)"
+  텔레그램 "⚠️ 업로더 개인판 합치기 충돌 — 공개판이 쪽지와 같은 줄을 고쳤다. 손으로 풀어야 한다."
   exit 1
 fi
 
-버전=$(grep -o 'APP_VERSION = "[^"]*"' app/paths.ts | head -1 | sed 's/.*"\(.*\)"/\1/')
-./점검.sh >/dev/null
+ver=$(grep -o 'APP_VERSION = "[^"]*"' app/paths.ts | head -1 | sed 's/.*"\(.*\)"/\1/')
+if ! ./점검.sh >/dev/null 2>&1; then
+  로그 "점검 실패 — 갈아끼우지 않는다"
+  텔레그램 "⚠️ 업로더 개인판 점검 실패 — 옛 판을 그대로 둔다"
+  exit 1
+fi
 ./build.sh >/dev/null
-로그 "빌드 끝 — v$버전"
+로그 "빌드 끝 — v$ver"
 
 pkill -f GarasadaeUploader || true
 sleep 2
 rm -rf "/Applications/가라사대 업로더.app"
 cp -R "dist/맥-애플실리콘/가라사대 업로더.app" /Applications/
 open "/Applications/가라사대 업로더.app"
-로그 "갈아끼웠다 — v$버전 (쪽지 포함)"
-텔레그램 "⬆️ 업로더 개인판을 공개판 v$버전 에 맞춰 다시 지었다 (쪽지 기능 그대로)"
+로그 "갈아끼웠다 — v$ver (쪽지 포함)"
+텔레그램 "⬆️ 업로더 개인판을 공개판 v$ver 에 맞춰 다시 지었다 (쪽지 기능 그대로)"
