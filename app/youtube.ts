@@ -7,6 +7,7 @@ export type { ErrKind };
 
 const CHUNK = 8 * 1024 * 1024;               // 256KB 배수여야 함
 export const UPLOAD_COST = 1600;             // 업로드 1건당 쿼터
+export const THUMB_COST = 50;                // 배너(썸네일) 1건당 쿼터
 export const DAILY_QUOTA = 10000;
 
 export interface VideoMeta {
@@ -171,6 +172,54 @@ export interface VerifyResult {
  * 업로드한 영상이 정말 내 채널에 올라갔는지 유튜브에 다시 물어본다.
  * 파일을 지우기 전에 이 확인을 통과해야 한다. (1 unit)
  */
+/** 배너(썸네일)를 얹는다. 쪽지에 그림이 적혀 있을 때만 부른다.
+ *
+ * ★올리기가 끝난 **뒤에** 따로 부른다. 유튜브가 영상과 썸네일을 한 번에 안 받는다.
+ * ★여기서 실패해도 영상은 이미 올라가 있다 — 그래서 던지지 않고 알려만 준다.
+ */
+export async function setThumbnail(
+  cfg: Config,
+  ch: Channel,
+  videoId: string,
+  path: string,
+): Promise<{ ok: boolean; message: string }> {
+  let 그림: Uint8Array<ArrayBuffer>;
+  try {
+    그림 = await Deno.readFile(path);
+  } catch (e) {
+    return { ok: false, message: `배너 그림을 못 읽었습니다 (${e instanceof Error ? e.message : e})` };
+  }
+  if (그림.byteLength > 2 * 1024 * 1024) {
+    return { ok: false, message: `배너가 2MB를 넘습니다 (${(그림.byteLength / 1048576).toFixed(1)}MB)` };
+  }
+  const 확장 = path.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
+  try {
+    const token = await accessToken(cfg, ch);
+    const r = await fetch(
+      `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${encodeURIComponent(videoId)}`,
+      {
+        method: "POST",
+        headers: { Authorization: "Bearer " + token, "Content-Type": 확장 },
+        body: new Blob([그림], { type: 확장 }),
+      },
+    );
+    if (!r.ok) {
+      const 몸 = await r.text();
+      // 채널이 인증 안 되어 있으면 사용자 썸네일 자체가 막힌다 — 흔한 일이라 따로 알린다
+      const 막힘 = 몸.includes("forbidden") || r.status === 403;
+      return {
+        ok: false,
+        message: 막힘
+          ? "채널이 아직 전화 인증을 안 해서 배너를 못 올립니다 (유튜브 스튜디오에서 인증)"
+          : `배너 실패 (${r.status})`,
+      };
+    }
+    return { ok: true, message: "" };
+  } catch (e) {
+    return { ok: false, message: `배너 실패 (${e instanceof Error ? e.message : e})` };
+  }
+}
+
 export async function verifyVideo(cfg: Config, ch: Channel, videoId: string): Promise<VerifyResult> {
   const token = await accessToken(cfg, ch);
   const url = "https://www.googleapis.com/youtube/v3/videos" +

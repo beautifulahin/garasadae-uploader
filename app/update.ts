@@ -1,5 +1,5 @@
 // 새 버전 확인 및 설치
-import { APP_NAME, APP_VERSION, IS_MAC, IS_WIN, REPO, join, log } from "./paths.ts";
+import { APP_NAME, APP_VERSION, IS_MAC, IS_WIN, PRIVATE_BUILD, REPO, join, log } from "./paths.ts";
 
 export interface UpdateInfo {
   available: boolean;
@@ -88,7 +88,9 @@ export async function checkUpdate(force = false): Promise<UpdateInfo> {
     const want = assetName();
     const inst = installable();
     const info: UpdateInfo = {
-      available: cmpVersion(latest, APP_VERSION) > 0,
+      // ★개인판은 새 공개판이 있어도 **스스로 갈아끼우지 않는다**(paths.PRIVATE_BUILD).
+      //   덮어쓰면 쪽지 기능이 사라진다. 알리기만 하고, 갈아끼우기는 개인판.sh 가 한다.
+      available: !PRIVATE_BUILD && cmpVersion(latest, APP_VERSION) > 0,
       version: latest,
       current: APP_VERSION,
       // 최신 파일 주소는 항상 이 형태다
@@ -100,6 +102,10 @@ export async function checkUpdate(force = false): Promise<UpdateInfo> {
     cached = info;
     checkedAt = Date.now();
     if (info.available) await log(`🆕 새 버전이 있습니다: ${APP_VERSION} → ${latest}`);
+    else if (PRIVATE_BUILD && cmpVersion(latest, APP_VERSION) > 0) {
+      await log(`🆕 새 공개판 ${latest} 이 나왔습니다 — 개인판이라 스스로 갈지 않습니다. `
+        + `터미널에서 \`개인판.sh\` 를 돌리면 공개판 위에 쪽지를 얹어 다시 짓습니다.`);
+    }
     return info;
   } catch {
     cached = none;

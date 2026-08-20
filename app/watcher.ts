@@ -3,7 +3,10 @@ import {
   Channel, Config, IS_WIN, State, credsOf, join, loadConfig, loadState, loadTokens,
   localDate, localStamp, log, projectKey, quotaDate, quotaResetAt, safeFolderName, saveState,
 } from "./paths.ts";
-import { DAILY_QUOTA, UPLOAD_COST, uploadVideo, verifyVideo, VideoMeta } from "./youtube.ts";
+import {
+  DAILY_QUOTA, setThumbnail, THUMB_COST, UPLOAD_COST, uploadVideo, verifyVideo, VideoMeta,
+} from "./youtube.ts";
+import { readSidecar, Sidecar, sidecarPath, thumbPath } from "./sidecar.ts";
 import { ErrKind, UploadError } from "./errors.ts";
 import { accessToken, assertSameChannel } from "./auth.ts";
 import { moveToTrash, notify, openUrl } from "./platform.ts";
@@ -41,6 +44,8 @@ export interface Pending {
   detectedAt: number;
   retryAt: number;
   tries: number;
+  /** 영상 옆에 놓인 쪽지(`같은이름.json`). 없으면 null — 그러면 채널 기본값으로 간다. */
+  sidecar: Sidecar | null;
 }
 
 function ext(name: string) {
@@ -195,14 +200,19 @@ export class Manager {
 
         let p = this.pending.get(key);
         if (!p) {
+          // 쪽지는 영상을 **처음 본 그때 한 번만** 읽는다. 훑기는 5초마다 도는데
+          // 매번 읽으면 파일을 쓸데없이 두드린다.
+          const 쪽지 = await readSidecar(path);
+          if (쪽지) await log(`   📝 쪽지를 찾았습니다: ${stem(e.name)}.json`);
           p = {
             key, channelId: ch.id, channelName: ch.name,
             name: e.name, path, size,
-            title: `${ch.titlePrefix}${stem(e.name)}${ch.titleSuffix}`.slice(0, 100),
-            description: ch.description,
+            title: (쪽지?.title ??
+              `${ch.titlePrefix}${stem(e.name)}${ch.titleSuffix}`).slice(0, 100),
+            description: 쪽지?.description ?? ch.description,
             stable: 0, status: "watching", progress: 0, sent: 0,
             error: "", helpUrl: "", videoId: "", verified: false,
-            detectedAt: Date.now(), retryAt: 0, tries: 0,
+            detectedAt: Date.now(), retryAt: 0, tries: 0, sidecar: 쪽지,
           };
           this.pending.set(key, p);
           await log(`🎬 [${ch.name}] 새 영상 감지: ${e.name}`);
@@ -323,15 +333,17 @@ export class Manager {
   }
 
   meta(p: Pending, ch: Channel): VideoMeta {
+    // 쪽지에 적힌 것이 채널 기본값을 덮는다. 안 적힌 것은 그대로 채널 것을 쓴다.
+    const s = p.sidecar;
     return {
       title: p.title,
       description: p.description,
-      tags: ch.tags,
-      categoryId: ch.categoryId,
-      language: ch.language,
-      privacy: ch.privacy,
-      madeForKids: ch.madeForKids,
-      notifySubscribers: ch.notifySubscribers,
+      tags: s?.tags ?? ch.tags,
+      categoryId: s?.categoryId ?? ch.categoryId,
+      language: s?.language ?? ch.language,
+      privacy: s?.privacy ?? ch.privacy,
+      madeForKids: s?.madeForKids ?? ch.madeForKids,
+      notifySubscribers: s?.notifySubscribers ?? ch.notifySubscribers,
     };
   }
 
@@ -378,6 +390,14 @@ export class Manager {
       this.state.uploads = this.state.uploads.slice(0, 500);
       await saveState(this.state);
       await log(`✅ [${ch.name}] 완료: ${p.name} → https://youtu.be/${res.id}`);
+
+      // 쪽지에 배너 그림이 적혀 있으면 얹는다. 실패해도 업로드는 이미 끝난 것이다.
+      if (p.sidecar?.thumbnail) {
+        const 그림자리 = thumbPath(p.path, p.sidecar.thumbnail);
+        const t = await setThumbnail(this.cfg, ch, res.id, 그림자리);
+        this.addQuota(ch, THUMB_COST);
+        await log(t.ok ? `   🖼  배너를 얹었습니다` : `   ⚠️  ${t.message}`);
+      }
       if (this.cfg.notifications) await notify("가라사대 업로더 ✅", `[${ch.name}] ${p.title} 업로드 완료`);
 
       // 유튜브에 실제로 올라갔는지 확인한 뒤에야 원본을 처리한다
@@ -446,8 +466,28 @@ export class Manager {
   }
 
   /** 업로드에 성공한 파일을 채널 설정에 따라 처리한다. */
+  /** 영상을 치울 때 쪽지도 같은 운명으로 보낸다.
+   *  ★안 지우면 폴더에 쪽지만 남고, 나중에 같은 이름의 다른 영상에 잘못 붙는다. */
+  async disposeSidecar(p: Pending, mode: string) {
+    if (!p.sidecar) return;
+    const 자리 = sidecarPath(p.path);
+    try {
+      if (mode === "trash") {
+        if (!await moveToTrash(자리)) await Deno.remove(자리);
+      } else if (mode === "delete") {
+        await Deno.remove(자리);
+      } else {
+        const parent = 자리.slice(0, Math.max(자리.lastIndexOf("/"), 자리.lastIndexOf("\\")));
+        const target = join(parent, DONE_DIR);
+        await Deno.mkdir(target, { recursive: true });
+        await Deno.rename(자리, join(target, 자리.slice(parent.length + 1)));
+      }
+    } catch { /* 쪽지 처리는 덤이다 — 여기서 막혀도 업로드는 끝난 것으로 둔다 */ }
+  }
+
   async disposeDone(p: Pending, ch: Channel) {
     const mode = ch.afterUpload;
+    await this.disposeSidecar(p, mode);
     if (mode === "keep") {
       this.state.kept[p.key] = p.size;
       await saveState(this.state);
