@@ -344,6 +344,7 @@ export class Manager {
       privacy: s?.privacy ?? ch.privacy,
       madeForKids: s?.madeForKids ?? ch.madeForKids,
       notifySubscribers: s?.notifySubscribers ?? ch.notifySubscribers,
+      publishAt: s?.publishAt,
     };
   }
 
@@ -390,6 +391,9 @@ export class Manager {
       this.state.uploads = this.state.uploads.slice(0, 500);
       await saveState(this.state);
       await log(`✅ [${ch.name}] 완료: ${p.name} → https://youtu.be/${res.id}`);
+      if (p.sidecar?.publishAt) {
+        await log(`   ⏰ ${new Date(p.sidecar.publishAt).toLocaleString()} 에 저절로 공개됩니다`);
+      }
 
       // 쪽지에 배너 그림이 적혀 있으면 얹는다. 실패해도 업로드는 이미 끝난 것이다.
       if (p.sidecar?.thumbnail) {

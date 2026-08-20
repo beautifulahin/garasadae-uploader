@@ -19,6 +19,8 @@ export interface VideoMeta {
   privacy: string;
   madeForKids: boolean;
   notifySubscribers: boolean;
+  /** 예약 공개 시각 (RFC3339). 비공개로 올린 것만 예약된다. */
+  publishAt?: string;
 }
 
 export interface UploadResult {
@@ -38,13 +40,16 @@ export function buildBody(m: VideoMeta) {
     snippet.defaultLanguage = m.language;
     snippet.defaultAudioLanguage = m.language;
   }
-  return {
-    snippet,
-    status: {
-      privacyStatus: m.privacy || "private",
-      selfDeclaredMadeForKids: !!m.madeForKids,
-    },
+  const status: Record<string, unknown> = {
+    privacyStatus: m.privacy || "private",
+    selfDeclaredMadeForKids: !!m.madeForKids,
   };
+  // ★예약은 **비공개일 때만** 걸린다. 공개로 올리면서 예약을 주면 유튜브가 통째로
+  //   무시하고 바로 공개해 버린다 — 그러면 예약한 줄 알고 있다가 뒤늦게 안다.
+  if (m.publishAt && status.privacyStatus === "private") {
+    status.publishAt = m.publishAt;
+  }
+  return { snippet, status };
 }
 
 export async function uploadVideo(

@@ -24,6 +24,10 @@ export interface Sidecar {
   notifySubscribers?: boolean;
   /** 배너(썸네일) 그림 — 절대경로이거나 영상과 같은 폴더의 파일 이름 */
   thumbnail?: string;
+  /** 예약 공개 시각 (RFC3339, 예: 2026-08-21T19:00:00+09:00).
+   *  ★유튜브는 **비공개로 올린 것만** 예약할 수 있다. privacy 를 안 적으면 여기서
+   *    private 으로 맞춘다 — 안 그러면 유튜브가 예약을 통째로 무시한다. */
+  publishAt?: string;
 }
 
 const 공개값 = new Set(["public", "private", "unlisted"]);
@@ -74,6 +78,22 @@ export async function readSidecar(videoPath: string): Promise<Sidecar | null> {
   if (typeof 날것.madeForKids === "boolean") s.madeForKids = 날것.madeForKids;
   if (typeof 날것.notifySubscribers === "boolean") s.notifySubscribers = 날것.notifySubscribers;
   s.thumbnail = 글(날것.thumbnail, 1024);
+
+  const 때 = 글(날것.publishAt, 40);
+  if (때) {
+    if (Number.isNaN(Date.parse(때))) {
+      await log(`   ⚠️  쪽지의 예약 시각 '${때}' 을 못 읽어 그냥 올립니다`);
+    } else if (Date.parse(때) <= Date.now()) {
+      await log(`   ⚠️  쪽지의 예약 시각이 이미 지나 그냥 올립니다 (${때})`);
+    } else {
+      s.publishAt = new Date(때).toISOString();
+      // 예약은 비공개로 올린 것만 걸린다. 공개로 적혀 있으면 비공개로 바로잡는다.
+      if (s.privacy && s.privacy !== "private") {
+        await log(`   · 예약이 걸려 있어 공개설정을 private 으로 맞춥니다`);
+      }
+      s.privacy = "private";
+    }
+  }
 
   return Object.values(s).some((v) => v !== undefined) ? s : null;
 }
