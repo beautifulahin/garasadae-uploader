@@ -3,15 +3,7 @@ export const IS_WIN = Deno.build.os === "windows";
 export const IS_MAC = Deno.build.os === "darwin";
 export const APP_NAME = "가라사대업로더";
 export const APP_ID = "com.garasadae.uploader";
-export const APP_VERSION = "1.7.5";
-
-/** 이 판이 **개인판**인가 — 공개 릴리스에 없는 것(쪽지)이 들어 있다.
- *
- * ★개인판은 **스스로 업데이트하지 않는다.** 공개판을 받아 덮으면 쪽지 기능이 조용히
- *   사라지고, 그 뒤로는 설명 없이 올라가는데 알아채기 어렵다. 그래서 새 공개판이
- *   나오면 알리기만 하고, 갈아끼우는 것은 `개인판.sh` 가 한다 —
- *   공개판을 받아 그 위에 쪽지를 얹어 다시 짓는다. */
-export const PRIVATE_BUILD = true;
+export const APP_VERSION = "1.7.6";
 export const REPO = "beautifulahin/garasadae-uploader";
 
 function env(k: string) {

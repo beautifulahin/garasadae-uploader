@@ -1,5 +1,6 @@
 // 새 버전 확인 및 설치
-import { APP_NAME, APP_VERSION, IS_MAC, IS_WIN, PRIVATE_BUILD, REPO, join, log } from "./paths.ts";
+import { APP_NAME, APP_VERSION, IS_MAC, IS_WIN, REPO, join, log } from "./paths.ts";
+import { PRIVATE_BUILD } from "./private.ts";
 
 export interface UpdateInfo {
   available: boolean;
