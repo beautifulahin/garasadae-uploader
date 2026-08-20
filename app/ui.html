@@ -772,6 +772,7 @@ textarea.fin{resize:vertical;line-height:1.6}
     <div class="modal-emoji">🆕</div>
     <h3 id="upTitle">업데이트 하시겠습니까?</h3>
     <div class="modal-title" id="upVer"></div>
+    <div id="upNotes" class="upnotes" style="display:none"></div>
     <p class="modal-desc" id="upDesc">
       새 버전이 나왔습니다. 확인을 누르면 프로그램이 알아서 받아서<br>
       교체하고 다시 시작합니다. <b>설정과 로그인은 그대로 유지됩니다.</b>
@@ -1446,7 +1447,7 @@ function fillSettings(){
   if(s.browser&&!bl.some(b=>b.id===s.browser))
     $('cBrowser').insertAdjacentHTML('beforeend',`<option value="${esc(s.browser)}" selected>${esc(s.browser)}</option>`);
   setSw('cOsNotify',s.notifications); setSw('cAuto',ST.autoStart);
-  $('sVer').textContent='v'+(ST.version||'-');
+  $('sVer').textContent='v'+(ST.version||'-')+(ST.label?' · '+ST.label:'');
   $('sData').textContent=ST.dataDir||'-';
   $('sExe').textContent=ST.exePath||'-';
 }
@@ -1557,6 +1558,9 @@ function paintUpdate(u,upd,prompt){
     $('upNo').textContent='취소'; $('upYes').textContent='확인';
   }
   $('upVer').textContent=`${u.current} → ${u.version}`;
+  // 무엇이 달라졌는지 — 릴리스에 붙인 notes.md 를 그대로 보인다
+  const n=$('upNotes');
+  if(u.notes){ n.textContent=u.notes; n.style.display=''; } else { n.style.display='none'; }
   $('upProg').style.display='none'; $('upBtns').style.display='flex';
   m.classList.add('on');
 }
@@ -1710,6 +1714,12 @@ loadLog = async function(){ if (물러남) return; return _본디loadLog.apply(t
 </script>
 
 <style>
+.upnotes{white-space:pre-wrap;text-align:left;background:#f6f7f9;border:1px solid #e5e7eb;
+  border-radius:8px;padding:11px 13px;margin:10px 0 2px;font-size:12.5px;line-height:1.75;
+  color:#374151;max-height:180px;overflow-y:auto}
+@media (prefers-color-scheme: dark){
+  .upnotes{background:#111827;border-color:#374151;color:#d1d5db}
+}
 #물러남덮개{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;
   justify-content:center;background:rgba(255,255,255,.94);backdrop-filter:blur(3px)}
 #물러남덮개 .속{text-align:center;font-family:inherit;padding:30px}

@@ -9,6 +9,35 @@ export interface UpdateInfo {
   page: string;         // 사람이 보는 릴리스 페이지
   canInstall: boolean;  // 앱이 스스로 교체할 수 있는 상태인지
   reason: string;       // 스스로 못 할 때의 이유
+  notes: string;        // 이번 판에서 무엇이 달라졌는지 (몇 줄)
+}
+
+/** 이번 판의 패치 내용. 릴리스에 함께 올린 `notes.md` 를 읽는다.
+ *
+ * ★깃허브 API 를 쓰지 않는다 — IP 당 시간 60회 제한에 걸린다. 릴리스에 붙인 파일은
+ *   `releases/latest/download/<이름>` 으로 제한 없이 받을 수 있다.
+ * ★못 받아도 그만이다. 업데이트 자체는 패치 내용과 상관없이 된다.
+ */
+async function 패치내용(): Promise<string> {
+  try {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 6000);
+    const r = await fetch(`https://github.com/${REPO}/releases/latest/download/notes.md`,
+                          { signal: c.signal });
+    clearTimeout(t);
+    if (!r.ok) {
+      await r.body?.cancel();
+      return "";
+    }
+    const 글 = (await r.text()).trim();
+    // 제목 줄(#)과 빈 줄을 걷어 내고 앞의 몇 줄만 보여 준다
+    const 줄 = 글.split("\n")
+      .map((x) => x.replace(/^#+\s*/, "").replace(/^[-*]\s*/, "· ").trim())
+      .filter((x) => x.length > 0);
+    return 줄.slice(0, 6).join("\n").slice(0, 600);
+  } catch {
+    return "";
+  }
 }
 
 let cached: UpdateInfo | null = null;
@@ -58,13 +87,13 @@ export async function checkUpdate(force = false): Promise<UpdateInfo> {
   const fake = (() => { try { return Deno.env.get("GARASADAE_FAKE_UPDATE") ?? ""; } catch { return ""; } })();
   if (fake) {
     return {
-      available: true, version: fake, current: APP_VERSION,
+      available: true, version: fake, current: APP_VERSION, notes: "",
       url: "", page, canInstall: false, reason: "시험 모드입니다.",
     };
   }
 
   const none: UpdateInfo = {
-    available: false, version: APP_VERSION, current: APP_VERSION,
+    available: false, version: APP_VERSION, current: APP_VERSION, notes: "",
     url: "", page, canInstall: false, reason: "",
   };
   // 5분마다 확인한다. 새 버전을 올리면 실행 중인 프로그램이 곧바로 알아챈다.
@@ -87,8 +116,11 @@ export async function checkUpdate(force = false): Promise<UpdateInfo> {
 
     const want = assetName();
     const inst = installable();
+    const 새것 = cmpVersion(latest, APP_VERSION) > 0;
     const info: UpdateInfo = {
-      available: cmpVersion(latest, APP_VERSION) > 0,
+      // 패치 내용은 **새 판이 있을 때만** 받아 온다 — 5분마다 헛되이 두드릴 일이 없다
+      notes: 새것 ? await 패치내용() : "",
+      available: 새것,
       version: latest,
       current: APP_VERSION,
       // 최신 파일 주소는 항상 이 형태다

@@ -3,7 +3,7 @@ export const IS_WIN = Deno.build.os === "windows";
 export const IS_MAC = Deno.build.os === "darwin";
 export const APP_NAME = "가라사대업로더";
 export const APP_ID = "com.garasadae.uploader";
-export const APP_VERSION = "1.7.6";
+export const APP_VERSION = "1.7.7";
 export const REPO = "beautifulahin/garasadae-uploader";
 
 function env(k: string) {
@@ -194,6 +194,25 @@ export function credsOf(cfg: Config, ch: Channel): { clientId: string; clientSec
 
 /** 이 컴퓨터 시간 기준 날짜 (YYYY-MM-DD).
  *  세계표준시를 쓰면 한국에서 새벽 0~9시에 '오늘' 이 하루 밀린다. */
+/** 이 판에 붙은 이름표. 앱 안에 `Resources/label.txt` 가 있으면 그 글자를 화면에 단다.
+ *
+ * ★공개판을 그대로 쓰면서 **자기만의 판**을 따로 짓는 사람이 있다(쪽지처럼 자기에게만
+ *   필요한 것을 얹는 경우). 그때 버전 숫자는 바탕이 된 공개판과 같아서 화면만 보고는
+ *   구분이 안 된다 — 실제로 "이거 공개판 아니야?" 하고 헷갈렸다. 이름표로 가른다.
+ * ★파일이 없으면 아무것도 안 단다. 공개판은 그대로다. */
+export function buildLabel(): string {
+  try {
+    const exe = Deno.execPath();
+    const i = exe.lastIndexOf("/Contents/MacOS/");
+    const 자리 = i > 0
+      ? exe.slice(0, i) + "/Contents/Resources/label.txt"
+      : join(exe.slice(0, Math.max(exe.lastIndexOf("/"), 0)), "label.txt");
+    return Deno.readTextFileSync(자리).trim().slice(0, 20);
+  } catch {
+    return "";
+  }
+}
+
 export function localDate(d = new Date()): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
