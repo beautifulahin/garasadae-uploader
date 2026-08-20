@@ -1,6 +1,5 @@
 // 새 버전 확인 및 설치
-import { APP_NAME, APP_VERSION, IS_MAC, IS_WIN, REPO, join, log } from "./paths.ts";
-import { PRIVATE_BUILD } from "./private.ts";
+import { APP_NAME, APP_VERSION, buildLabel, IS_MAC, IS_WIN, REPO, join, log } from "./paths.ts";
 
 export interface UpdateInfo {
   available: boolean;
@@ -10,6 +9,35 @@ export interface UpdateInfo {
   page: string;         // 사람이 보는 릴리스 페이지
   canInstall: boolean;  // 앱이 스스로 교체할 수 있는 상태인지
   reason: string;       // 스스로 못 할 때의 이유
+  notes: string;        // 이번 판에서 무엇이 달라졌는지 (몇 줄)
+}
+
+/** 이번 판의 패치 내용. 릴리스에 함께 올린 `notes.md` 를 읽는다.
+ *
+ * ★깃허브 API 를 쓰지 않는다 — IP 당 시간 60회 제한에 걸린다. 릴리스에 붙인 파일은
+ *   `releases/latest/download/<이름>` 으로 제한 없이 받을 수 있다.
+ * ★못 받아도 그만이다. 업데이트 자체는 패치 내용과 상관없이 된다.
+ */
+async function 패치내용(): Promise<string> {
+  try {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 6000);
+    const r = await fetch(`https://github.com/${REPO}/releases/latest/download/notes.md`,
+                          { signal: c.signal });
+    clearTimeout(t);
+    if (!r.ok) {
+      await r.body?.cancel();
+      return "";
+    }
+    const 글 = (await r.text()).trim();
+    // 제목 줄(#)과 빈 줄을 걷어 내고 앞의 몇 줄만 보여 준다
+    const 줄 = 글.split("\n")
+      .map((x) => x.replace(/^#+\s*/, "").replace(/^[-*]\s*/, "· ").trim())
+      .filter((x) => x.length > 0);
+    return 줄.slice(0, 6).join("\n").slice(0, 600);
+  } catch {
+    return "";
+  }
 }
 
 let cached: UpdateInfo | null = null;
@@ -59,13 +87,13 @@ export async function checkUpdate(force = false): Promise<UpdateInfo> {
   const fake = (() => { try { return Deno.env.get("GARASADAE_FAKE_UPDATE") ?? ""; } catch { return ""; } })();
   if (fake) {
     return {
-      available: true, version: fake, current: APP_VERSION,
+      available: true, version: fake, current: APP_VERSION, notes: "",
       url: "", page, canInstall: false, reason: "시험 모드입니다.",
     };
   }
 
   const none: UpdateInfo = {
-    available: false, version: APP_VERSION, current: APP_VERSION,
+    available: false, version: APP_VERSION, current: APP_VERSION, notes: "",
     url: "", page, canInstall: false, reason: "",
   };
   // 5분마다 확인한다. 새 버전을 올리면 실행 중인 프로그램이 곧바로 알아챈다.
@@ -88,10 +116,15 @@ export async function checkUpdate(force = false): Promise<UpdateInfo> {
 
     const want = assetName();
     const inst = installable();
+    const 새것 = cmpVersion(latest, APP_VERSION) > 0;
+    // ★**이름표가 달린 판은 스스로 갈아끼우지 않는다.** 공개판을 바탕으로 자기 것을
+    //   얹어 쓰는 판(이름표가 그 표시다)을 공개판으로 덮으면 얹은 것이 조용히
+    //   사라진다. 새 판이 나왔다고 알리기만 하고, 갈아끼우기는 그 판을 지은 사람이 한다.
+    const 나만의판 = !!buildLabel();
     const info: UpdateInfo = {
-      // ★개인판은 새 공개판이 있어도 **스스로 갈아끼우지 않는다**(paths.PRIVATE_BUILD).
-      //   덮어쓰면 쪽지 기능이 사라진다. 알리기만 하고, 갈아끼우기는 개인판.sh 가 한다.
-      available: !PRIVATE_BUILD && cmpVersion(latest, APP_VERSION) > 0,
+      // 패치 내용은 **새 판이 있을 때만** 받아 온다 — 5분마다 헛되이 두드릴 일이 없다
+      notes: 새것 ? await 패치내용() : "",
+      available: 새것 && !나만의판,
       version: latest,
       current: APP_VERSION,
       // 최신 파일 주소는 항상 이 형태다
@@ -103,9 +136,9 @@ export async function checkUpdate(force = false): Promise<UpdateInfo> {
     cached = info;
     checkedAt = Date.now();
     if (info.available) await log(`🆕 새 버전이 있습니다: ${APP_VERSION} → ${latest}`);
-    else if (PRIVATE_BUILD && cmpVersion(latest, APP_VERSION) > 0) {
-      await log(`🆕 새 공개판 ${latest} 이 나왔습니다 — 개인판이라 스스로 갈지 않습니다. `
-        + `터미널에서 \`개인판.sh\` 를 돌리면 공개판 위에 쪽지를 얹어 다시 짓습니다.`);
+    else if (새것 && 나만의판) {
+      await log(`🆕 새 공개판 ${latest} 이 나왔습니다 — 「${buildLabel()}」 은 스스로 갈지 `
+        + `않습니다. 이 판을 지은 방법으로 다시 지어야 얹은 것을 잃지 않습니다.`);
     }
     return info;
   } catch {
