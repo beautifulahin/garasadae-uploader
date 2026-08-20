@@ -22,16 +22,31 @@ trap 'rc=$?; [ $rc -ne 0 ] && 텔레그램 "⚠️ 업로더 개인판 갱신이
 # ※ 변수 이름은 영문만 쓴다 — bash 가 한글 변수를 못 읽는다.
 로그() { echo "[$(date '+%m-%d %H:%M')] $*"; }
 텔레그램() {
-  local 글="$1"
-  local 토큰=$(grep -m1 '^export TELEGRAM_TOKEN' ~/.volcano/env 2>/dev/null | cut -d= -f2- | tr -d ' "')
-  local 방=$(grep -m1 '^export TELEGRAM_CHAT_ID' ~/.volcano/env 2>/dev/null | cut -d= -f2- | tr -d ' "' | cut -d, -f1)
-  [ -n "$토큰" ] && [ -n "$방" ] && curl -s -o /dev/null \
-    "https://api.telegram.org/bot$토큰/sendMessage" \
-    --data-urlencode "chat_id=$방" --data-urlencode "text=$글" || true
+  # ※ bash 는 변수 이름에 한글을 못 쓴다. 함수 이름은 되지만 변수는 안 된다 —
+  #   여기 `local 글=` 로 뒀더니 알림이 통째로 안 나갔다(2026-08-20 발견).
+  local msg="$1"
+  local token=$(grep -m1 '^export TELEGRAM_TOKEN' ~/.volcano/env 2>/dev/null | cut -d= -f2- | tr -d ' "')
+  local chat=$(grep -m1 '^export TELEGRAM_CHAT_ID' ~/.volcano/env 2>/dev/null | cut -d= -f2- | tr -d ' "' | cut -d, -f1)
+  [ -n "$token" ] && [ -n "$chat" ] && curl -s -o /dev/null \
+    "https://api.telegram.org/bot$token/sendMessage" \
+    --data-urlencode "chat_id=$chat" --data-urlencode "text=$msg" || true
 }
 
 git fetch -q origin main
 ahead=$(git rev-list --count 개인판..origin/main 2>/dev/null || echo 0)
+
+# 지금 형편을 적어 둔다 — 소재앱이 이것을 읽어 화면에 보인다
+pub_msg=$(LC_ALL=en_US.UTF-8 git log -1 --format=%s origin/main 2>/dev/null | LC_ALL=en_US.UTF-8 cut -c1-40)
+ver_now=$(grep -o 'APP_VERSION = "[^"]*"' app/paths.ts | head -1 | sed 's/.*"\(.*\)"/\1/')
+mkdir -p ~/.volcano
+cat > ~/.volcano/개인판상태.json <<JSON
+{
+ "확인때": "$(date -Iseconds)",
+ "밀린것": $ahead,
+ "지금판": "$ver_now",
+ "공개끝": "$(echo "$pub_msg" | sed 's/"//g')"
+}
+JSON
 if [ "$ahead" = "0" ]; then
   로그 "공개판에 새로운 것이 없다 — 그대로 둔다"
   exit 0
