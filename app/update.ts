@@ -1,5 +1,5 @@
 // 새 버전 확인 및 설치
-import { APP_NAME, APP_VERSION, IS_MAC, IS_WIN, REPO, join, log } from "./paths.ts";
+import { APP_NAME, APP_VERSION, buildLabel, IS_MAC, IS_WIN, REPO, join, log } from "./paths.ts";
 
 export interface UpdateInfo {
   available: boolean;
@@ -117,10 +117,14 @@ export async function checkUpdate(force = false): Promise<UpdateInfo> {
     const want = assetName();
     const inst = installable();
     const 새것 = cmpVersion(latest, APP_VERSION) > 0;
+    // ★**이름표가 달린 판은 스스로 갈아끼우지 않는다.** 공개판을 바탕으로 자기 것을
+    //   얹어 쓰는 판(이름표가 그 표시다)을 공개판으로 덮으면 얹은 것이 조용히
+    //   사라진다. 새 판이 나왔다고 알리기만 하고, 갈아끼우기는 그 판을 지은 사람이 한다.
+    const 나만의판 = !!buildLabel();
     const info: UpdateInfo = {
       // 패치 내용은 **새 판이 있을 때만** 받아 온다 — 5분마다 헛되이 두드릴 일이 없다
       notes: 새것 ? await 패치내용() : "",
-      available: 새것,
+      available: 새것 && !나만의판,
       version: latest,
       current: APP_VERSION,
       // 최신 파일 주소는 항상 이 형태다
@@ -132,6 +136,10 @@ export async function checkUpdate(force = false): Promise<UpdateInfo> {
     cached = info;
     checkedAt = Date.now();
     if (info.available) await log(`🆕 새 버전이 있습니다: ${APP_VERSION} → ${latest}`);
+    else if (새것 && 나만의판) {
+      await log(`🆕 새 공개판 ${latest} 이 나왔습니다 — 「${buildLabel()}」 은 스스로 갈지 `
+        + `않습니다. 이 판을 지은 방법으로 다시 지어야 얹은 것을 잃지 않습니다.`);
+    }
     return info;
   } catch {
     cached = none;
