@@ -71,23 +71,29 @@ cp 배포/맥_처음읽어주세요.txt "$OUT/맥-인텔/처음 읽어주세요.
 cp 배포/윈도우_처음읽어주세요.txt "$OUT/윈도우/처음 읽어주세요.txt"
 
 # ---------- 압축 ----------
+# 파일 이름은 반드시 app/update.ts 의 assetName() 과 같아야 한다.
+# 자동 업데이트가 이 이름으로 내려받기 때문에, 이름이 어긋나면 업데이트가 조용히 멈춘다.
+# 그래서 여기서 짓고, 아래에서 update.ts 와 대조한다.
+ZIP_ARM="garasadae-uploader-mac-apple-silicon.zip"
+ZIP_X64="garasadae-uploader-mac-intel.zip"
+ZIP_WIN="garasadae-uploader-windows.zip"
+
 # 맥용은 zip 명령을 그대로 쓴다 (.app 의 실행권한·서명 파일을 온전히 보존한다).
 cd "$OUT"
-for d in 맥-애플실리콘 맥-인텔; do
-  zip -qry "가라사대업로더-$d.zip" "$d"
-done
+zip -qry "$ZIP_ARM" "맥-애플실리콘"
+zip -qry "$ZIP_X64" "맥-인텔"
 cd ..
 
 # 윈도우용은 파이썬으로 압축한다.
 # 맥의 zip 은 한글 이름을 UTF-8 로 넣으면서 'UTF-8 이름' 표시(플래그 11)를 켜지 않는다.
 # 그러면 한국어 윈도우 탐색기가 CP949 로 잘못 읽어 이름이 깨지고 "파일을 찾을 수 없습니다" 가 난다.
 # 파이썬 zipfile 은 이 플래그를 제대로 켠다. (2026-08-19 실제 사고)
-python3 - "$OUT" <<'PY'
+python3 - "$OUT" "$ZIP_WIN" <<'PY'
 import os, sys, zipfile
-out = sys.argv[1]
-src, dst = "윈도우", os.path.join(out, "가라사대업로더-윈도우.zip")
+out, name = sys.argv[1], sys.argv[2]
+src = "윈도우"
 os.chdir(out)
-with zipfile.ZipFile("가라사대업로더-윈도우.zip", "w", zipfile.ZIP_DEFLATED) as z:
+with zipfile.ZipFile(name, "w", zipfile.ZIP_DEFLATED) as z:
     for root, dirs, files in os.walk(src):
         z.write(root, root + "/")
         for f in sorted(files):
@@ -95,9 +101,9 @@ with zipfile.ZipFile("가라사대업로더-윈도우.zip", "w", zipfile.ZIP_DEF
 PY
 
 # 윈도우 압축파일이 실제로 UTF-8 플래그를 켰는지 확인한다 (안 켜졌으면 빌드 실패).
-python3 - "$OUT" <<'PY'
+python3 - "$OUT" "$ZIP_WIN" <<'PY'
 import sys, zipfile
-z = zipfile.ZipFile(sys.argv[1] + "/가라사대업로더-윈도우.zip")
+z = zipfile.ZipFile(sys.argv[1] + "/" + sys.argv[2])
 bad = [i.orig_filename for i in z.infolist() if not (i.flag_bits & 0x800)]
 if bad:
     print("❌ 윈도우 압축파일의 이름이 UTF-8 로 표시되지 않았습니다:", bad)
@@ -105,7 +111,27 @@ if bad:
 print("  ↳ 윈도우 압축파일 이름 UTF-8 확인 (%d 항목)" % len(z.infolist()))
 PY
 
+# 만든 파일 이름이 자동 업데이트가 찾는 이름과 같은지 대조한다.
+# 어긋나면 배포는 되는데 업데이트만 안 되어, 한참 뒤에야 알아챈다.
+python3 - "$OUT" "$ZIP_ARM" "$ZIP_X64" "$ZIP_WIN" <<'PY'
+import os, re, sys, pathlib
+out, made = sys.argv[1], sys.argv[2:]
+src = pathlib.Path("app/update.ts").read_text(encoding="utf-8")
+want = set(re.findall(r'"(garasadae-uploader-[a-z0-9-]+[.]zip)"', src))
+if not want:
+    print("\u274c app/update.ts 에서 배포 파일 이름을 찾지 못했습니다"); sys.exit(1)
+if want != set(made):
+    print("\u274c 배포 파일 이름이 자동 업데이트가 찾는 이름과 다릅니다.")
+    print("   update.ts 가 찾는 것:", sorted(want))
+    print("   빌드가 만든 것      :", sorted(made))
+    sys.exit(1)
+missing = [n for n in made if not os.path.exists(os.path.join(out, n))]
+if missing:
+    print("\u274c 만들어지지 않은 배포 파일:", missing); sys.exit(1)
+print("  \u21b3 배포 파일 이름 %d개가 자동 업데이트와 일치" % len(made))
+PY
+
 echo
 find "$OUT" -maxdepth 2 -name "*.zip" -o -maxdepth 2 -name "*.app" -o -maxdepth 2 -name "*.exe" | sort
 du -sh "$OUT"/*.zip 2>/dev/null || du -sh "$OUT"/*/*.zip 2>/dev/null
-echo "✅ 완료 — dist 폴더의 zip 을 배포하세요."
+echo "✅ 완료 — dist 폴더의 zip 3개를 그대로 릴리스에 올리세요 (이름을 바꾸면 안 됩니다)."
