@@ -93,6 +93,14 @@ textarea.fin{resize:vertical;line-height:1.6}
 /* ── 1.5.6 에서 이어온 규칙 (팝업·대시보드·안내 상자) ── */
 .hintline{font-size:11px;color:var(--t3);line-height:1.7;margin-top:6px}
 .hintline code,.p13 code,.sw code{background:var(--bg3);padding:1px 5px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--cyan)}
+.basenotice{display:none;margin-top:10px;padding:10px 12px;border:1px solid var(--gold);
+  border-radius:8px;background:color-mix(in srgb,var(--gold) 8%,transparent)}
+.bn-head{font-size:12px;font-weight:600;color:var(--gold);margin-bottom:6px}
+.bn-body{font-size:11px;color:var(--t2);line-height:1.7}
+.bn-row{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:11px;
+  padding:4px 0;border-top:1px solid var(--bdr)}
+.bn-row span{color:var(--t3);font-family:'JetBrains Mono',monospace;font-size:10px;word-break:break-all}
+.bn-warn{font-size:11px;color:var(--gold);line-height:1.7;margin-top:6px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 @media(max-width:640px){.grid2{grid-template-columns:1fr}}
 .flabel{display:block;font-size:11px;font-weight:700;color:var(--t3);margin-bottom:5px;letter-spacing:.3px}
@@ -468,6 +476,20 @@ textarea.fin{resize:vertical;line-height:1.6}
     <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
       <button class="tb on" onclick="pickBase()">📁 폴더 선택…</button>
       <button class="tb" onclick="useDefaultBase()">바탕화면 기본 폴더로</button>
+    </div>
+    <div class="basenotice" id="baseNotice">
+      <div class="bn-head">📌 채널 <b id="baseNoticeCount">0</b>개는 아직 옛 위치에 있습니다</div>
+      <div class="bn-body">
+        상위 폴더만 바꿨습니다. <b>이미 만든 채널의 감시 폴더는 그대로입니다</b> —
+        안에 든 영상을 앱이 마음대로 옮기지 않기 위해서입니다.
+        새로 만드는 채널부터 새 위치에 생깁니다.
+      </div>
+      <div id="baseNoticeList"></div>
+      <div class="bn-warn" id="baseNoticeMsg"></div>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        <button class="tb on" id="baseMoveBtn" onclick="moveChannelsToBase()">📦 기존 채널도 새 위치로 옮기기</button>
+        <button class="tb" onclick="document.getElementById('baseNotice').style.display='none'">이대로 둘게요</button>
+      </div>
     </div>
   </div>
 
@@ -1405,7 +1427,36 @@ async function saveSettings(){
   const r=await api('/api/settings',{
     baseDir:$('cBase').value.trim(), pollSeconds:+$('cPoll').value,
     stableChecks:+$('cStable').value, notifications:getSw('cOsNotify'), browser:$('cBrowser').value});
-  r.error?msg(r.error,'err'):msg('저장했습니다','ok');
+  if(r.error){msg(r.error,'err');poll();return;}
+  msg('저장했습니다','ok');
+  // 상위 폴더를 바꿨는데 밖에 남은 채널이 있으면 그냥 넘어가지 않고 알려 준다
+  if(r.baseChanged&&r.outside&&r.outside.length)showBaseMoved(r.outside);
+  else $('baseNotice').style.display='none';
+  poll();
+}
+let outsideList=[];
+function showBaseMoved(list){
+  outsideList=list;
+  $('baseNoticeList').innerHTML=list.map(c=>
+    `<div class="bn-row"><b>${esc(c.name)}</b><span>${esc(c.folder)}</span></div>`).join('');
+  $('baseNoticeCount').textContent=list.length;
+  $('baseNoticeMsg').textContent='';
+  $('baseNotice').style.display='block';
+}
+async function moveChannelsToBase(){
+  if(!outsideList.length)return;
+  const btn=$('baseMoveBtn'); btn.disabled=true; btn.textContent='옮기는 중…';
+  const r=await api('/api/channel/movetobase',{});
+  btn.disabled=false; btn.textContent='📦 기존 채널도 새 위치로 옮기기';
+  if(r.error){msg(r.error,'err');return;}
+  const ok=(r.done||[]).length, bad=(r.failed||[]);
+  if(ok)msg(`채널 ${ok}개의 폴더를 옮겼습니다`,'ok');
+  if(bad.length){
+    $('baseNoticeMsg').innerHTML=bad.map(f=>
+      `⚠️ <b>${esc(f.name)}</b> — ${esc(f.why)}`).join('<br>');
+  }else{
+    $('baseNotice').style.display='none';
+  }
   poll();
 }
 async function testBrowser(){

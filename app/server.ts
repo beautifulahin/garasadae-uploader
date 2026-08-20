@@ -155,6 +155,7 @@ export function startServer(engine: Manager, port: number) {
       if (p === "/api/settings" && req.method === "POST") {
         const patch = await req.json();
         const cfg = await loadConfig(true);
+        const baseBefore = cfg.baseDir;
         if (typeof patch.baseDir === "string" && patch.baseDir.trim()) cfg.baseDir = patch.baseDir.trim();
         if (patch.pollSeconds !== undefined) cfg.pollSeconds = clamp(patch.pollSeconds, 2, 3600, 5);
         if (patch.stableChecks !== undefined) cfg.stableChecks = clamp(patch.stableChecks, 1, 60, 3);
@@ -163,7 +164,67 @@ export function startServer(engine: Manager, port: number) {
         await saveConfig(cfg);
         await engine.reloadConfig();
         await engine.ensureDirs();
-        return json({ ok: true });
+
+        // 상위 폴더를 바꿨는데 기존 채널이 그 밖에 남아 있으면 알려 준다.
+        // 말없이 두면 "바꿨는데 왜 그대로지?" 하고 헷갈린다.
+        const baseChanged = !samePath(baseBefore, cfg.baseDir);
+        const outside = baseChanged
+          ? cfg.channels
+            .filter((c) => !underBase(c.folder, cfg.baseDir))
+            .map((c) => ({ id: c.id, name: c.name, folder: c.folder }))
+          : [];
+        return json({ ok: true, baseChanged, outside });
+      }
+
+      // 상위 폴더 밖에 남은 채널 폴더를 새 상위 폴더 안으로 옮긴다
+      if (p === "/api/channel/movetobase" && req.method === "POST") {
+        if (engine.uploadingKey) {
+          return json({ error: "지금 영상을 올리고 있습니다. 끝난 뒤에 다시 눌러 주세요." }, 409);
+        }
+        const cfg = await loadConfig(true);
+        if (!cfg.baseDir) return json({ error: "상위 폴더가 정해져 있지 않습니다." }, 400);
+
+        const done: string[] = [];
+        const failed: { name: string; why: string }[] = [];
+
+        for (const ch of cfg.channels) {
+          if (underBase(ch.folder, cfg.baseDir)) continue;
+          const dest = join(cfg.baseDir, safeFolderName(ch.name));
+          if (samePath(dest, ch.folder)) continue;
+
+          if (await pathExists(dest)) {
+            failed.push({ name: ch.name, why: "옮길 자리에 같은 이름의 폴더가 이미 있습니다" });
+            continue;
+          }
+          if (!(await pathExists(ch.folder))) {
+            ch.folder = dest;                 // 원래 폴더가 없으면 자리만 새 위치로 잡아 준다
+            done.push(ch.name);
+            continue;
+          }
+          try {
+            await Deno.mkdir(cfg.baseDir, { recursive: true });
+            await Deno.rename(ch.folder, dest);
+            ch.folder = dest;
+            done.push(ch.name);
+            await log(`📦 [${ch.name}] 폴더를 옮겼습니다: ${dest}`);
+          } catch (e) {
+            const m = e instanceof Error ? e.message : String(e);
+            failed.push({
+              name: ch.name,
+              why: /cross-device|EXDEV/i.test(m)
+                ? "다른 디스크로는 앱이 옮길 수 없습니다. 직접 옮긴 뒤 「폴더 바꾸기」로 지정해 주세요"
+                : m,
+            });
+            await log(`⚠️  [${ch.name}] 폴더를 옮기지 못했습니다: ${m}`);
+          }
+        }
+
+        if (done.length) {
+          await saveConfig(cfg);
+          await engine.reloadConfig();
+          await engine.ensureDirs();
+        }
+        return json({ ok: true, done, failed });
       }
 
       if (p === "/api/defaults") {
@@ -608,4 +669,19 @@ export function startServer(engine: Manager, port: number) {
 
 async function fileExists(p: string) {
   try { await Deno.stat(p); return true; } catch { return false; }
+}
+const pathExists = fileExists;
+
+/** 두 경로가 같은 곳을 가리키는지. 끝의 구분자와 대소문자는 무시한다. */
+function samePath(a: string, b: string): boolean {
+  const norm = (p: string) => p.replace(/[\\/]+$/, "").replace(/\\/g, "/").toLowerCase();
+  return norm(a) === norm(b);
+}
+
+/** 그 폴더가 상위 폴더 안에 들어 있는지 (상위 폴더 자신도 안에 있는 것으로 본다) */
+function underBase(folder: string, base: string): boolean {
+  if (!base) return true;                       // 상위 폴더가 없으면 따질 것이 없다
+  const norm = (p: string) => p.replace(/[\\/]+$/, "").replace(/\\/g, "/").toLowerCase();
+  const f = norm(folder), b = norm(base);
+  return f === b || f.startsWith(b + "/");
 }
