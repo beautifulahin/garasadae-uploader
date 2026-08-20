@@ -4,7 +4,7 @@ import {
   clearTokens, credsOf, dataDir, desktopDir, join, loadConfig, loadTokens, log,
   newChannelId, safeFolderName, saveConfig, tailLog,
 } from "./paths.ts";
-import { accessToken, authUrl, checkChannel, exchange, revoke } from "./auth.ts";
+import { accessToken, authUrl, checkChannel, exchange, revoke, 채널id메우기 } from "./auth.ts";
 import { Manager, studioEditorUrl } from "./watcher.ts";
 import { autoStartEnabled, isCompiled, listBrowsers, openPath, openUrl, pickFolder, setAutoStart } from "./platform.ts";
 import { checkUpdate, installUpdate, UpdateInfo } from "./update.ts";
@@ -109,7 +109,11 @@ const clamp = (n: unknown, lo: number, hi: number, dflt: number) => {
 
 /** 채널 하나의 현재 모습 (로그인 상태까지) */
 async function channelView(cfg: Config, ch: Channel) {
-  const tok = await loadTokens(ch.id);
+  let tok = await loadTokens(ch.id);
+  if (tok && !tok.channel?.id) {                 // 옛 연결이면 채널 id 를 한 번 메운다
+    await 채널id메우기(cfg, ch);
+    tok = await loadTokens(ch.id);
+  }
   return {
     ...ch,
     clientSecret: ch.clientSecret ? "********" : "",

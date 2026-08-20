@@ -174,6 +174,29 @@ export async function fetchChannel(token: string) {
   };
 }
 
+/** 옛 연결에 빠져 있는 **채널 id** 를 한 번 메운다.
+ *
+ * ★예전 판으로 연결한 토큰에는 채널 id 가 없다. 그러면 `assertSameChannel` 이
+ *   견줄 기준이 없어 **그냥 지나간다** — 잘못된 채널에 올리는 것을 막는 장치가
+ *   조용히 꺼져 있는 셈이다(실제로 그런 상태를 발견했다).
+ * ★한 번 메우면 그 뒤로는 조회하지 않는다. 조회는 1점이라 값도 거의 안 든다.
+ */
+export async function 채널id메우기(cfg: Config, ch: Channel): Promise<string> {
+  const tok = await loadTokens(ch.id);
+  if (!tok) return "";
+  if (tok.channel?.id) return tok.channel.id;
+  try {
+    const token = await accessToken(cfg, ch);
+    const now = await fetchChannel(token);
+    tok.channel = { ...(tok.channel ?? {}), ...now };
+    await saveTokens(ch.id, tok);
+    await log(`   · 채널 id 를 채웠습니다 (${now.title}) — 이제 잘못된 채널 검사가 돕니다`);
+    return now.id;
+  } catch {
+    return "";                                  // 못 채워도 그만이다. 다음에 다시 해 본다
+  }
+}
+
 /** 연결할 때 붙잡아 둔 그 유튜브 채널이 맞는지 **올리기 직전에** 다시 본다.
  *
  * 채널을 여러 개 쓰면 구글 로그인 중 채널 선택에서 잘못 고르는 일이 생기는데,
