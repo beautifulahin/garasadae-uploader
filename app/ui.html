@@ -879,9 +879,15 @@ function renderPanels(list){
 }
 
 function swTab(id){
-  if(id&&id[0]==='p'){                       // 끼움 화면은 처음 열 때 불러온다
+  if(id&&id[0]==='p'){
+    // ★끼움 화면은 **열 때마다 새로** 불러온다. 처음 한 번만 불러오게 했더니,
+    //   그 화면을 고쳐도 탭 안에서는 옛것이 계속 보였다(브라우저가 붙들고 있다).
+    //   주소 뒤에 시각을 붙여 캐시를 확실히 비껴간다.
     const f=document.querySelector('#'+id+' iframe');
-    if(f&&!f.src&&f.dataset.src)f.src=f.dataset.src;
+    if(f&&f.dataset.src){
+      const u=f.dataset.src;
+      f.src=u+(u.indexOf('?')>=0?'&':'?')+'t='+Date.now();
+    }
   }
   tab=id;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===id));document.querySelectorAll('.tp').forEach(p=>p.classList.toggle('on',p.id===id));if(id==='t2')loadLog();if(id==='t4')fillSettings();if(id==='t3')renderChannelList();}
 const setSw=(id,on)=>$(id)&&$(id).classList.toggle('on',!!on);
