@@ -879,6 +879,9 @@ function renderPanels(list){
 }
 
 function swTab(id){
+  // ★어느 탭을 보고 있었는지 기억한다 — 새로고침하면 첫 탭으로 튕겨 나가
+  //   보던 자리를 다시 찾아 들어가야 했다.
+  try{ localStorage.setItem('마지막탭', id); }catch(_){}
   if(id&&id[0]==='p'){
     // ★끼움 화면은 **열 때마다 새로** 불러온다. 처음 한 번만 불러오게 했더니,
     //   그 화면을 고쳐도 탭 안에서는 옛것이 계속 보였다(브라우저가 붙들고 있다).
@@ -1715,6 +1718,12 @@ document.querySelectorAll('.modal').forEach(m=>{
     const done=localStorage.getItem('justUpdatedTo');
     if(done&&ST&&ST.version===done){ localStorage.removeItem('justUpdatedTo'); msg('최신 버전입니다 (v'+ST.version+')','ok'); }
     else if(done&&ST&&ST.update&&!ST.update.available){ localStorage.removeItem('justUpdatedTo'); msg('최신 버전입니다','ok'); }
+  }catch(_){}
+  // 보던 탭으로 되돌아간다. 없는 탭이면 그냥 둔다(끼움 화면을 지웠을 수 있다).
+  try{
+    const 마지막=localStorage.getItem('마지막탭');
+    if(마지막&&document.getElementById(마지막)&&
+       document.querySelector('.tab[data-tab="'+마지막+'"]')) swTab(마지막);
   }catch(_){}
   if(ST&&!(ST.channelList||[]).length)swTab('t5');
   fillSettings(); renderChannelList(); renderPanels(ST&&ST.panels);
