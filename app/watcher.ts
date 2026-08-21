@@ -9,7 +9,7 @@ import {
 import { readSidecar, Sidecar, sidecarPath, thumbPath } from "./sidecar.ts";
 import { ErrKind, UploadError } from "./errors.ts";
 import { accessToken, assertSameChannel } from "./auth.ts";
-import { moveToTrash, notify, openUrl } from "./platform.ts";
+import { moveToTrash, notify, openUrl, 쓰던탭에다시 } from "./platform.ts";
 
 const VIDEO_EXT = new Set([
   ".mp4", ".mov", ".m4v", ".avi", ".webm", ".mkv", ".flv", ".wmv", ".mpg", ".mpeg", ".mts", ".m2ts",
@@ -435,7 +435,10 @@ export class Manager {
         } else if (ch.studioAfter === "ask") {
           this.ask = { id: res.id, title: p.title, channelName: ch.name };
           if (Date.now() - this.lastSeen > 15_000) {
-            await openUrl(`http://127.0.0.1:${this.cfg.port}`, this.cfg.browser);
+            const 밑 = `http://127.0.0.1:${this.cfg.port}`;
+            if (!await 쓰던탭에다시(밑, 밑, this.cfg.browser)) {
+              await openUrl(밑, this.cfg.browser);
+            }
             await log(`   💬 음악을 넣을지 묻기 위해 화면을 열었습니다`);
           }
         }

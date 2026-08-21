@@ -6,7 +6,7 @@ import {
 } from "./paths.ts";
 import { accessToken, authUrl, checkChannel, exchange, revoke, 채널id메우기 } from "./auth.ts";
 import { Manager, studioEditorUrl } from "./watcher.ts";
-import { autoStartEnabled, isCompiled, listBrowsers, openPath, openUrl, pickFolder, setAutoStart } from "./platform.ts";
+import { autoStartEnabled, isCompiled, listBrowsers, openPath, openUrl, pickFolder, setAutoStart, 쓰던탭에다시 } from "./platform.ts";
 import { checkUpdate, installUpdate, UpdateInfo } from "./update.ts";
 
 const UI = await Deno.readTextFile(new URL("./ui.html", import.meta.url));
@@ -584,7 +584,9 @@ export function startServer(engine: Manager, port: number) {
 
       if (p === "/api/openself" && req.method === "POST") {
         const cfg = await loadConfig(true);
-        await openUrl(`http://127.0.0.1:${cfg.port}`, cfg.browser);
+        const 밑 = `http://127.0.0.1:${cfg.port}`;
+        // 쓰던 탭이 있으면 그 자리에서 다시 부른다 — 탭이 늘어나지 않게 (2026-08-21)
+        if (!await 쓰던탭에다시(밑, 밑, cfg.browser)) await openUrl(밑, cfg.browser);
         return json({ ok: true });
       }
 

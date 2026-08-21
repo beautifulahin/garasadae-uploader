@@ -2,7 +2,7 @@
 import { APP_NAME, APP_VERSION, dataDir, ensureDataDir, loadConfig, log, saveConfig } from "./paths.ts";
 import { Manager } from "./watcher.ts";
 import { autoUpdateOnStart, startServer } from "./server.ts";
-import { openUrl } from "./platform.ts";
+import { openUrl, 쓰던탭에다시 } from "./platform.ts";
 
 const VERSION = APP_VERSION;
 
@@ -25,7 +25,12 @@ async function main() {
       const url = `http://127.0.0.1:${cfg.port}` +
         (첫끼움 ? "#" + encodeURIComponent(첫끼움) : "");
       console.log(`${APP_NAME} 가 이미 실행 중입니다 → ${url}`);
-      if (!background) await openUrl(url, cfg.browser);
+      // ★**새 탭을 또 만들지 않는다.** 이미 열려 있는 우리 탭이 있으면 그 자리에서
+      //   다시 불러온다(사용자 지시 2026-08-21). 못 찾으면 그때만 새로 연다.
+      if (!background) {
+        const 밑 = `http://127.0.0.1:${cfg.port}`;
+        if (!await 쓰던탭에다시(밑, url, cfg.browser)) await openUrl(url, cfg.browser);
+      }
       Deno.exit(0);
     }
     // 다른 프로그램이 쓰는 중 → 빈 포트를 찾아 옮긴다
@@ -63,7 +68,10 @@ async function main() {
 └───────────────────────────────────────────────`);
   await log(`▶️  ${APP_NAME} v${VERSION} 시작 (${background ? "백그라운드" : "일반"})`);
 
-  if (!background) await openUrl(url, cfg.browser);
+  // 껐다 켠 뒤에도 옛 탭이 떠 있을 수 있다 — 그 자리에서 다시 불러 준다
+  if (!background && !await 쓰던탭에다시(url, url, cfg.browser)) {
+    await openUrl(url, cfg.browser);
+  }
 
   // 켠 직후 새 버전이 있으면 묻지 않고 받는다 (화면에는 진행 막대가 보인다)
   autoUpdateOnStart(engine);

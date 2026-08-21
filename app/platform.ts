@@ -81,6 +81,65 @@ export async function listBrowsers(): Promise<{ id: string; name: string }[]> {
   return found;
 }
 
+/* ── 이미 열려 있는 우리 탭을 다시 쓴다 ──────────────────────────────
+   사용자 지시(2026-08-21): "새 창을 기존 창과 중복으로 띄우되 리프레쉬로 대체를
+   하든지, 새 창을 안 띄우고 기존 창을 이용하든지."
+
+   ★왜 화면 쪽(ui.html)만으로는 안 되나 — 브라우저는 **스크립트가 열지 않은 탭의
+     window.close() 를 막는다.** 그래서 옛 창은 덮개만 씌운 채 그대로 남았다.
+     닫지 못한다면 **애초에 새 탭을 안 만들면 된다.** 여기서는 브라우저에게
+     "그 주소를 이미 띄운 탭을 찾아, 그 자리에서 다시 불러라" 고 시킨다.
+
+   되면 true. 자동화 권한이 없거나 그런 탭이 없으면 false → 부르는 쪽이 새로 연다. */
+const 크롬계열 = ["Google Chrome", "Brave Browser", "Microsoft Edge", "Whale",
+                "Vivaldi", "Chromium", "Opera"];
+
+function esc(s: string) { return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"'); }
+
+async function 도는브라우저(): Promise<string[]> {
+  const out = await capture(["/bin/ps", "-Ao", "comm="]);
+  const 것 = new Set<string>();
+  for (const 앱 of [...크롬계열, "Safari"]) {
+    if (out.includes(`/${앱}.app/Contents/MacOS/`)) 것.add(앱);
+  }
+  return [...것];
+}
+
+export async function 쓰던탭에다시(base: string, url: string, browser = ""): Promise<boolean> {
+  if (!IS_MAC) return false;
+  const 볼것 = [...new Set([browser, ...(await 도는브라우저())].filter(Boolean))];
+  for (const 앱 of 볼것) {
+    const 사파리 = 앱 === "Safari";
+    if (!사파리 && !크롬계열.includes(앱)) continue;      // 파이어폭스·Arc 는 못 시킨다
+    const 고르기 = 사파리
+      ? `set current tab of w to tab ti of w`
+      : `set active tab index of w to ti`;
+    const script = `
+tell application "${esc(앱)}"
+  if it is not running then return "0"
+  repeat with wi from 1 to (count windows)
+    set w to window wi
+    repeat with ti from 1 to (count tabs of w)
+      if (URL of tab ti of w) starts with "${esc(base)}" then
+        set URL of tab ti of w to "${esc(url)}"
+        ${고르기}
+        set index of w to 1
+        activate
+        return "1"
+      end if
+    end repeat
+  end repeat
+end tell
+return "0"`;
+    const r = (await capture(["osascript", "-e", script])).trim();
+    if (r === "1") {
+      await log(`· 이미 열려 있던 ${앱} 탭을 다시 썼다 — 새 창을 안 띄운다`);
+      return true;
+    }
+  }
+  return false;
+}
+
 export async function openUrl(u: string, browser = "") {
   if (browser) {
     if (IS_MAC) { await spawn(["open", "-a", browser, u]); return; }
