@@ -115,7 +115,9 @@ export async function uploadVideo(
         const wait = 2 ** fails;
         await log(`   ⚠️  네트워크 오류, ${wait}초 후 재시도`);
         await sleep(wait * 1000);
-        offset = await resumeOffset(session, size, offset);
+        const 이어 = await resumeOffset(session, size, offset);
+        if (이어.끝났나) { onProgress(size, size); return 이어.결과; }
+        offset = 이어.offset;
         continue;
       }
 
@@ -138,18 +140,41 @@ export async function uploadVideo(
         const wait = 2 ** fails;
         await log(`   ⚠️  ${res.status} 오류, ${wait}초 후 재시도`);
         await sleep(wait * 1000);
-        offset = await resumeOffset(session, size, offset);
+        const 이어 = await resumeOffset(session, size, offset);
+        if (이어.끝났나) { onProgress(size, size); return 이어.결과; }
+        offset = 이어.offset;
         continue;
       }
       throw await apiError(res);
     }
-    throw new UploadError("업로드가 끝났는데 응답이 없습니다.", "temporary");
+    // 보낼 것은 다 보냈는데 마무리 응답을 못 받은 자리다. **다시 올리기 전에** 묻는다 —
+    // 이미 올라가 있으면 그 답을 그대로 쓴다. 그래도 모르면 '잠깐 오류' 로 두지 않는다.
+    // 되풀이해 올리는 것보다, 사람이 유튜브를 한 번 보는 편이 낫다.
+    const 마지막 = await resumeOffset(session, size, size);
+    if (마지막.끝났나) { onProgress(size, size); return 마지막.결과; }
+    throw new UploadError(
+      "보낼 것은 다 보냈는데 유튜브가 마무리 응답을 주지 않았습니다 — " +
+        "유튜브 스튜디오에서 올라갔는지 확인해 주세요(다시 올리면 두 번 올라갈 수 있습니다).",
+      "fatal",
+    );
   } finally {
     try { f.close(); } catch { /* 무시 */ }
   }
 }
 
-async function resumeOffset(session: string, size: number, fallback: number): Promise<number> {
+/** 어디까지 받았는지 물어본 결과. **이미 다 올라간 경우까지** 알려 준다. */
+type 이어받기 = { 끝났나: false; offset: number } | { 끝났나: true; 결과: UploadResult };
+
+/** 세션에 "어디까지 받았니" 하고 묻는다.
+ *
+ * ★여기서 **끝난 것을 못 알아보면 같은 영상이 두 번 올라간다.**
+ *   마지막 조각을 보내다 회선이 끊겨도 유튜브는 그 조각을 다 받았을 수 있다.
+ *   그때 이 물음에는 308 이 아니라 **200/201 과 영상 정보**가 온다.
+ *   예전에는 그 몸을 버리고 `size` 만 돌려줬다 — 그러면 바깥 고리가
+ *   「업로드가 끝났는데 응답이 없습니다」 를 '잠깐 오류' 로 던지고, 감시가
+ *   그 편을 **처음부터 다시 올렸다.** 올라간 줄 모르니 중복 막기도 못 잡는다.
+ */
+async function resumeOffset(session: string, size: number, fallback: number): Promise<이어받기> {
   try {
     const r = await fetch(session, {
       method: "PUT",
@@ -159,12 +184,16 @@ async function resumeOffset(session: string, size: number, fallback: number): Pr
     if (r.status === 308) {
       await r.body?.cancel();
       const range = r.headers.get("range");
-      return range ? Number(range.split("-")[1]) + 1 : 0;
+      return { 끝났나: false, offset: range ? Number(range.split("-")[1]) + 1 : 0 };
+    }
+    if (r.ok) {
+      const j = await r.json() as UploadResult;
+      if (j?.id) return { 끝났나: true, 결과: j };       // 이미 다 올라갔다
+      return { 끝났나: false, offset: size };
     }
     await r.body?.cancel();
-    if (r.ok) return size;
   } catch { /* 무시 */ }
-  return fallback;
+  return { 끝났나: false, offset: fallback };
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

@@ -355,12 +355,44 @@ export async function ensureDataDir() {
   await Deno.mkdir(TOKEN_DIR(), { recursive: true });
 }
 
-async function writeJson(path: string, data: unknown, secret = false) {
+/** 파일마다 **한 줄로 세운다.** 같은 파일에 두 곳이 동시에 쓰면 서로를 잡아먹는다.
+ *
+ * ★실제로 일어나던 일 (2026-08-22 실측: 동시에 40번 걸어 40번 다 터졌다)
+ *   `state.json` 을 쓰는 곳은 감시 고리(`loop`)만이 아니다. 화면에서 [진행] 을
+ *   누르면 `server.ts` 가 `engine.uploadOne()` 을 **기다리지 않고** 띄우므로,
+ *   그 업로드가 성적 재기·뒷일하기와 겹칠 수 있다. 그런데 임시 파일 이름이
+ *   `state.json.tmp` 하나뿐이라, 뒤엣것이 앞엣것의 임시 파일을 지워 버리고
+ *   앞엣것의 `rename` 이 **NotFound 로 터졌다.**
+ *   그 예외는 업로드가 **다 끝난 뒤에** 던져져 `uploadOne` 의 catch 로 떨어졌다 —
+ *   그래서 **멀쩡히 올라간 편이 「실패」로 적히고 다시 시도**되었다.
+ *   (뒤처리도 안 돌아 파일이 대기함에 그대로 남았다.)
+ */
+const 쓰기줄 = new Map<string, Promise<unknown>>();
+
+function 줄서서<T>(열쇠: string, 일: () => Promise<T>): Promise<T> {
+  const 앞사람 = 쓰기줄.get(열쇠) ?? Promise.resolve();
+  const 내차례 = 앞사람.then(일, 일);          // 앞사람이 넘어져도 내 차례는 온다
+  쓰기줄.set(열쇠, 내차례.catch(() => {}));
+  return 내차례;
+}
+
+function writeJson(path: string, data: unknown, secret = false): Promise<void> {
+  return 줄서서(path, () => writeJsonNow(path, data, secret));
+}
+
+async function writeJsonNow(path: string, data: unknown, secret = false) {
   await Deno.mkdir(path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"))), { recursive: true })
     .catch(() => {});
-  const tmp = path + ".tmp";
-  await Deno.writeTextFile(tmp, JSON.stringify(data, null, 2));
-  await Deno.rename(tmp, path);
+  // ★임시 이름은 **부를 때마다 다르게.** 줄을 세워도 앞선 판이 남긴 찌꺼기와
+  //   부딪히지 않게 한다(프로그램이 쓰다 죽었을 수도 있다).
+  const tmp = `${path}.${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}.tmp`;
+  try {
+    await Deno.writeTextFile(tmp, JSON.stringify(data, null, 2));
+    await Deno.rename(tmp, path);
+  } catch (e) {
+    try { await Deno.remove(tmp); } catch { /* 없으면 그만이다 */ }
+    throw e;
+  }
   if (secret && !IS_WIN) { try { await Deno.chmod(path, 0o600); } catch { /* 무시 */ } }
 }
 
@@ -566,17 +598,73 @@ export const clearTokens = async (channelId: string) => {
 
 /* ---------------------------------------------- 로그 */
 const enc = new TextEncoder();
+const dec = new TextDecoder();
+
+/** 로그를 얼마나 두고 볼까. 넘으면 앞쪽을 덜어 낸다.
+ *  ★화면은 **6초마다** 로그를 다시 읽는다(ui.html: `setInterval(loadLog, 6000)`).
+ *    끝없이 자라게 두면 몇 달 뒤에는 수십 MB 짜리를 하루에 만 번 넘게 읽게 된다. */
+const 로그최대 = 4 * 1024 * 1024;
+const 로그남길것 = 1024 * 1024;
+const 꼬리읽을것 = 128 * 1024;
+
 export async function log(msg: string) {
   const line = `[${new Date().toLocaleString("ko-KR")}] ${msg}\n`;
   console.log(line.trimEnd());
   try {
     await ensureDataDir();
     await Deno.writeFile(LOG_F(), enc.encode(line), { append: true, create: true });
+    await 로그덜어내기();
   } catch { /* 무시 */ }
 }
+
+/** 너무 커졌으면 뒤쪽만 남기고 다시 쓴다. 쓰기 줄에 세워 덧쓰기와 엇갈리지 않게 한다. */
+async function 로그덜어내기() {
+  const 자리 = LOG_F();
+  let 크기 = 0;
+  try { 크기 = (await Deno.stat(자리)).size; } catch { return; }
+  if (크기 <= 로그최대) return;
+  await 줄서서(자리, async () => {
+    const f = await Deno.open(자리, { read: true });
+    try {
+      const 새크기 = (await f.stat()).size;
+      if (새크기 <= 로그최대) return;
+      await f.seek(새크기 - 로그남길것, Deno.SeekMode.Start);
+      const buf = new Uint8Array(로그남길것);
+      let 읽음 = 0;
+      while (읽음 < buf.length) {
+        const n = await f.read(buf.subarray(읽음));
+        if (n === null) break;
+        읽음 += n;
+      }
+      const 글 = dec.decode(buf.subarray(0, 읽음));
+      const 줄머리 = 글.indexOf("\n") + 1;                  // 잘린 첫 줄은 버린다
+      await Deno.writeTextFile(자리, "…(앞부분은 덜어 냈습니다)\n" + 글.slice(줄머리));
+    } finally {
+      try { f.close(); } catch { /* 무시 */ }
+    }
+  }).catch(() => {});
+}
+
 export async function tailLog(n = 60): Promise<string[]> {
+  // ★통째로 읽지 않는다 — 화면이 6초마다 부르는 자리다.
   try {
-    const txt = await Deno.readTextFile(LOG_F());
-    return txt.trimEnd().split("\n").slice(-n);
+    const f = await Deno.open(LOG_F(), { read: true });
+    try {
+      const 크기 = (await f.stat()).size;
+      const 잴것 = Math.min(크기, 꼬리읽을것);
+      await f.seek(크기 - 잴것, Deno.SeekMode.Start);
+      const buf = new Uint8Array(잴것);
+      let 읽음 = 0;
+      while (읽음 < buf.length) {
+        const k = await f.read(buf.subarray(읽음));
+        if (k === null) break;
+        읽음 += k;
+      }
+      const 줄 = dec.decode(buf.subarray(0, 읽음)).trimEnd().split("\n");
+      if (크기 > 잴것 && 줄.length) 줄.shift();              // 반 토막 난 첫 줄은 버린다
+      return 줄.slice(-n);
+    } finally {
+      try { f.close(); } catch { /* 무시 */ }
+    }
   } catch { return []; }
 }

@@ -488,7 +488,14 @@ export function startServer(engine: Manager, port: number) {
         if (!it) return json({ error: "항목을 찾을 수 없습니다." }, 404);
         if (engine.uploadingKey) return json({ error: "다른 업로드가 진행 중입니다." }, 409);
         if (!it.title.trim()) return json({ error: "제목을 입력해 주세요." }, 400);
-        engine.uploadOne(it);
+        // ★**기다리지 않고 띄운다** — 업로드는 몇 분씩 걸려서 화면을 붙들 수 없다.
+        //   대신 넘어지면 반드시 받아 낸다. 데노는 아무도 안 받은 실패 하나로
+        //   **프로그램을 통째로 끝낸다** — 올리는 도중에 그러면 최악이다.
+        engine.uploadOne(it).catch(async (e) => {
+          const 말 = e instanceof Error ? e.message : String(e);
+          engine.lastError = 말;
+          await log(`⚠️  업로드 처리 중 예기치 못한 오류: ${말}`);
+        });
         return json({ ok: true });
       }
 
