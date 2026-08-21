@@ -878,6 +878,18 @@ function renderPanels(list){
   });
 }
 
+/** `#소재국` · `#p0` · `#t3` 를 탭 id 로 바꾼다. 못 찾으면 빈 글. */
+function 탭찾기(hash){
+  if(!hash) return '';
+  let 이름=''; try{ 이름=decodeURIComponent(hash.slice(1)); }catch(_){ 이름=hash.slice(1); }
+  if(!이름) return '';
+  if(document.getElementById(이름)&&document.querySelector('.tab[data-tab="'+이름+'"]')) return 이름;
+  // 이름으로 부른 끼움 화면 — 탭에 적힌 글로 찾는다 ("🧩 소재국")
+  const 찾음=[...document.querySelectorAll('#panelTabs .tab')]
+    .find(b=>b.textContent.replace(/^🧩\s*/,'').trim()===이름.trim());
+  return 찾음 ? 찾음.dataset.tab : '';
+}
+
 function swTab(id){
   // ★어느 탭을 보고 있었는지 기억한다 — 새로고침하면 첫 탭으로 튕겨 나가
   //   보던 자리를 다시 찾아 들어가야 했다.
@@ -1719,14 +1731,21 @@ document.querySelectorAll('.modal').forEach(m=>{
     if(done&&ST&&ST.version===done){ localStorage.removeItem('justUpdatedTo'); msg('최신 버전입니다 (v'+ST.version+')','ok'); }
     else if(done&&ST&&ST.update&&!ST.update.available){ localStorage.removeItem('justUpdatedTo'); msg('최신 버전입니다','ok'); }
   }catch(_){}
-  // 보던 탭으로 되돌아간다. 없는 탭이면 그냥 둔다(끼움 화면을 지웠을 수 있다).
-  try{
-    const 마지막=localStorage.getItem('마지막탭');
-    if(마지막&&document.getElementById(마지막)&&
-       document.querySelector('.tab[data-tab="'+마지막+'"]')) swTab(마지막);
-  }catch(_){}
-  if(ST&&!(ST.channelList||[]).length)swTab('t5');
   fillSettings(); renderChannelList(); renderPanels(ST&&ST.panels);
+  // ★주소 뒤에 `#소재국` 처럼 붙어 오면 **그 화면부터** 연다 — 보던 탭보다 앞선다.
+  //   앱이 이미 돌 때 다시 누르면(재접속) 저쪽에서 이것을 붙여 보낸다
+  //   (사용자 지시 2026-08-21: "재접속 누르면 바로 소재국으로 열리게").
+  const 시킨탭=탭찾기(location.hash);
+  if(시킨탭){ swTab(시킨탭); }
+  else{
+    // 보던 탭으로 되돌아간다. 없는 탭이면 그냥 둔다(끼움 화면을 지웠을 수 있다).
+    try{
+      const 마지막=localStorage.getItem('마지막탭');
+      if(마지막&&document.getElementById(마지막)&&
+         document.querySelector('.tab[data-tab="'+마지막+'"]')) swTab(마지막);
+    }catch(_){}
+    if(ST&&!(ST.channelList||[]).length)swTab('t5');
+  }
   // ★setInterval 은 그때의 함수 **객체**를 붙잡는다. 이름을 나중에 바꿔치기해도
   //   타이머는 옛 것을 계속 부른다 — 물러난 창이 계속 서버를 두드리게 된다.
   loadLog(); setInterval(()=>loadLog(),6000);

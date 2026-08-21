@@ -17,7 +17,13 @@ async function main() {
   // 포트가 이미 쓰이고 있다면, 우리 프로그램인지 다른 프로그램인지 가려낸다
   if (await portBusy(cfg.port)) {
     if (await isOurApp(cfg.port)) {
-      const url = `http://127.0.0.1:${cfg.port}`;
+      // ★이미 돌고 있는데 또 눌렀다 = **화면을 보고 싶다는 뜻**이다.
+      //   끼움 화면(소재국 …)이 있으면 그 첫 번째로 곧장 연다 — 검토·승인이
+      //   거기 있어서 다시 누르는 것이지, 감시 목록을 보려는 것이 아니다
+      //   (사용자 지시 2026-08-21: "재접속 누르면 바로 소재국으로 바로 열리게").
+      const 첫끼움 = cfg.panels?.[0]?.name ?? "";
+      const url = `http://127.0.0.1:${cfg.port}` +
+        (첫끼움 ? "#" + encodeURIComponent(첫끼움) : "");
       console.log(`${APP_NAME} 가 이미 실행 중입니다 → ${url}`);
       if (!background) await openUrl(url, cfg.browser);
       Deno.exit(0);
