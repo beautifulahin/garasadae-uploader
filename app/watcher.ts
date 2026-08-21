@@ -172,7 +172,11 @@ export class Manager {
   }
 
   limitReached(ch: Channel): boolean {
-    if (this.todayCount(ch.id) >= ch.dailyLimit) return true;
+    // ★사용자 지시(2026-08-21): "한도 상관없이 새로운 게 기준에 도달하면 뿌려."
+    //   그래서 `dailyLimit <= 0` 이면 **하루 한도를 안 본다.**
+    //   다만 유튜브 API 할당량은 남겨 둔다 — 그건 우리가 정한 규칙이 아니라
+    //   넘기면 업로드가 **실패하는** 바깥의 한계다(무시하면 조용히 안 올라간다).
+    if (ch.dailyLimit > 0 && this.todayCount(ch.id) >= ch.dailyLimit) return true;
     return this.quotaOf(ch).left < UPLOAD_COST;
   }
 
@@ -659,7 +663,9 @@ export class Manager {
         quotaLeft: q.left,
         quotaResetAt: quotaResetAt(),          // 할당량이 다시 차오르는 때
         quotaDate: quotaDate(),
-        capacityLeft: Math.max(0, Math.min(ch.dailyLimit - this.todayCount(ch.id), Math.floor(q.left / UPLOAD_COST))),
+        capacityLeft: Math.max(0, ch.dailyLimit > 0
+          ? Math.min(ch.dailyLimit - this.todayCount(ch.id), Math.floor(q.left / UPLOAD_COST))
+          : Math.floor(q.left / UPLOAD_COST)),   // 0 = 하루 한도 없음
         limitReached: this.limitReached(ch),
         waiting: items.filter((p) => p.channelId === ch.id && p.status !== "done").length,
         blocked: block?.message ?? "",

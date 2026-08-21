@@ -1312,7 +1312,7 @@ function renderChannelList(){
             <div class="chrow-dc">${v.youtube?esc(v.youtube.title)+' · 구독자 '+num(v.youtube.subs)+' · ':''}${esc(shortPath(v.folder))}</div>
           </div>
           <div style="text-align:right;flex-shrink:0">
-            <div style="font-size:11px;color:var(--t2)">오늘 ${st.todayCount??0}/${st.dailyLimit??6}</div>
+            <div style="font-size:11px;color:var(--t2)">오늘 ${st.todayCount??0}/${(st.dailyLimit??6)>0?(st.dailyLimit??6):'무제한'}</div>
             <div style="font-size:9px;color:var(--t3)">${st.limitReached?'한도 도달':'남음 '+(st.capacityLeft??0)}</div>
           </div>
           <span class="chrow-arr">▶</span>
@@ -1352,7 +1352,8 @@ function renderChannelList(){
                 <option value="" ${!v.language?'selected':''}>지정 안 함</option>
               </select></div>
             <div><label class="flabel">하루 업로드 한도</label>
-              <input class="fin" id="f_${v.id}_dailyLimit" type="number" min="1" max="50" value="${v.dailyLimit}"/></div>
+              <input class="fin" id="f_${v.id}_dailyLimit" type="number" min="0" max="50" value="${v.dailyLimit}"/>
+              <div class="hintline">0 이면 하루 한도 없이, 새 영상이 들어오는 대로 올립니다.</div></div>
           </div>
 
           <label class="flabel" style="margin-top:12px">제목 앞뒤에 붙일 말</label>

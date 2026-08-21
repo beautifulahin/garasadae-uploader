@@ -337,7 +337,8 @@ export function startServer(engine: Manager, port: number) {
         for (const k of ["madeForKids", "notifySubscribers", "reviewMode", "enabled"] as const) {
           if (patch[k] !== undefined) (ch[k] as boolean) = !!patch[k];
         }
-        if (patch.dailyLimit !== undefined) ch.dailyLimit = clamp(patch.dailyLimit, 1, 50, 6);
+        // 0 = 하루 한도 없음 (사용자 지시 2026-08-21)
+        if (patch.dailyLimit !== undefined) ch.dailyLimit = clamp(patch.dailyLimit, 0, 50, 6);
         if (Array.isArray(patch.tags)) ch.tags = patch.tags;
         else if (typeof patch.tags === "string") {
           ch.tags = patch.tags.split(",").map((s: string) => s.trim()).filter(Boolean);
