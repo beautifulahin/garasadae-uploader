@@ -30,7 +30,7 @@ bin="dist/맥-애플실리콘/가라사대 업로더.app/Contents/MacOS/Garasada
 leaked=$(strings "$bin" 2>/dev/null | grep -c 'sidecarPath\|readSidecar' || true)
 [ "$leaked" = "0" ] || { echo "❌ 배포본에 개인판 기능이 섞여 있습니다($leaked곳). 올리지 않습니다."; exit 1; }
 
-notes="배포/릴리스노트_${소스버전}.md"
+notes="배포/릴리스노트_${src_ver}.md"
 [ -f "$notes" ] || { echo "❌ $notes 가 없습니다."; exit 1; }
 
 echo "✅ 검사 통과 — main · v$src_ver · 깨끗함. 올립니다."
