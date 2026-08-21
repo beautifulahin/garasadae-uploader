@@ -95,6 +95,15 @@ sys.exit(1 if fail else 0)
 PY
 [ $? -ne 0 ] && FAIL=1
 
+echo "── 6.5 개인판 논리 (중복 막기·공개 슬롯) ─────"
+# 순수 함수라 앱을 안 띄우고도 시험할 수 있다. 여기서 막히면 빌드하지 않는다.
+if deno run --allow-read --allow-write --allow-env --no-lock 개인판시험.ts 2>&1 | sed 's/^/  /' | grep -q "전부 통과"; then
+  echo "  ✅ 개인판 논리 21종 통과"
+else
+  deno run --allow-read --allow-write --allow-env --no-lock 개인판시험.ts 2>&1 | sed 's/^/  /'
+  FAIL=1
+fi
+
 echo "── 7. 실제 실행 · 이전(마이그레이션) ─────────"
 T=$(mktemp -d)
 mkdir -p "$T/옛폴더"

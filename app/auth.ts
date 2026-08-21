@@ -10,6 +10,31 @@ const REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 export const SCOPE =
   "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly";
 
+/** 고급 기능(첫 댓글·제목 갈아끼우기)에 필요한 권한.
+ *
+ * ★이것은 **쓰기 권한**이라 삭제까지 포함한다. 그래서 여태 일부러 안 받았다
+ *   ("업로드 권한만 받고 삭제 권한은 아예 안 받는다" — README).
+ * ★그 채널에서 **고급 기능을 켰을 때만** 더 받는다. 안 켠 채널은 예전 그대로다.
+ * ★이미 로그인해 둔 채널은 옛 권한을 들고 있다 — 켜기만 해서는 안 되고
+ *   **그 채널을 다시 연결**해야 한다(고급권한있나 로 가려낸다). */
+export const FORCE_SSL = "https://www.googleapis.com/auth/youtube.force-ssl";
+
+/** 이 채널이 고급 기능을 쓰나 */
+export function 고급기능켰나(ch: Channel): boolean {
+  return !!ch.firstComment || (ch.retitleHours ?? 0) > 0;
+}
+
+/** 이 채널을 로그인할 때 달라고 할 권한 */
+export function scopeFor(ch: Channel): string {
+  return 고급기능켰나(ch) ? `${SCOPE} ${FORCE_SSL}` : SCOPE;
+}
+
+/** 지금 들고 있는 토큰에 고급 권한이 들어 있나. 옛 토큰에는 scope 자체가 없다. */
+export async function 고급권한있나(channelId: string): Promise<boolean> {
+  const t = await loadTokens(channelId);
+  return !!t?.scope?.includes(FORCE_SSL);
+}
+
 const b64url = (buf: ArrayBuffer) =>
   btoa(String.fromCharCode(...new Uint8Array(buf)))
     .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -37,7 +62,7 @@ export async function authUrl(cfg: Config, ch: Channel): Promise<string> {
     client_id: clientId,
     redirect_uri: redirect,
     response_type: "code",
-    scope: SCOPE,
+    scope: scopeFor(ch),
     access_type: "offline",
     // select_account 를 함께 보내야 **계정·채널 고르는 화면이 매번 뜬다.**
     // consent 만 보내면 구글이 지난번 고른 것으로 조용히 넘어가, 채널이 여러 개인
@@ -88,6 +113,9 @@ export async function exchange(
     access_token: j.access_token,
     refresh_token: j.refresh_token,
     expires_at: Date.now() + (j.expires_in ?? 3600) * 1000 - 60_000,
+    // 구글이 **실제로 준** 권한을 적어 둔다. 달라고 한 것과 다를 수 있다
+    // (동의 화면에서 사용자가 일부만 체크할 수 있다).
+    scope: typeof j.scope === "string" ? j.scope : scopeFor(ch),
   };
   await saveTokens(ch.id, tok);
   await checkChannel(ch.id, tok);
@@ -116,6 +144,7 @@ export async function accessToken(cfg: Config, ch: Channel): Promise<string> {
   if (!r.ok) throw new UploadError(explain(j), "config", consoleLinkFor(j));
   tok.access_token = j.access_token;
   tok.expires_at = Date.now() + (j.expires_in ?? 3600) * 1000 - 60_000;
+  if (typeof j.scope === "string") tok.scope = j.scope;
   await saveTokens(ch.id, tok);
   return tok.access_token!;
 }

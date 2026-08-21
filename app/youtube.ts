@@ -8,6 +8,8 @@ export type { ErrKind };
 const CHUNK = 8 * 1024 * 1024;               // 256KB 배수여야 함
 export const UPLOAD_COST = 1600;             // 업로드 1건당 쿼터
 export const THUMB_COST = 50;                // 배너(썸네일) 1건당 쿼터
+export const LIST_COST = 1;                  // 목록으로 읽기 — 한 번에 50편까지 1점
+export const WRITE_COST = 50;                // 댓글 달기·제목 고치기 각각 50점
 export const DAILY_QUOTA = 10000;
 
 export interface VideoMeta {
@@ -307,4 +309,154 @@ async function apiError(res: Response): Promise<UploadError> {
     return new UploadError(`권한 오류: ${detail || "확인이 필요합니다"}`, "config");
   }
   return new UploadError(`업로드 실패 (${res.status}) ${detail}`, "fatal");
+}
+
+/* ============================================================ 성적 읽기 */
+
+export interface StatItem {
+  id: string;
+  views: number;
+  likes: number;
+  comments: number;
+  title: string;
+  privacy: string;
+}
+
+/**
+ * 올린 영상들의 조회수·좋아요·댓글을 한꺼번에 물어본다.
+ *
+ * ★한 번에 **50편까지** 물을 수 있고 그래도 **1점**이다(업로드 한 편이 1600점인
+ *   것에 견주면 거저다). 그래서 50편씩 끊어 부른다.
+ * ★`youtube.readonly` 권한으로 된다 — 이미 받아 둔 것이라 다시 로그인할 일이 없다.
+ * ★돌려주지 않은 id 는 **사라진 영상**이다(지웠거나 유튜브가 내렸다). 부른 쪽에서
+ *   가려낼 수 있게 `missing` 으로 따로 알린다.
+ */
+export async function fetchStats(
+  cfg: Config,
+  ch: Channel,
+  ids: string[],
+): Promise<{ items: StatItem[]; missing: string[]; calls: number }> {
+  const items: StatItem[] = [];
+  const found = new Set<string>();
+  let calls = 0;
+  if (!ids.length) return { items, missing: [], calls };
+
+  const token = await accessToken(cfg, ch);
+  for (let i = 0; i < ids.length; i += 50) {
+    const 묶음 = ids.slice(i, i + 50);
+    const url = "https://www.googleapis.com/youtube/v3/videos" +
+      `?part=statistics,snippet,status&id=${묶음.map(encodeURIComponent).join(",")}`;
+    const r = await fetch(url, { headers: { Authorization: "Bearer " + token } });
+    calls++;
+    if (!r.ok) throw await apiError(r);
+    const j = await r.json();
+    for (const it of j.items ?? []) {
+      found.add(it.id);
+      items.push({
+        id: it.id,
+        views: Number(it.statistics?.viewCount ?? 0),
+        likes: Number(it.statistics?.likeCount ?? 0),
+        comments: Number(it.statistics?.commentCount ?? 0),
+        title: it.snippet?.title ?? "",
+        privacy: it.status?.privacyStatus ?? "",
+      });
+    }
+  }
+  return { items, missing: ids.filter((id) => !found.has(id)), calls };
+}
+
+/* ============================================================ 뒷일 (force-ssl) */
+
+/**
+ * 영상에 댓글을 단다 — 올린 직후의 '첫 댓글'.
+ *
+ * ★유튜브 API 에는 **댓글을 고정하는 길이 없다.** 다는 것까지가 끝이고, 고정은
+ *   스튜디오에서 손으로 눌러야 한다. 없는 기능을 있는 척하지 않는다.
+ * ★`youtube.force-ssl` 권한이 있어야 한다. 없으면 403 이 온다.
+ * ★던지지 않는다 — 영상은 이미 올라가 있다. 안 되면 까닭만 돌려준다.
+ */
+export async function insertComment(
+  cfg: Config,
+  ch: Channel,
+  videoId: string,
+  text: string,
+): Promise<{ ok: boolean; message: string }> {
+  const 글 = text.trim().slice(0, 9000);
+  if (!글) return { ok: false, message: "댓글에 적을 글이 비어 있습니다" };
+  try {
+    const token = await accessToken(cfg, ch);
+    const r = await fetch(
+      "https://www.googleapis.com/youtube/v3/commentThreads?part=snippet",
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + token,
+          "Content-Type": "application/json; charset=UTF-8",
+        },
+        body: JSON.stringify({
+          snippet: { videoId, topLevelComment: { snippet: { textOriginal: 글 } } },
+        }),
+      },
+    );
+    if (!r.ok) return { ok: false, message: await 권한말(r, "댓글") };
+    return { ok: true, message: "" };
+  } catch (e) {
+    return { ok: false, message: `댓글 실패 (${e instanceof Error ? e.message : e})` };
+  }
+}
+
+/**
+ * 이미 올린 영상의 제목을 갈아끼운다.
+ *
+ * ★`videos.update` 는 **보낸 것으로 통째로 덮는다.** 제목만 보내면 설명·태그가
+ *   지워진다. 그래서 지금 것을 먼저 읽어 와서 제목만 바꿔 되돌려 준다.
+ * ★categoryId 는 안 보내면 거부당한다 — 읽어 온 것을 그대로 실어 보낸다.
+ */
+export async function updateVideoTitle(
+  cfg: Config,
+  ch: Channel,
+  videoId: string,
+  title: string,
+): Promise<{ ok: boolean; message: string; before: string }> {
+  const 새제목 = title.trim().slice(0, 100);
+  if (!새제목) return { ok: false, message: "바꿀 제목이 비어 있습니다", before: "" };
+  try {
+    const token = await accessToken(cfg, ch);
+    const g = await fetch(
+      `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(videoId)}`,
+      { headers: { Authorization: "Bearer " + token } },
+    );
+    if (!g.ok) return { ok: false, message: await 권한말(g, "제목 바꾸기"), before: "" };
+    const 지금 = (await g.json()).items?.[0];
+    if (!지금) return { ok: false, message: "그 영상을 찾지 못했습니다", before: "" };
+    const sn = 지금.snippet ?? {};
+    const before: string = sn.title ?? "";
+    if (before === 새제목) return { ok: true, message: "이미 그 제목입니다", before };
+
+    const r = await fetch("https://www.googleapis.com/youtube/v3/videos?part=snippet", {
+      method: "PUT",
+      headers: {
+        Authorization: "Bearer " + token,
+        "Content-Type": "application/json; charset=UTF-8",
+      },
+      // ★읽어 온 snippet 을 통째로 되돌려 주면서 제목만 바꾼다.
+      body: JSON.stringify({ id: videoId, snippet: { ...sn, title: 새제목 } }),
+    });
+    if (!r.ok) return { ok: false, message: await 권한말(r, "제목 바꾸기"), before };
+    return { ok: true, message: "", before };
+  } catch (e) {
+    return { ok: false, message: `제목 바꾸기 실패 (${e instanceof Error ? e.message : e})`, before: "" };
+  }
+}
+
+/** 403 이면 십중팔구 권한을 안 받은 것이다 — 그렇게 말해 준다. */
+async function 권한말(r: Response, 무엇: string): Promise<string> {
+  let txt = "";
+  try { txt = await r.text(); } catch { /* 무시 */ }
+  if (r.status === 403 || /insufficient|forbidden|scope/i.test(txt)) {
+    return `${무엇} 권한이 없습니다 — 채널 탭에서 그 채널을 **다시 연결**해야 합니다`;
+  }
+  let detail = "";
+  try { detail = JSON.parse(txt).error?.message ?? ""; } catch { detail = txt.slice(0, 120); }
+  return `${무엇} 실패 (${r.status}) ${detail}`.trim();
 }

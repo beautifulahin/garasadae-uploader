@@ -287,6 +287,7 @@ textarea.fin{resize:vertical;line-height:1.6}
   <span id="panelTabs"></span>
   <button class="tab on" data-tab="t1" onclick="swTab('t1')">👀 감시 중</button>
   <button class="tab" data-tab="t2" onclick="swTab('t2')">📋 기록</button>
+  <button class="tab" data-tab="t7" onclick="swTab('t7')">📊 성적</button>
   <button class="tab" data-tab="t3" onclick="swTab('t3')">📺 채널</button>
   <button class="tab" data-tab="t4" onclick="swTab('t4')">⚙️ 설정</button>
   <button class="tab" data-tab="t5" onclick="swTab('t5')">🚀 시작하기</button>
@@ -370,6 +371,24 @@ textarea.fin{resize:vertical;line-height:1.6}
   <div id="histList"></div>
   <div class="stit" style="margin-top:26px">📜 로그</div>
   <pre id="logBox" style="background:var(--bg1);border:1px solid var(--bdr);border-radius:var(--r);padding:14px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--t2);line-height:1.7;max-height:340px;overflow:auto;white-space:pre-wrap"></pre>
+</div>
+
+<!-- ============ 성적 ============ -->
+<div class="tp solo" id="t7">
+  <div class="stit">📊 올린 뒤 성적</div>
+  <div class="ssub">
+    <b>시간당 조회수</b> 로 세웠습니다 — 어제 올린 편과 방금 올린 편을 같은 자리에서 견주려면
+    총 조회수로는 안 되고 시간으로 나눠야 합니다. 한 시간마다 저절로 다시 잽니다.
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+    <div class="chsel" id="statFilter" style="margin:0"></div>
+    <span style="flex:1"></span>
+    <span id="statAt" style="font-size:10px;color:var(--t3)"></span>
+    <button class="tb" id="statBtn" onclick="refreshStats()">🔄 지금 다시 재기</button>
+  </div>
+  <div id="statTop"></div>
+  <div id="statList"></div>
+  <div id="statJobs"></div>
 </div>
 
 <!-- ============ 채널 ============ -->
@@ -904,7 +923,7 @@ function swTab(id){
       f.src=u+(u.indexOf('?')>=0?'&':'?')+'t='+Date.now();
     }
   }
-  tab=id;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===id));document.querySelectorAll('.tp').forEach(p=>p.classList.toggle('on',p.id===id));if(id==='t2')loadLog();if(id==='t4')fillSettings();if(id==='t3')renderChannelList();}
+  tab=id;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===id));document.querySelectorAll('.tp').forEach(p=>p.classList.toggle('on',p.id===id));if(id==='t2')loadLog();if(id==='t4')fillSettings();if(id==='t3')renderChannelList();if(id==='t7')renderStats();}
 const setSw=(id,on)=>$(id)&&$(id).classList.toggle('on',!!on);
 const getSw=id=>$(id)?$(id).classList.contains('on'):false;
 function tglSw(id){$(id).classList.toggle('on')}
@@ -1005,6 +1024,7 @@ function paint(){
   renderCards(s.items);
   renderThumbs(s.uploads.slice(0,8));
   if(tab==='t2')renderHist(s.uploads);
+  if(tab==='t7')renderStats();
 
   paintUpdate(s.update,s.updating,s.updatePrompt);
   renderPanels(s.panels);
@@ -1174,7 +1194,8 @@ function renderCards(items){
 
     const bd=q('bd');
     bd.className='badge '+({watching:'wait',ready:'wait',uploading:'up',done:'done',error:'err'}[it.status]);
-    bd.textContent={watching:'저장 대기',ready:'준비됨',uploading:'업로드 중',done:'완료',error:'실패'}[it.status];
+    bd.textContent=it.dup?'중복 — 세움'
+      :{watching:'저장 대기',ready:'준비됨',uploading:'업로드 중',done:'완료',error:'실패'}[it.status];
     bd.classList.toggle('pulse',it.status==='watching'||it.status==='uploading');
 
     const ti=q('ti'), de=q('de');
@@ -1189,12 +1210,17 @@ function renderCards(items){
     if(it.status==='ready'&&ch.reviewMode)html+=`<button class="tb on" onclick="uploadNow('${jsEsc(it.key)}')">⬆️ 지금 업로드</button>`;
     if(it.status==='ready'&&!ch.reviewMode)html+=`<span style="font-size:10px;color:var(--t3)">곧 자동으로 업로드됩니다…</span>`;
     if(it.status==='watching')html+=`<span style="font-size:10px;color:var(--t3)">파일 저장이 끝나기를 기다리는 중 (${it.stable}/${ST.settings.stableChecks})</span>`;
-    if(it.status==='error'){
+    if(it.dup){
+      // 같은 편이라 세운 것 — 다시 시도가 아니라 **일부러 넘기는** 단추를 낸다
+      html+=`<button class="tb on" onclick="forceItem('${jsEsc(it.key)}')">⏭ 그래도 올리기</button>`
+           +`<button class="tb" onclick="swTab('t7')">📊 올린 것 보기</button>`;
+    } else if(it.status==='error'){
       html+=`<button class="tb" onclick="uploadNow('${jsEsc(it.key)}')">🔄 다시 시도</button>`;
       if(it.helpUrl)html+=`<button class="tb on" onclick="ext('${it.helpUrl}')">🔗 해결하러 가기</button>`;
       html+=`<button class="tb" onclick="ext('https://beautifulahin.github.io/garasadae-uploader/errors.html')">🩺 오류 사전</button>`;
       if(it.retryAt>Date.now())html+=`<span style="font-size:10px;color:var(--t3)">${Math.ceil((it.retryAt-Date.now())/1000)}초 뒤 자동 재시도</span>`;
     }
+    if(it.publishAt)html+=`<span style="font-size:10px;color:var(--cyan)">⏰ ${때말(it.publishAt)} 에 공개</span>`;
     if(it.status!=='uploading'&&it.status!=='done')html+=`<button class="tb" onclick="holdItem('${jsEsc(it.key)}')">⏸ 보류</button>`;
     if(it.status==='done'&&it.verified)html+=`<span style="font-size:10px;color:var(--cyan)">🔎 유튜브에서 확인됨</span>`;
     if(it.status==='done'&&it.videoId){
@@ -1214,7 +1240,7 @@ function renderCards(items){
     let er=c.querySelector('.qc-err');
     if(it.status==='error'&&it.error){
       if(!er){er=document.createElement('div');er.className='qc-err';c.appendChild(er)}
-      er.textContent='⚠️ '+it.error;
+      er.textContent=(it.dup?'🛑 ':'⚠️ ')+it.error;
     } else if(er)er.remove();
   });
 }
@@ -1232,6 +1258,19 @@ function pushMeta(key,card){
 }
 async function uploadNow(key){const r=await api('/api/item/upload',{key});r.error?msg(r.error,'err'):msg('업로드를 시작합니다','ok');poll()}
 async function holdItem(key){await api('/api/item/hold',{key});msg('_보류 폴더로 옮겼습니다');poll()}
+async function forceItem(key){
+  if(!confirm('같은 편이 이미 올라가 있습니다.\n\n그래도 올릴까요? 유튜브에 같은 영상이 두 개가 됩니다.'))return;
+  const r=await api('/api/item/force',{key});
+  r.ok?msg('중복 경고를 넘기고 올립니다','ok'):msg('지금은 넘길 수 없습니다','err');
+  poll();
+}
+/** "8월 22일(토) 07:00" */
+function 때말(iso){
+  const d=new Date(iso); if(isNaN(d))return iso;
+  const 요일=['일','월','화','수','목','금','토'][d.getDay()];
+  const p=n=>String(n).padStart(2,'0');
+  return `${d.getMonth()+1}월 ${d.getDate()}일(${요일}) ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 async function togglePause(){const r=await api('/api/pause',{on:!ST.paused});msg(r.paused?'감시를 멈췄습니다':'감시를 재개합니다');poll()}
 
 /* ================= 최근 영상 · 기록 ================= */
@@ -1282,6 +1321,120 @@ async function loadLog(){
   const m=$('logMini');
   if(m){ m.textContent=(r.lines||[]).slice(-14).join('\n')||'(기록 없음)'; m.scrollTop=m.scrollHeight; }
 }
+/* ================= 성적 ================= */
+let statCh='';
+const 수=n=>(n||0).toLocaleString('ko-KR');
+
+async function refreshStats(){
+  const b=$('statBtn'); if(b){b.disabled=true;b.textContent='재는 중…'}
+  try{ await api('/api/stats/refresh',{}); msg('성적을 다시 쟀습니다','ok'); }
+  catch(e){ msg('성적을 못 읽었습니다','err'); }
+  if(b){b.disabled=false;b.textContent='🔄 지금 다시 재기'}
+  await poll(); renderStats();
+}
+
+function renderStats(){
+  if(!ST)return;
+  const chans=(ST.channelList||[]);
+  const 전부=(ST.stats||[]);
+  $('statFilter').innerHTML=chans.length>1
+    ? `<button class="${statCh?'':'on'}" onclick="statCh='';renderStats()">전체</button>`
+      +chans.map(c=>`<button class="${statCh===c.id?'on':''}" onclick="statCh='${c.id}';renderStats()">${esc(c.name)}</button>`).join('')
+    : '';
+  const rows=statCh?전부.filter(r=>r.channelId===statCh):전부;
+
+  // 언제 쟀나
+  const at=ST.statsAt?new Date(ST.statsAt):null;
+  $('statAt').textContent=ST.statsBusy?'재는 중…'
+    :at?`${at.toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})} 에 쟀습니다`
+    :'아직 재지 않았습니다';
+
+  const box=$('statList'), top=$('statTop');
+  if(!rows.length){
+    top.innerHTML='';
+    box.innerHTML='<div class="empty"><div class="empty-i">📊</div><div class="empty-t">아직 잴 것이 없습니다</div>'
+      +'<div class="empty-d">영상을 올리면 조회수·좋아요·댓글을 여기에 모읍니다.<br>'
+      +'이미 받아 둔 읽기 권한으로 물어보기 때문에 <b>다시 로그인할 일은 없습니다</b>.</div></div>';
+    renderStatJobs(); return;
+  }
+
+  // 맨 위 요약 — 잰 것만 센다
+  const 잰것=rows.filter(r=>r.measured&&!r.gone);
+  const 합=잰것.reduce((a,r)=>a+r.views,0);
+  const 최고=잰것[0];
+  const 중간=잰것.length?잰것[Math.floor(잰것.length/2)].perHour:0;
+  top.innerHTML=잰것.length?`<div class="dashcards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px">
+    ${칸('편수',수(잰것.length)+'편','최근 45일')}
+    ${칸('조회수 합',수(합),'')}
+    ${칸('가장 센 편',수(최고.perHour)+'/시간',최고.title.slice(0,22))}
+    ${칸('가운데 편',수(중간)+'/시간','이보다 아래면 안 먹힌 것')}
+  </div>`:'';
+
+  box.innerHTML=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:640px">
+    <thead><tr style="color:var(--t3);font-size:10px;text-align:left">
+      <th style="padding:6px 8px">영상</th>
+      <th style="padding:6px 8px;text-align:right;white-space:nowrap">시간당</th>
+      <th style="padding:6px 8px;text-align:right">조회수</th>
+      <th style="padding:6px 8px;text-align:right">좋아요</th>
+      <th style="padding:6px 8px;text-align:right">댓글</th>
+      <th style="padding:6px 8px;text-align:right;white-space:nowrap">참여도</th>
+      <th style="padding:6px 8px;white-space:nowrap">올린 때</th>
+    </tr></thead><tbody>
+    ${rows.map((r,i)=>`<tr style="border-top:1px solid var(--bdr)${r.gone?';opacity:.45':''}">
+      <td style="padding:7px 8px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="color:var(--t3);font-size:10px;width:16px;text-align:right">${i+1}</span>
+          <img src="https://i.ytimg.com/vi/${r.id}/default.jpg" alt="" style="width:44px;height:25px;object-fit:cover;border-radius:3px;flex-shrink:0" onerror="this.style.visibility='hidden'"/>
+          <a href="https://www.youtube.com/watch?v=${r.id}" target="_blank" rel="noopener"
+             style="color:inherit;text-decoration:none;font-weight:600" title="유튜브에서 보기">${esc(r.title)}</a>
+          ${r.gone?'<span class="chbadge no">사라짐</span>':''}
+          ${!r.measured?'<span class="chbadge">아직 안 잼</span>':''}
+          ${r.privacy&&r.privacy!=='public'?`<span class="pv ${r.privacy}">${({unlisted:'일부공개',private:'비공개'})[r.privacy]||r.privacy}</span>`:''}
+        </div>
+      </td>
+      <td style="padding:7px 8px;text-align:right;font-weight:700;color:${색(r.perHour,rows)}">${수(r.perHour)}</td>
+      <td style="padding:7px 8px;text-align:right">${수(r.views)}</td>
+      <td style="padding:7px 8px;text-align:right;color:var(--t2)">${수(r.likes)}</td>
+      <td style="padding:7px 8px;text-align:right;color:var(--t2)">${수(r.comments)}</td>
+      <td style="padding:7px 8px;text-align:right;color:var(--t2)">${r.engage?r.engage+'%':'—'}</td>
+      <td style="padding:7px 8px;color:var(--t3);white-space:nowrap">${r.at.replace('T',' ').slice(5,16)}<br>
+        <span style="font-size:9px">${r.hours<48?Math.round(r.hours)+'시간 전':Math.round(r.hours/24)+'일 전'}</span></td>
+    </tr>`).join('')}
+    </tbody></table></div>`;
+  renderStatJobs();
+}
+
+function 칸(제목,값,밑){
+  return `<div style="background:var(--bg1);border:1px solid var(--bdr);border-radius:var(--r);padding:11px 13px">
+    <div style="font-size:10px;color:var(--t3)">${esc(제목)}</div>
+    <div style="font-size:18px;font-weight:700;margin-top:3px">${esc(String(값))}</div>
+    ${밑?`<div style="font-size:9px;color:var(--t3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(밑)}</div>`:''}
+  </div>`;
+}
+/** 가운데보다 위면 파랑, 아래면 흐리게 — 눈으로 바로 갈리게 */
+function 색(v,rows){
+  const 잰것=rows.filter(r=>r.measured&&!r.gone);
+  if(!잰것.length)return 'var(--t2)';
+  const 중간=잰것[Math.floor(잰것.length/2)].perHour;
+  return v>중간*1.5?'var(--cyan)':v<중간?'var(--t3)':'var(--t1)';
+}
+
+/** 걸어 둔 뒷일(첫 댓글·제목 갈아끼우기) */
+function renderStatJobs(){
+  const jobs=(ST&&ST.jobs)||[];
+  const box=$('statJobs');
+  if(!jobs.length){box.innerHTML='';return}
+  box.innerHTML=`<div class="stit" style="margin-top:24px;font-size:13px">⏳ 걸어 둔 뒷일</div>
+    <div class="ssub">때가 되면 저절로 합니다. 첫 댓글은 <b>다는 것까지만</b> 합니다 — 고정은 유튜브가 API 로 안 열어 줘서 스튜디오에서 손으로 눌러야 합니다.</div>
+    ${jobs.map(j=>`<div class="hrow" style="padding:9px 12px">
+      <div class="hrow-i">
+        <div class="hrow-t">${j.kind==='comment'?'💬 첫 댓글':'✏️ 제목 갈아끼우기'} — ${esc(j.text)}</div>
+        <div class="hrow-m">${new Date(j.at).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})} 에 합니다${j.tries?` · ${j.tries}번 엎어졌습니다`:''}</div>
+      </div>
+      <a class="tb" href="https://www.youtube.com/watch?v=${j.videoId}" target="_blank" rel="noopener" style="text-decoration:none">▶️ 보기</a>
+    </div>`).join('')}`;
+}
+
 /* ================= 채널 관리 ================= */
 const CATS=[['22','인물/블로그'],['1','영화/애니메이션'],['2','자동차/교통'],['10','음악'],['15','애완동물/동물'],
   ['17','스포츠'],['19','여행/이벤트'],['20','게임'],['23','코미디'],['24','엔터테인먼트'],['25','뉴스/정치'],
@@ -1387,6 +1540,37 @@ function renderChannelList(){
           <div class="sw" onclick="tglSw('f_${v.id}_notifySubscribers')"><span>구독자에게 알림</span><div class="tgl ${v.notifySubscribers?'on':''}" id="f_${v.id}_notifySubscribers"></div></div>
           <div class="sw" onclick="tglSw('f_${v.id}_enabled')"><span>이 채널 사용</span><div class="tgl ${v.enabled?'on':''}" id="f_${v.id}_enabled"></div></div>
 
+          <div class="subhead">같은 편 두 번 올리기 막기</div>
+          <div class="sw" onclick="tglSw('f_${v.id}_dupGuard')">
+            <span>이미 올린 편이면 세운다
+              <small style="color:var(--t3)">— 파일이 같거나 제목이 같으면 올리기 전에 멈추고 물어봅니다 (최근 30일)</small></span>
+            <div class="tgl ${v.dupGuard?'on':''}" id="f_${v.id}_dupGuard"></div>
+          </div>
+
+          <div class="subhead">공개 시각 나누기</div>
+          <label class="flabel">공개할 자리</label>
+          <input class="fin" id="f_${v.id}_publishSlots" value="${esc((v.publishSlots||[]).join(', '))}" placeholder="예: 07:00, 12:00, 19:00"/>
+          <div class="hintline">
+            적어 두면 <b>아직 안 찬 가장 이른 자리</b>에 예약 공개로 걸립니다.
+            <b>올리는 것은 그대로 즉시</b>고 뜨는 시각만 나눠집니다 — 여러 편이 한꺼번에 떠서 서로 갉아먹는 것을 막습니다.
+            비워 두면 예전처럼 예약 없이 바로 올립니다. (쪽지에 <code>publishAt</code> 이 적혀 있으면 그쪽이 먼저입니다)
+          </div>
+
+          <div class="subhead">첫 댓글 · 제목 갈아끼우기 <span class="chbadge">추가 권한</span></div>
+          <div class="hintline" style="margin-bottom:8px">
+            이 둘은 <b>쓰기 권한(youtube.force-ssl)</b> 이 있어야 됩니다. 켠 뒤에 이 채널을 <b>다시 연결</b>해야 실제로 돕니다.
+            쓰기 권한에는 삭제 권한도 딸려 옵니다 — 필요 없으면 켜지 마세요.
+            ${v.고급켬&&v.authed&&!v.고급권한?'<br><b style="color:var(--amber,#e0a458)">⚠️ 지금은 옛 권한으로 연결돼 있습니다 — 위의 「연결 해제」 뒤 다시 연결해 주세요.</b>':''}
+          </div>
+          <div class="sw" onclick="tglSw('f_${v.id}_firstComment')">
+            <span>올린 뒤 첫 댓글 달기
+              <small style="color:var(--t3)">— 쪽지의 firstComment 에 적힌 글. 고정은 스튜디오에서 손으로 (유튜브가 API 로 안 열어 줍니다)</small></span>
+            <div class="tgl ${v.firstComment?'on':''}" id="f_${v.id}_firstComment"></div>
+          </div>
+          <label class="flabel" style="margin-top:10px">몇 시간 뒤 제목을 갈아끼울까</label>
+          <input class="fin" id="f_${v.id}_retitleHours" type="number" min="0" max="720" value="${v.retitleHours||0}"/>
+          <div class="hintline">0 이면 안 합니다. 쪽지에 <code>titleB</code> 가 적혀 있는 편만 바뀝니다.</div>
+
           ${v.sharesWith?'':`
           <div class="subhead">구글 클라이언트</div>
           <label class="flabel">클라이언트 ID</label>
@@ -1447,7 +1631,9 @@ async function saveChannel(id){
     titleSuffix:g('titleSuffix'), tags:g('tags'), description:g('description'),
     afterUpload:g('afterUpload'), studioAfter:g('studioAfter'),
     reviewMode:sw('reviewMode'), madeForKids:sw('madeForKids'),
-    notifySubscribers:sw('notifySubscribers'), enabled:sw('enabled')};
+    notifySubscribers:sw('notifySubscribers'), enabled:sw('enabled'),
+    dupGuard:sw('dupGuard'), publishSlots:g('publishSlots'),
+    firstComment:sw('firstComment'), retitleHours:+g('retitleHours')};
   const cid=g('clientId'); if(cid!==undefined)body.clientId=cid;
   const sec=g('clientSecret'); if(sec!==undefined&&sec!=='********')body.clientSecret=sec;
   const r=await api('/api/channel/update',body);

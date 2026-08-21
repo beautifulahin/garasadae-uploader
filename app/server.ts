@@ -2,9 +2,9 @@
 import {
   APP_NAME, APP_VERSION, buildLabel, CHANNEL_DEFAULTS, Channel, Config, IS_MAC, IS_WIN, REPO,
   clearTokens, credsOf, dataDir, desktopDir, join, loadConfig, loadTokens, log,
-  newChannelId, safeFolderName, saveConfig, tailLog,
+  newChannelId, safeFolderName, saveConfig, tailLog, 슬롯정리,
 } from "./paths.ts";
-import { accessToken, authUrl, checkChannel, exchange, revoke, 채널id메우기 } from "./auth.ts";
+import { accessToken, authUrl, checkChannel, exchange, revoke, 고급권한있나, 고급기능켰나, 채널id메우기 } from "./auth.ts";
 import { Manager, studioEditorUrl } from "./watcher.ts";
 import { autoStartEnabled, isCompiled, listBrowsers, openPath, openUrl, pickFolder, setAutoStart, 쓰던탭에다시 } from "./platform.ts";
 import { checkUpdate, installUpdate, UpdateInfo } from "./update.ts";
@@ -123,6 +123,9 @@ async function channelView(cfg: Config, ch: Channel) {
     channelErrorUrl: tok?.channelErrorUrl ?? "",
     usesCredsOf: ch.sharesWith,
     hasCreds: !!credsOf(cfg, ch).clientId,
+    // 고급 기능을 켰는데 옛 권한으로 로그인돼 있으면 화면에서 알려 줘야 한다
+    고급켬: 고급기능켰나(ch),
+    고급권한: !!tok && await 고급권한있나(ch.id),
   };
 }
 
@@ -339,6 +342,16 @@ export function startServer(engine: Manager, port: number) {
         }
         // 0 = 하루 한도 없음 (사용자 지시 2026-08-21)
         if (patch.dailyLimit !== undefined) ch.dailyLimit = clamp(patch.dailyLimit, 0, 50, 6);
+        if (patch.dupGuard !== undefined) ch.dupGuard = !!patch.dupGuard;
+        if (patch.firstComment !== undefined) ch.firstComment = !!patch.firstComment;
+        if (patch.retitleHours !== undefined) ch.retitleHours = clamp(patch.retitleHours, 0, 720, 0);
+        if (patch.publishSlots !== undefined) {
+          // 화면에서는 "07:00, 12:00, 19:00" 처럼 한 줄로 적는다
+          const 날것 = Array.isArray(patch.publishSlots)
+            ? patch.publishSlots
+            : String(patch.publishSlots).split(/[,\s]+/);
+          ch.publishSlots = 슬롯정리(날것);
+        }
         if (Array.isArray(patch.tags)) ch.tags = patch.tags;
         else if (typeof patch.tags === "string") {
           ch.tags = patch.tags.split(",").map((s: string) => s.trim()).filter(Boolean);
@@ -477,6 +490,20 @@ export function startServer(engine: Manager, port: number) {
         if (!it.title.trim()) return json({ error: "제목을 입력해 주세요." }, 400);
         engine.uploadOne(it);
         return json({ ok: true });
+      }
+
+      // 중복이라 세워 둔 것을 그래도 올린다
+      if (p === "/api/item/force" && req.method === "POST") {
+        const { key } = await req.json();
+        const ok = engine.force(String(key ?? ""));
+        if (ok) await log(`▶️  사용자가 중복 경고를 넘기고 올리기로 했습니다: ${key}`);
+        return json({ ok });
+      }
+
+      // 성적을 지금 다시 잰다
+      if (p === "/api/stats/refresh" && req.method === "POST") {
+        await engine.성적재기(true);
+        return json({ ok: true, statsAt: engine.state.statsAt });
       }
 
       if (p === "/api/item/hold" && req.method === "POST") {

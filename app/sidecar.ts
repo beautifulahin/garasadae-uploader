@@ -28,6 +28,11 @@ export interface Sidecar {
    *  ★유튜브는 **비공개로 올린 것만** 예약할 수 있다. privacy 를 안 적으면 여기서
    *    private 으로 맞춘다 — 안 그러면 유튜브가 예약을 통째로 무시한다. */
   publishAt?: string;
+  /** 올린 직후 달 첫 댓글. 채널에서 `firstComment` 를 켜 두어야 나간다.
+   *  ★고정은 못 한다 — 유튜브 API 에 고정하는 길이 없다. 스튜디오에서 손으로 누른다. */
+  firstComment?: string;
+  /** 갈아끼울 두 번째 제목. 채널의 `retitleHours` 가 지나면 이것으로 바뀐다. */
+  titleB?: string;
 }
 
 const 공개값 = new Set(["public", "private", "unlisted"]);
@@ -78,6 +83,8 @@ export async function readSidecar(videoPath: string): Promise<Sidecar | null> {
   if (typeof 날것.madeForKids === "boolean") s.madeForKids = 날것.madeForKids;
   if (typeof 날것.notifySubscribers === "boolean") s.notifySubscribers = 날것.notifySubscribers;
   s.thumbnail = 글(날것.thumbnail, 1024);
+  s.firstComment = 글(날것.firstComment, 9000);
+  s.titleB = 글(날것.titleB, 100);
 
   const 때 = 글(날것.publishAt, 40);
   if (때) {

@@ -96,6 +96,23 @@ export interface ChannelDefaults {
   afterUpload: "move" | "trash" | "delete" | "keep";
   dailyLimit: number;
   studioAfter: "ask" | "always" | "never";
+
+  /** 같은 편을 두 번 올리는 것을 막는다 (파일이 같거나 제목이 같을 때).
+   *  ★여태 막힌 것은 '그대로 두기' 로 둔 파일뿐이었다. `_완료로 옮기기`(기본값)로
+   *    쓰면 같은 mp4 를 다시 떨굴 때 **그대로 또 올라갔다.** */
+  dupGuard: boolean;
+
+  /** 공개 시각을 나눠 주는 자리들. `["07:00","12:00","19:00"]` 꼴.
+   *  비어 있으면 여태처럼 예약 없이 바로 올린다.
+   *  ★올리는 것은 여전히 즉시다 — **뜨는 시각만** 나눈다. */
+  publishSlots: string[];
+
+  /** 올린 직후 첫 댓글을 단다. 쪽지의 `firstComment` 에 적힌 글.
+   *  ★유튜브 API 에는 **댓글을 고정하는 길이 없다** — 다는 것까지만 한다. */
+  firstComment: boolean;
+
+  /** 이 시간이 지나면 제목을 쪽지의 `titleB` 로 갈아끼운다. 0 이면 안 한다. */
+  retitleHours: number;
 }
 
 export const CHANNEL_DEFAULTS: ChannelDefaults = {
@@ -112,6 +129,10 @@ export const CHANNEL_DEFAULTS: ChannelDefaults = {
   afterUpload: "move",
   dailyLimit: 6,
   studioAfter: "ask",
+  dupGuard: true,
+  publishSlots: [],
+  firstComment: false,
+  retitleHours: 0,
 };
 
 export interface Channel extends ChannelDefaults {
@@ -273,10 +294,45 @@ export interface UploadRec {
   channelId: string;
   channelName: string;
   verified?: boolean;
+  /** 파일 지문 — 같은 파일이 또 들어왔는지 가리는 데 쓴다(fileFingerprint) */
+  hash?: string;
+  /** 예약 공개 시각(RFC3339). 슬롯이 겹치지 않게 하는 데도 쓴다. */
+  publishAt?: string;
+}
+
+/** 올린 뒤 성적. 유튜브에 다시 물어 채운다. */
+export interface StatRec {
+  views: number;
+  likes: number;
+  comments: number;
+  /** 잰 때 (epoch ms) */
+  at: number;
+  /** 유튜브가 아는 지금 제목 — 우리가 적어 둔 것과 다를 수 있다(손으로 고쳤을 때) */
+  title?: string;
+  privacy?: string;
+  /** 사라진 영상 — 지웠거나 유튜브가 내렸다 */
+  gone?: boolean;
+}
+
+/** 나중에 할 일 — 첫 댓글, 제목 갈아끼우기처럼 **뒤에** 해야 하는 것 */
+export interface Job {
+  kind: "comment" | "retitle";
+  videoId: string;
+  channelId: string;
+  /** 할 때 (epoch ms) */
+  at: number;
+  text: string;
+  tries: number;
 }
 
 export interface State {
   uploads: UploadRec[];
+  /** 영상별 성적. 열쇠는 videoId */
+  stats: Record<string, StatRec>;
+  /** 성적을 마지막으로 잰 때 (epoch ms) */
+  statsAt: number;
+  /** 밀린 뒷일 */
+  jobs: Job[];
   /** '그대로 두기' 로 이미 올린 파일. 열쇠는 "채널id|파일이름" */
   kept: Record<string, number>;
   failed: Record<string, number>;
@@ -284,7 +340,9 @@ export interface State {
   quota: Record<string, { date: string; used: number }>;
 }
 
-export const EMPTY_STATE: State = { uploads: [], kept: {}, failed: {}, quota: {} };
+export const EMPTY_STATE: State = {
+  uploads: [], stats: {}, statsAt: 0, jobs: [], kept: {}, failed: {}, quota: {},
+};
 
 const CONF_F = () => join(dataDir(), "config.json");
 const STATE_F = () => join(dataDir(), "state.json");
@@ -426,12 +484,31 @@ async function normalize(raw: Record<string, unknown>): Promise<Config> {
     enabled: c.enabled !== false,
     createdAt: c.createdAt || new Date().toISOString(),
     tags: Array.isArray(c.tags) ? c.tags : [],
+    dupGuard: c.dupGuard !== false,
+    publishSlots: 슬롯정리(c.publishSlots),
+    firstComment: !!c.firstComment,
+    retitleHours: clampNum(c.retitleHours, 0, 720, 0),
   }));
 
   cfg.port = clampNum(cfg.port, 1024, 65535, 8777);
   cfg.pollSeconds = clampNum(cfg.pollSeconds, 2, 3600, 5);
   cfg.stableChecks = clampNum(cfg.stableChecks, 1, 60, 3);
   return cfg;
+}
+
+/** 공개 슬롯을 `HH:MM` 꼴로 추린다. 틀린 것은 조용히 버리고, 이른 시각부터 세운다. */
+export function 슬롯정리(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  const out: string[] = [];
+  for (const x of v) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(x).trim());
+    if (!m) continue;
+    const h = Number(m[1]), mi = Number(m[2]);
+    if (h > 23 || mi > 59) continue;
+    const s = `${String(h).padStart(2, "0")}:${m[2]}`;
+    if (!out.includes(s)) out.push(s);
+  }
+  return out.sort().slice(0, 12);
 }
 
 function clampNum(v: unknown, lo: number, hi: number, dflt: number): number {
@@ -449,6 +526,9 @@ export async function loadState(): Promise<State> {
     const s = JSON.parse(await Deno.readTextFile(STATE_F()));
     return {
       uploads: Array.isArray(s.uploads) ? s.uploads : [],
+      stats: s.stats ?? {},
+      statsAt: Number(s.statsAt) || 0,
+      jobs: Array.isArray(s.jobs) ? s.jobs : [],
       kept: s.kept ?? {},
       failed: s.failed ?? {},
       quota: s.quota ?? {},
@@ -465,6 +545,9 @@ export interface Tokens {
   access_token?: string;
   refresh_token: string;
   expires_at?: number;
+  /** 로그인할 때 실제로 받은 권한 범위. 고급 기능(첫 댓글·제목 교체)에는
+   *  `youtube.force-ssl` 이 있어야 하는데, 옛 토큰에는 없다. */
+  scope?: string;
   channel?: {
     id?: string; title: string; thumb: string; subs: string;
     views?: string; videos?: string; handle?: string;

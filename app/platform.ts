@@ -17,6 +17,33 @@ async function spawn(cmd: string[], detach = true) {
   }
 }
 
+/* ── 올리는 동안 잠들지 않게 붙든다 ────────────────────────────
+   맥이 잠들면 업로드가 멈춘다. 큰 편을 걸어 두고 자리를 뜨면 아침에 와서야
+   "왜 안 올라갔지?" 를 알게 된다.
+
+   ★`caffeinate -i` 는 **화면만 꺼지고 시스템은 안 자게** 한다. 뚜껑을 닫으면
+     그래도 잔다 — 그건 맥이 양보하지 않는 자리다.
+   ★올리는 **동안만** 붙든다. 늘 붙들면 안 쓸 때도 컴퓨터가 안 잔다.
+   ★윈도우·리눅스에서는 아무것도 안 한다(맥만 있는 명령이다). */
+let 붙든이: Deno.ChildProcess | null = null;
+
+export function 잠깨워두기(): void {
+  if (!IS_MAC || 붙든이) return;
+  try {
+    붙든이 = new Deno.Command("caffeinate", {
+      args: ["-i", "-w", String(Deno.pid)],   // 이 프로그램이 죽으면 저도 따라 죽는다
+      stdout: "null", stderr: "null", stdin: "null",
+    }).spawn();
+  } catch { 붙든이 = null; }                   // 없는 명령이면 그냥 넘어간다
+}
+
+export function 잠깨우기끝(): void {
+  if (!붙든이) return;
+  try { 붙든이.kill(); } catch { /* 이미 죽었다 */ }
+  try { 붙든이.unref?.(); } catch { /* 무시 */ }
+  붙든이 = null;
+}
+
 export async function notify(title: string, text: string) {
   const t = text.replace(/["'`]/g, "").slice(0, 180);
   const h = title.replace(/["'`]/g, "");

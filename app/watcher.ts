@@ -1,15 +1,19 @@
 // 폴더 감시 엔진 — 채널마다 폴더를 하나씩 지켜보며 자동으로 올린다.
 import {
-  Channel, Config, IS_WIN, State, credsOf, join, loadConfig, loadState, loadTokens,
+  Channel, Config, IS_WIN, Job, State, credsOf, join, loadConfig, loadState, loadTokens,
   localDate, localStamp, log, projectKey, quotaDate, quotaResetAt, safeFolderName, saveState,
 } from "./paths.ts";
 import {
-  DAILY_QUOTA, setThumbnail, THUMB_COST, UPLOAD_COST, uploadVideo, verifyVideo, VideoMeta,
+  DAILY_QUOTA, insertComment, setThumbnail, THUMB_COST, updateVideoTitle, UPLOAD_COST,
+  uploadVideo, verifyVideo, VideoMeta, WRITE_COST,
 } from "./youtube.ts";
 import { readSidecar, Sidecar, sidecarPath, thumbPath } from "./sidecar.ts";
 import { ErrKind, UploadError } from "./errors.ts";
-import { accessToken, assertSameChannel } from "./auth.ts";
-import { moveToTrash, notify, openUrl, 쓰던탭에다시 } from "./platform.ts";
+import { accessToken, assertSameChannel, 고급권한있나, 고급기능켰나 } from "./auth.ts";
+import { moveToTrash, notify, openUrl, 잠깨우기끝, 잠깨워두기, 쓰던탭에다시 } from "./platform.ts";
+import { dupMessage, fileFingerprint, findDuplicate } from "./dedupe.ts";
+import { nextSlot, 슬롯말 } from "./slots.ts";
+import { refreshStats, statsRows } from "./stats.ts";
 
 const VIDEO_EXT = new Set([
   ".mp4", ".mov", ".m4v", ".avi", ".webm", ".mkv", ".flv", ".wmv", ".mpg", ".mpeg", ".mts", ".m2ts",
@@ -46,6 +50,14 @@ export interface Pending {
   tries: number;
   /** 영상 옆에 놓인 쪽지(`같은이름.json`). 없으면 null — 그러면 채널 기본값으로 간다. */
   sidecar: Sidecar | null;
+  /** 파일 지문. 올리기 직전에 낸다(dedupe.fileFingerprint). */
+  hash: string;
+  /** 같은 편이라 막혔을 때의 까닭. 비어 있으면 안 막힌 것이다. */
+  dup: string;
+  /** 사용자가 「그래도 올리기」를 눌렀다 — 중복 막기를 이번 한 번 건너뛴다. */
+  forced: boolean;
+  /** 예약이 걸렸으면 그 시각(RFC3339). 화면에 보여 준다. */
+  publishAt: string;
 }
 
 function ext(name: string) {
@@ -217,6 +229,7 @@ export class Manager {
             stable: 0, status: "watching", progress: 0, sent: 0,
             error: "", helpUrl: "", videoId: "", verified: false,
             detectedAt: Date.now(), retryAt: 0, tries: 0, sidecar: 쪽지,
+            hash: "", dup: "", forced: false, publishAt: "",
           };
           this.pending.set(key, p);
           await log(`🎬 [${ch.name}] 새 영상 감지: ${e.name}`);
@@ -345,10 +358,13 @@ export class Manager {
       tags: s?.tags ?? ch.tags,
       categoryId: s?.categoryId ?? ch.categoryId,
       language: s?.language ?? ch.language,
-      privacy: s?.privacy ?? ch.privacy,
       madeForKids: s?.madeForKids ?? ch.madeForKids,
       notifySubscribers: s?.notifySubscribers ?? ch.notifySubscribers,
-      publishAt: s?.publishAt,
+      // 쪽지에 적힌 예약이 먼저다. 안 적혀 있을 때만 슬롯이 잡아 준 자리를 쓴다.
+      publishAt: s?.publishAt ?? (p.publishAt || undefined),
+      // 예약이 걸리면 반드시 비공개여야 한다 — 공개로 올리면 유튜브가 예약을 통째로
+      // 무시하고 바로 띄운다. buildBody 가 한 번 더 거르지만 여기서도 맞춰 준다.
+      privacy: (s?.publishAt || p.publishAt) ? "private" : (s?.privacy ?? ch.privacy),
     };
   }
 
@@ -378,6 +394,49 @@ export class Manager {
           if (p.sidecar.description) p.description = p.sidecar.description;
         }
       }
+      /* ── 같은 편을 두 번 올리는 것을 막는다 (H-187) ──────────────
+         ★올리기 **직전**에 본다. 훑을 때 보면 그 사이에 다른 편이 올라가 판이
+           달라질 수 있다. 여기가 마지막 관문이다. */
+      if (ch.dupGuard && !p.forced) {
+        try {
+          if (!p.hash) p.hash = await fileFingerprint(p.path);
+        } catch { /* 지문을 못 내면 제목만으로 본다 */ }
+        const 겹침 = findDuplicate(this.state.uploads, {
+          channelId: ch.id, hash: p.hash, title: p.title,
+        });
+        if (겹침) {
+          p.status = "error";
+          p.dup = dupMessage(겹침);
+          p.error = p.dup;
+          p.retryAt = 0;                       // 저절로 다시 시도하지 않는다
+          this.uploadingKey = "";
+          await log(`🛑 [${ch.name}] 중복이라 세웠습니다: ${p.name} — ${p.dup}`);
+          if (this.cfg.notifications) {
+            await notify("가라사대 업로더 🛑", `[${ch.name}] 같은 편이 이미 올라가 있습니다`);
+          }
+          return;
+        }
+      }
+
+      /* ── 공개 시각 나누기 ────────────────────────────────────
+         쪽지에 적힌 예약이 있으면 그것을 쓴다. 없고 채널에 슬롯이 적혀 있을 때만
+         빈 자리를 물린다. 슬롯이 비어 있으면(기본값) 아무 일도 안 한다. */
+      if (!p.sidecar?.publishAt && ch.publishSlots.length) {
+        const 찬자리 = this.state.uploads
+          .filter((u) => u.channelId === ch.id && u.publishAt)
+          .map((u) => u.publishAt!);
+        const 자리 = nextSlot(ch.publishSlots, 찬자리);
+        if (자리) {
+          p.publishAt = 자리;
+          await log(`   ⏰ 공개 자리를 잡았습니다: ${슬롯말(자리)}`);
+        } else {
+          await log(`   ⚠️  공개 자리를 못 잡았습니다(3주 안이 다 찼습니다) — 예약 없이 올립니다`);
+        }
+      }
+
+      // 올리는 동안은 맥이 잠들지 않게 붙든다
+      잠깨워두기();
+
       // 올리기 직전에 채널이 맞는지 본다 — 1점, 잘못 올라가면 되돌릴 수 없다
       await assertSameChannel(this.cfg, ch);
       this.addQuota(ch, 1);
@@ -402,6 +461,8 @@ export class Manager {
         channelId: ch.id,
         channelName: ch.name,
         verified: false,
+        hash: p.hash,
+        publishAt: p.sidecar?.publishAt ?? (p.publishAt || undefined),
       });
       this.state.uploads = this.state.uploads.slice(0, 500);
       await saveState(this.state);
@@ -417,6 +478,7 @@ export class Manager {
         this.addQuota(ch, THUMB_COST);
         await log(t.ok ? `   🖼  배너를 얹었습니다` : `   ⚠️  ${t.message}`);
       }
+      await this.뒷일걸기(p, ch, res.id);
       if (this.cfg.notifications) await notify("가라사대 업로더 ✅", `[${ch.name}] ${p.title} 업로드 완료`);
 
       // 유튜브에 실제로 올라갔는지 확인한 뒤에야 원본을 처리한다
@@ -466,9 +528,21 @@ export class Manager {
         if (this.cfg.notifications) await notify("가라사대 업로더 ⛔", `[${ch.name}] ${err.message.slice(0, 100)}`);
       } else if (kind === "temporary") {
         p.tries++;
-        const wait = Math.min(10 * 60_000, 30_000 * 2 ** Math.min(p.tries - 1, 4));
-        p.retryAt = Date.now() + wait;
-        await log(`⏳ [${ch.name}] ${p.name} → ${err.message} (${Math.round(wait / 1000)}초 후 재시도)`);
+        // ★여태 '잠깐 오류' 는 **끝없이** 다시 시도했다. 되는 날도 있지만, 안 되는
+        //   것이면 그 한 편이 대기열 맨 앞에 눌러앉아 뒤엣것을 계속 막는다.
+        //   열 번(대략 한 시간 반)이면 잠깐이 아니다 — 치우고 다음으로 넘어간다.
+        if (p.tries >= 10) {
+          await log(`⏸  [${ch.name}] ${p.name} → 열 번을 시도해도 안 됩니다(${err.message}) — ${HOLD_DIR} 로 치웁니다`);
+          await this.moveTo(p, HOLD_DIR);
+          this.pending.delete(p.key);
+          if (this.cfg.notifications) {
+            await notify("가라사대 업로더 ⏸", `[${ch.name}] ${p.name} — 계속 실패해 ${HOLD_DIR} 로 옮겼습니다`);
+          }
+        } else {
+          const wait = Math.min(10 * 60_000, 30_000 * 2 ** Math.min(p.tries - 1, 4));
+          p.retryAt = Date.now() + wait;
+          await log(`⏳ [${ch.name}] ${p.name} → ${err.message} (${Math.round(wait / 1000)}초 후 재시도, ${p.tries}/10)`);
+        }
       } else {
         p.tries++;
         this.state.failed[p.key] = p.tries;
@@ -484,7 +558,90 @@ export class Manager {
       }
     } finally {
       this.uploadingKey = "";
+      잠깨우기끝();
     }
+  }
+
+  /** 올린 뒤에 할 일(첫 댓글·제목 갈아끼우기)을 장부에 걸어 둔다.
+   *
+   * ★여기서 바로 하지 않는다. 첫 댓글은 영상이 처리되기 전에 달면 실패하고,
+   *   제목 갈아끼우기는 애초에 몇 시간 뒤의 일이다. 장부에 적어 두고 `뒷일하기`
+   *   가 때가 되면 꺼내 쓴다 — 프로그램을 껐다 켜도 남는다.
+   * ★권한(force-ssl)이 없으면 걸지 않는다. 걸어 봐야 403 만 쌓인다. */
+  async 뒷일걸기(p: Pending, ch: Channel, videoId: string) {
+    if (!고급기능켰나(ch)) return;
+    if (!await 고급권한있나(ch.id)) {
+      await log(`   ⚠️  [${ch.name}] 첫 댓글·제목 갈아끼우기 권한이 없습니다 — 채널 탭에서 다시 연결해 주세요`);
+      return;
+    }
+    // 예약이 걸렸으면 **뜨는 때**를 기준으로 센다 — 아직 비공개인 영상에
+    // 댓글을 달아 봐야 아무도 못 본다.
+    const 기준 = Date.parse(p.publishAt || p.sidecar?.publishAt || "") || Date.now();
+
+    if (ch.firstComment && p.sidecar?.firstComment) {
+      this.state.jobs.push({
+        kind: "comment", videoId, channelId: ch.id,
+        at: 기준 + 3 * 60_000,                 // 처리될 틈을 3분 준다
+        text: p.sidecar.firstComment, tries: 0,
+      });
+      await log(`   💬 첫 댓글을 걸어 두었습니다`);
+    }
+    if (ch.retitleHours > 0 && p.sidecar?.titleB) {
+      this.state.jobs.push({
+        kind: "retitle", videoId, channelId: ch.id,
+        at: 기준 + ch.retitleHours * 3600_000,
+        text: p.sidecar.titleB, tries: 0,
+      });
+      await log(`   ✏️  ${ch.retitleHours}시간 뒤 제목을 갈아끼웁니다: ${p.sidecar.titleB}`);
+    }
+    await saveState(this.state);
+  }
+
+  /** 때가 된 뒷일을 하나씩 해치운다. 한 번에 하나만 — 서둘 일이 아니다. */
+  async 뒷일하기() {
+    const 지금 = Date.now();
+    const i = this.state.jobs.findIndex((j) => j.at <= 지금);
+    if (i < 0) return;
+    const job: Job = this.state.jobs[i];
+    const ch = this.channelById(job.channelId);
+    if (!ch) { this.state.jobs.splice(i, 1); await saveState(this.state); return; }
+
+    let ok = false, msg = "";
+    try {
+      if (job.kind === "comment") {
+        const r = await insertComment(this.cfg, ch, job.videoId, job.text);
+        ok = r.ok; msg = r.message;
+        if (ok) await log(`💬 [${ch.name}] 첫 댓글을 달았습니다 — 고정은 스튜디오에서 손으로 눌러야 합니다`);
+      } else {
+        const r = await updateVideoTitle(this.cfg, ch, job.videoId, job.text);
+        ok = r.ok; msg = r.message;
+        if (ok) {
+          await log(`✏️  [${ch.name}] 제목을 갈아끼웠습니다: ${r.before} → ${job.text}`);
+          const u = this.state.uploads.find((x) => x.id === job.videoId);
+          if (u) u.title = job.text;
+        }
+      }
+      this.addQuota(ch, WRITE_COST);
+    } catch (e) {
+      msg = e instanceof Error ? e.message : String(e);
+    }
+
+    if (ok) {
+      this.state.jobs.splice(i, 1);
+    } else {
+      job.tries++;
+      if (job.tries >= 3) {
+        this.state.jobs.splice(i, 1);
+        await log(`⚠️  [${ch.name}] ${job.kind === "comment" ? "첫 댓글" : "제목 갈아끼우기"} 를 접습니다 — ${msg}`);
+        if (this.cfg.notifications) {
+          await notify("가라사대 업로더 ⚠️", `${job.kind === "comment" ? "첫 댓글" : "제목 바꾸기"} 실패 — ${msg.slice(0, 80)}`);
+        }
+      } else {
+        job.at = 지금 + 30 * 60_000;
+        await log(`   ⏳ ${job.kind === "comment" ? "첫 댓글" : "제목 갈아끼우기"} 를 30분 뒤 다시 해 봅니다 (${msg})`);
+      }
+    }
+    await saveState(this.state);
   }
 
   /** 업로드에 성공한 파일을 채널 설정에 따라 처리한다. */
@@ -576,6 +733,19 @@ export class Manager {
     }
   }
 
+  /** 중복이라 세워 둔 것을 사용자가 그래도 올리겠다고 할 때. */
+  force(key: string): boolean {
+    const p = this.pending.get(key);
+    if (!p || p.status === "uploading") return false;
+    p.forced = true;
+    p.dup = "";
+    p.error = "";
+    p.status = "ready";
+    p.retryAt = 0;
+    p.tries = 0;
+    return true;
+  }
+
     async hold(key: string) {
     const p = this.pending.get(key);
     if (!p || p.status === "uploading") return false;
@@ -616,7 +786,10 @@ export class Manager {
       await this.checkLogins();
       if (this.paused || this.uploadingKey) return;
       const next = await this.pickNext();
-      if (next) await this.uploadOne(next);
+      if (next) { await this.uploadOne(next); return; }
+      // 올릴 것이 없을 때만 뒷일을 본다 — 올리는 쪽이 언제나 먼저다
+      await this.뒷일하기();
+      await this.성적재기();
     } catch (e) {
       this.lastError = e instanceof Error ? e.message : String(e);
       await log(`⚠️  감시 오류: ${this.lastError}`);
@@ -645,6 +818,27 @@ export class Manager {
   }
 
   halt() { this.stop = true; }
+
+  /* ----------------------------------------- 성적 */
+
+  /** 성적을 얼마 만에 다시 잴까. 1점짜리라 자주 물어도 되지만, 조회수가 분 단위로
+   *  달라지는 것도 아니다. */
+  private static 성적간격 = 60 * 60_000;
+  성적재는중 = false;
+
+  async 성적재기(force = false) {
+    if (this.성적재는중) return;
+    if (!force && Date.now() - (this.state.statsAt || 0) < Manager.성적간격) return;
+    if (!this.state.uploads.length) return;
+    this.성적재는중 = true;
+    try {
+      const r = await refreshStats(this.cfg, this.state, this.channels(), (ch, n) => this.addQuota(ch, n));
+      await saveState(this.state);
+      if (force || r.잰편수) await log(`📊 성적을 새로 쟀습니다 — ${r.잰편수}편 (${r.점}점)`);
+    } finally {
+      this.성적재는중 = false;
+    }
+  }
 
   /* ----------------------------------------- 화면에 넘길 요약 */
 
@@ -695,6 +889,12 @@ export class Manager {
       todayCount: this.todayCount(),
       uploads: this.state.uploads.slice(0, 60),
       failed: this.state.failed,
+      stats: statsRows(this.state).slice(0, 120),
+      statsAt: this.state.statsAt,
+      statsBusy: this.성적재는중,
+      jobs: this.state.jobs.map((j) => ({
+        kind: j.kind, videoId: j.videoId, at: j.at, text: j.text.slice(0, 60), tries: j.tries,
+      })),
     };
   }
 }
