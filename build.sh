@@ -6,6 +6,17 @@ OUT=dist
 PERM="--allow-net --allow-read --allow-write --allow-env --allow-run --allow-sys"
 INC="--include app/ui.html"
 VER=$(grep -o 'APP_VERSION = "[^"]*"' app/paths.ts | head -1 | sed 's/.*"\(.*\)"/\1/')
+
+# ── 어느 가지에서 굽는지 못 박는다 ────────────────────────────
+# ★2026-08-21 사고: 다른 가지에 선 채로 빌드해 **공개 릴리스에 그 가지의 기능이
+#   들어간 바이너리**가 올라갔다. dist 는 곧 릴리스에 올라가는 것이므로, 여기서 막는다.
+#   자기 판을 굽는 것은 VOLCANO_BUILD_ANY=1 을 주면 된다(개인판.sh 가 그렇게 부른다).
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "?")
+if [ "$BRANCH" != "main" ] && [ "${VOLCANO_BUILD_ANY:-0}" != "1" ]; then
+  echo "❌ 지금 가지가 '$BRANCH' 입니다. 배포용 빌드는 main 에서만 합니다."
+  echo "   (자기 판을 구우려면  VOLCANO_BUILD_ANY=1 ./build.sh )"
+  exit 1
+fi
 APP="가라사대 업로더"
 EXEC="GarasadaeUploader"   # 번들 내부 실행파일은 ASCII 여야 코드서명이 유효하다
 # 빌드 전에 반드시 점검을 통과해야 한다 (같은 실수를 되풀이하지 않기 위한 관문)
@@ -139,5 +150,9 @@ if [ -f "배포/릴리스노트_$VER.md" ]; then
   cp "배포/릴리스노트_$VER.md" "$OUT/notes.md"
   echo "  ↳ notes.md (업데이트 창에 보일 패치 내용)"
 fi
+
+# 무엇으로 구웠는지 남긴다 — 릴리스 전에 이 파일을 확인한다
+{ echo "가지: $BRANCH"; echo "커밋: $(git rev-parse --short HEAD 2>/dev/null)"
+  echo "버전: $VER"; echo "구운때: $(date -Iseconds)"; } > "$OUT/_BUILT_FROM.txt"
 
 echo "✅ 완료 — dist 폴더의 zip 3개를 그대로 릴리스에 올리세요 (이름을 바꾸면 안 됩니다)."
