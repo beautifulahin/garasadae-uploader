@@ -105,7 +105,10 @@ cat > "$T/config.json" <<CFG
 CFG
 echo '{"refresh_token":"r","channel":{"title":"옛채널","thumb":"","subs":"1"}}' > "$T/tokens.json"
 TODAY=$(date +%Y-%m-%d)
-echo "{\"uploads\":[{\"id\":\"V1\",\"title\":\"옛영상\",\"file\":\"a.mp4\",\"size\":1,\"privacy\":\"private\",\"at\":\"${TODAY}T00:00:00\"}],\"quotaUsed\":1600,\"quotaDate\":\"$TODAY\"}" > "$T/state.json"
+# ★할당량은 **태평양 날짜**로 센다(1.7.6~). 유튜브가 그 날짜로 세기 때문이다.
+#   여기서 이 컴퓨터 날짜를 쓰면, 시차가 있는 곳에서는 시험이 늘 실패한다.
+TODAY_PT=$(TZ=America/Los_Angeles date +%Y-%m-%d)
+echo "{\"uploads\":[{\"id\":\"V1\",\"title\":\"옛영상\",\"file\":\"a.mp4\",\"size\":1,\"privacy\":\"private\",\"at\":\"${TODAY}T00:00:00\"}],\"quotaUsed\":1600,\"quotaDate\":\"$TODAY_PT\"}" > "$T/state.json"
 GARASADAE_DATA_DIR="$T" deno run -A --no-lock app/main.ts --background >/dev/null 2>&1 &
 PID=$!
 sleep 5
