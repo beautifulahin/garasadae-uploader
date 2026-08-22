@@ -95,12 +95,16 @@ sys.exit(1 if fail else 0)
 PY
 [ $? -ne 0 ] && FAIL=1
 
-echo "── 6.5 개인판 논리 (중복 막기·공개 슬롯) ─────"
+echo "── 6.5 개인판 논리 (중복 막기·슬롯·성적·틀) ──"
 # 순수 함수라 앱을 안 띄우고도 시험할 수 있다. 여기서 막히면 빌드하지 않는다.
-if deno run --allow-read --allow-write --allow-env --no-lock 개인판시험.ts 2>&1 | sed 's/^/  /' | grep -q "전부 통과"; then
-  echo "  ✅ 개인판 논리 21종 통과"
+# ※ 변수 이름은 영문만 쓴다 — bash 가 한글 변수를 못 읽는다(또 당했다).
+# ★가짓수를 손으로 적어 두었더니 시험을 더해도 21 인 채로 남아 거짓말을 했다.
+#   세어서 적는다 (2026-08-22).
+TESTOUT=$(deno run --allow-read --allow-write --allow-env --no-lock 개인판시험.ts 2>&1)
+if echo "$TESTOUT" | grep -q "전부 통과"; then
+  echo "  ✅ 개인판 논리 $(echo "$TESTOUT" | grep -c '✅')종 통과"
 else
-  deno run --allow-read --allow-write --allow-env --no-lock 개인판시험.ts 2>&1 | sed 's/^/  /'
+  echo "$TESTOUT" | sed 's/^/  /'
   FAIL=1
 fi
 

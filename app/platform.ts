@@ -1,5 +1,6 @@
 // OS 별 동작: 알림 · 폴더/브라우저 열기 · 자동 시작 등록
 import { APP_ID, APP_NAME, IS_MAC, IS_WIN, dataDir, exists, fromBase64, homeDir, join, log } from "./paths.ts";
+import { 텔레그램 } from "./telegram.ts";
 
 function env(k: string) { try { return Deno.env.get(k) ?? ""; } catch { return ""; } }
 
@@ -44,9 +45,20 @@ export function 잠깨우기끝(): void {
   붙든이 = null;
 }
 
+/** 텔레그램으로도 보낼까 — 화면(설정)에서 끌 수 있다. 기본은 켬. */
+let 텔레그램켬 = true;
+export function 텔레그램설정(on: boolean) { 텔레그램켬 = on; }
+
 export async function notify(title: string, text: string) {
   const t = text.replace(/["'`]/g, "").slice(0, 180);
   const h = title.replace(/["'`]/g, "");
+  /* ★막힌 소식은 텔레그램으로도 보낸다 (개인판, 사용자 지시 2026-08-22).
+     맥 앞에 없으면 알림을 못 보기 때문이다. **잘 된 일(✅)은 뺀다** — 하루 몇 편씩
+     올라가는데 그때마다 울리면 정작 급한 것이 묻힌다.
+     열쇠가 없으면 telegram.ts 가 조용히 아무 일도 안 한다(공개판). */
+  if (텔레그램켬 && !h.includes("✅")) {
+    텔레그램(`${h}\n${t}`).catch(() => {});
+  }
   if (IS_MAC) {
     await spawn(["osascript", "-e", `display notification "${t}" with title "${h}"`]);
   } else if (IS_WIN) {

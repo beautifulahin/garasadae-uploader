@@ -11,7 +11,7 @@
 // ★핵심 눈금은 **시간당 조회수**다. 어제 올린 편과 오늘 올린 편을 조회수 총량으로
 //   견주면 오래된 것이 무조건 이긴다. 시간으로 나눠야 같은 자리에서 견줄 수 있다.
 
-import { Channel, Config, State, StatRec, loadTokens, log } from "./paths.ts";
+import { Channel, Config, State, StatRec, UploadRec, loadTokens, localStamp, log } from "./paths.ts";
 import { fetchStats, LIST_COST } from "./youtube.ts";
 
 /** 며칠 치까지 다시 물어볼까. 오래된 편은 이미 굳어서 다시 물을 값이 없다. */
@@ -89,12 +89,53 @@ export interface StatsRow {
   comments: number;
   /** 시간당 조회수 — 오래된 편과 갓 올린 편을 같은 자리에서 견주는 눈금 */
   perHour: number;
-  /** 올린 지 몇 시간 */
+  /** 뜬 지 몇 시간 — 예약 공개면 **뜬 때**부터 센다 */
   hours: number;
+  /** 시간을 어디부터 셌나 (RFC3339). 예약이 걸렸으면 그 시각, 아니면 올린 때 */
+  since: string;
+  /** 아직 안 뜬 편 — 예약 시각이 아직 안 왔다. 견줄 수 없으니 줄 끝으로 보낸다 */
+  pending: boolean;
   /** 참여도 — 조회수 대비 좋아요+댓글, 만분율 */
   engage: number;
   gone: boolean;
   measured: boolean;
+
+  /* ── 제목 갈아끼우기 전·후 (2026-08-22) ─────────────────────
+     ★바꾸기만 하고 결과를 안 재면 A/B 가 아니라 그냥 바꾼 것이다. */
+  /** 제목을 갈아끼운 편인가 */
+  swapped: boolean;
+  /** 바꾸기 전 제목 */
+  titleA: string;
+  /** 바꾸기 **전** 구간의 시간당 조회수 */
+  perHourA: number;
+  /** 바꾼 **뒤** 구간의 시간당 조회수 */
+  perHourB: number;
+}
+
+/** 제목을 갈아끼운 편의 앞뒤 성적.
+ *
+ * 앞 구간 = 뜬 때 → 갈아끼운 때, 그동안 모은 조회수(viewsAtRetitle)
+ * 뒤 구간 = 갈아끼운 때 → 지금, 그 뒤로 더 붙은 조회수(views - viewsAtRetitle)
+ *
+ * ★쇼츠는 뒤로 갈수록 힘이 빠지는 것이 보통이라, **뒤가 앞보다 높으면** 바꾼 보람이
+ *   있었다고 볼 만하다. 판단은 사람이 한다 — 여기서는 두 숫자를 나란히 놓기만 한다.
+ */
+function 제목갈이(u: UploadRec, 기준ms: number, 지금조회: number) {
+  const 잰때 = u.retitledAt ?? 0;
+  if (!잰때 || !Number.isFinite(기준ms) || 잰때 <= 기준ms) {
+    return { swapped: false, titleA: "", perHourA: 0, perHourB: 0 };
+  }
+  const 앞시간 = Math.max(0.25, (잰때 - 기준ms) / 3600_000);
+  const 뒤시간 = Math.max(0.25, (Date.now() - 잰때) / 3600_000);
+  const 앞조회 = u.viewsAtRetitle ?? 0;
+  const 뒤조회 = Math.max(0, 지금조회 - 앞조회);
+  const 둥글 = (n: number) => Math.round(n * 10) / 10;
+  return {
+    swapped: true,
+    titleA: u.titleA ?? "",
+    perHourA: 둥글(앞조회 / 앞시간),
+    perHourB: 둥글(뒤조회 / 뒤시간),
+  };
 }
 
 /** 화면에 세울 줄들. 시간당 조회수가 높은 것부터. */
@@ -102,8 +143,15 @@ export function statsRows(state: State): StatsRow[] {
   const rows: StatsRow[] = [];
   for (const u of state.uploads) {
     const s: StatRec | undefined = state.stats[u.id];
-    const t = Date.parse(u.at);
-    const hours = Number.isFinite(t) ? Math.max(0.25, (Date.now() - t) / 3600_000) : 0;
+    /* ★시간당 조회수는 **뜬 때**부터 세야 한다 (2026-08-22).
+       공개 슬롯을 쓰면 새벽에 올려 저녁에 뜨는 일이 흔한데, 올린 때부터 세면
+       뜬 지 한 시간짜리가 열네 시간짜리로 계산돼 **열네 배로 깎였다.**
+       성적 탭은 이 눈금으로 줄을 세우므로, 예약해서 올린 편이 무조건 바닥에 깔렸다. */
+    const 뜬때 = Date.parse(u.publishAt || "");
+    const 올린때 = Date.parse(u.at);
+    const t = Number.isFinite(뜬때) ? 뜬때 : 올린때;
+    const 아직 = Number.isFinite(t) && t > Date.now();
+    const hours = !아직 && Number.isFinite(t) ? Math.max(0.25, (Date.now() - t) / 3600_000) : 0;
     const views = s?.views ?? 0;
     rows.push({
       id: u.id,
@@ -118,10 +166,18 @@ export function statsRows(state: State): StatsRow[] {
       comments: s?.comments ?? 0,
       perHour: hours ? Math.round((views / hours) * 10) / 10 : 0,
       hours: Math.round(hours * 10) / 10,
+      /* ★이 컴퓨터 시간 꼴로 적는다. `toISOString()` 은 세계표준시라, 화면이
+         그대로 잘라 쓰면 아홉 시간 어긋난다 (실수기록 3번과 같은 함정). */
+      since: Number.isFinite(t) ? localStamp(new Date(t)) : u.at,
+      pending: 아직,
       engage: views ? Math.round(((s!.likes + s!.comments) / views) * 10000) / 100 : 0,
       gone: !!s?.gone,
       measured: !!s,
+      ...제목갈이(u, t, views),
     });
   }
-  return rows.sort((a, b) => b.perHour - a.perHour);
+  // 아직 안 뜬 편은 성적이 없는 것이지 못한 것이 아니다 — 줄 끝에 따로 놓는다
+  return rows.sort((a, b) =>
+    (a.pending ? 1 : 0) - (b.pending ? 1 : 0) || b.perHour - a.perHour
+  );
 }

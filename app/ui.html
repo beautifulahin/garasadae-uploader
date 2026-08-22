@@ -379,6 +379,7 @@ textarea.fin{resize:vertical;line-height:1.6}
   <div class="ssub">
     <b>시간당 조회수</b> 로 세웠습니다 — 어제 올린 편과 방금 올린 편을 같은 자리에서 견주려면
     총 조회수로는 안 되고 시간으로 나눠야 합니다. 한 시간마다 저절로 다시 잽니다.
+    <b>예약 공개한 편은 뜬 때부터</b> 셉니다(올린 때가 아닙니다). 아직 안 뜬 편은 <b>예정</b> 으로 줄 끝에 둡니다.
   </div>
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
     <div class="chsel" id="statFilter" style="margin:0"></div>
@@ -525,6 +526,12 @@ textarea.fin{resize:vertical;line-height:1.6}
       <button class="tb" style="margin-top:8px" onclick="testBrowser()">🔎 이 브라우저로 열어보기</button>
     </div>
     <div class="sw" onclick="tglSw('cOsNotify')"><span>업로드 완료·오류 시 알림 표시</span><div class="tgl" id="cOsNotify"></div></div>
+    <div class="sw" onclick="tglSw('cTgAlert')">
+      <span>막힌 소식을 텔레그램으로도 보내기
+        <small style="color:var(--t3)" id="cTgHint"></small></span>
+      <div class="tgl" id="cTgAlert"></div>
+    </div>
+    <button class="tb" style="margin-top:6px" onclick="testTelegram()">🔔 텔레그램 시험 보내기</button>
     <div class="sw" onclick="tglAutoStart()"><span>컴퓨터 켤 때 자동 실행</span><div class="tgl" id="cAuto"></div></div>
     <div class="grid2" style="margin-top:10px">
       <div><label class="flabel">확인 간격(초)</label><input class="fin" id="cPoll" type="number" min="2" max="600"/></div>
@@ -1359,7 +1366,8 @@ function renderStats(){
   }
 
   // 맨 위 요약 — 잰 것만 센다
-  const 잰것=rows.filter(r=>r.measured&&!r.gone);
+  // ★아직 안 뜬 편(예약)은 요약에서 뺀다 — 조회수 0 이 평균을 끌어내린다
+  const 잰것=rows.filter(r=>r.measured&&!r.gone&&!r.pending);
   const 합=잰것.reduce((a,r)=>a+r.views,0);
   const 최고=잰것[0];
   const 중간=잰것.length?잰것[Math.floor(잰것.length/2)].perHour:0;
@@ -1378,7 +1386,7 @@ function renderStats(){
       <th style="padding:6px 8px;text-align:right">좋아요</th>
       <th style="padding:6px 8px;text-align:right">댓글</th>
       <th style="padding:6px 8px;text-align:right;white-space:nowrap">참여도</th>
-      <th style="padding:6px 8px;white-space:nowrap">올린 때</th>
+      <th style="padding:6px 8px;white-space:nowrap">뜬 때</th>
     </tr></thead><tbody>
     ${rows.map((r,i)=>`<tr style="border-top:1px solid var(--bdr)${r.gone?';opacity:.45':''}">
       <td style="padding:7px 8px">
@@ -1389,16 +1397,24 @@ function renderStats(){
              style="color:inherit;text-decoration:none;font-weight:600" title="유튜브에서 보기">${esc(r.title)}</a>
           ${r.gone?'<span class="chbadge no">사라짐</span>':''}
           ${!r.measured?'<span class="chbadge">아직 안 잼</span>':''}
+          ${r.pending?'<span class="chbadge">예정</span>':''}
           ${r.privacy&&r.privacy!=='public'?`<span class="pv ${r.privacy}">${({unlisted:'일부공개',private:'비공개'})[r.privacy]||r.privacy}</span>`:''}
         </div>
+        ${r.swapped?`<div style="font-size:10px;color:var(--t3);margin-top:3px;padding-left:68px">
+          ✏️ 제목 바꾸기 — 전 <b style="color:var(--t2)">${수(r.perHourA)}</b>/시간
+          → 후 <b style="color:${r.perHourB>=r.perHourA?'var(--ok,#4ade80)':'var(--t2)'}">${수(r.perHourB)}</b>/시간
+          ${r.perHourA?`<span style="opacity:.8">(${r.perHourB>=r.perHourA?'+':''}${Math.round((r.perHourB/r.perHourA-1)*100)}%)</span>`:''}
+          ${r.titleA?`<span style="opacity:.7"> · 전 제목: ${esc(r.titleA)}</span>`:''}
+        </div>`:''}
       </td>
-      <td style="padding:7px 8px;text-align:right;font-weight:700;color:${색(r.perHour,rows)}">${수(r.perHour)}</td>
+      <td style="padding:7px 8px;text-align:right;font-weight:700;color:${r.pending?'var(--t3)':색(r.perHour,rows)}">${r.pending?'—':수(r.perHour)}</td>
       <td style="padding:7px 8px;text-align:right">${수(r.views)}</td>
       <td style="padding:7px 8px;text-align:right;color:var(--t2)">${수(r.likes)}</td>
       <td style="padding:7px 8px;text-align:right;color:var(--t2)">${수(r.comments)}</td>
       <td style="padding:7px 8px;text-align:right;color:var(--t2)">${r.engage?r.engage+'%':'—'}</td>
-      <td style="padding:7px 8px;color:var(--t3);white-space:nowrap">${r.at.replace('T',' ').slice(5,16)}<br>
-        <span style="font-size:9px">${r.hours<48?Math.round(r.hours)+'시간 전':Math.round(r.hours/24)+'일 전'}</span></td>
+      <td style="padding:7px 8px;color:var(--t3);white-space:nowrap">${(r.since||r.at).replace('T',' ').slice(5,16)}<br>
+        <span style="font-size:9px">${r.pending?'아직 안 떴습니다'
+          :(r.hours<48?Math.round(r.hours)+'시간 전':Math.round(r.hours/24)+'일 전')}</span></td>
     </tr>`).join('')}
     </tbody></table></div>`;
   renderStatJobs();
@@ -1413,7 +1429,8 @@ function 칸(제목,값,밑){
 }
 /** 가운데보다 위면 파랑, 아래면 흐리게 — 눈으로 바로 갈리게 */
 function 색(v,rows){
-  const 잰것=rows.filter(r=>r.measured&&!r.gone);
+  // ★아직 안 뜬 편(예약)은 요약에서 뺀다 — 조회수 0 이 평균을 끌어내린다
+  const 잰것=rows.filter(r=>r.measured&&!r.gone&&!r.pending);
   if(!잰것.length)return 'var(--t2)';
   const 중간=잰것[Math.floor(잰것.length/2)].perHour;
   return v>중간*1.5?'var(--cyan)':v<중간?'var(--t3)':'var(--t1)';
@@ -1564,12 +1581,17 @@ function renderChannelList(){
           </div>
           <div class="sw" onclick="tglSw('f_${v.id}_firstComment')">
             <span>올린 뒤 첫 댓글 달기
-              <small style="color:var(--t3)">— 쪽지의 firstComment 에 적힌 글. 고정은 스튜디오에서 손으로 (유튜브가 API 로 안 열어 줍니다)</small></span>
+              <small style="color:var(--t3)">— 쪽지의 firstComment 가 먼저, 없으면 아래에 적어 둔 글. 고정은 스튜디오에서 손으로 (유튜브가 API 로 안 열어 줍니다)</small></span>
             <div class="tgl ${v.firstComment?'on':''}" id="f_${v.id}_firstComment"></div>
           </div>
+          <input class="fin" id="f_${v.id}_firstCommentText" value="${esc(v.firstCommentText||'')}"
+                 placeholder="쪽지에 없을 때 달 댓글 · {제목} 을 쓰면 그 영상 제목이 들어갑니다"/>
           <label class="flabel" style="margin-top:10px">몇 시간 뒤 제목을 갈아끼울까</label>
           <input class="fin" id="f_${v.id}_retitleHours" type="number" min="0" max="720" value="${v.retitleHours||0}"/>
-          <div class="hintline">0 이면 안 합니다. 쪽지에 <code>titleB</code> 가 적혀 있는 편만 바뀝니다.</div>
+          <input class="fin" id="f_${v.id}_retitleTemplate" style="margin-top:6px" value="${esc(v.retitleTemplate||'')}"
+                 placeholder="쪽지에 없을 때 쓸 새 제목 틀 · 예: {제목} (결국 이렇게 됐습니다)"/>
+          <div class="hintline">0 이면 안 합니다. 쪽지의 <code>titleB</code> 가 먼저고, 없으면 위 틀을 씁니다.
+            둘 다 비어 있으면 그 편은 그냥 둡니다. <code>{제목}</code> 자리에 원래 제목이 들어갑니다.</div>
 
           ${v.sharesWith?'':`
           <div class="subhead">구글 클라이언트</div>
@@ -1633,7 +1655,8 @@ async function saveChannel(id){
     reviewMode:sw('reviewMode'), madeForKids:sw('madeForKids'),
     notifySubscribers:sw('notifySubscribers'), enabled:sw('enabled'),
     dupGuard:sw('dupGuard'), publishSlots:g('publishSlots'),
-    firstComment:sw('firstComment'), retitleHours:+g('retitleHours')};
+    firstComment:sw('firstComment'), firstCommentText:g('firstCommentText'),
+    retitleHours:+g('retitleHours'), retitleTemplate:g('retitleTemplate')};
   const cid=g('clientId'); if(cid!==undefined)body.clientId=cid;
   const sec=g('clientSecret'); if(sec!==undefined&&sec!=='********')body.clientSecret=sec;
   const r=await api('/api/channel/update',body);
@@ -1692,14 +1715,23 @@ function fillSettings(){
   if(s.browser&&!bl.some(b=>b.id===s.browser))
     $('cBrowser').insertAdjacentHTML('beforeend',`<option value="${esc(s.browser)}" selected>${esc(s.browser)}</option>`);
   setSw('cOsNotify',s.notifications); setSw('cAuto',ST.autoStart);
+  setSw('cTgAlert',s.telegramAlerts);
+  $('cTgHint').textContent = s.telegramReady
+    ? '— 자리를 비웠을 때 막힌 것을 폰으로 압니다. 잘 올라간 것은 안 보냅니다.'
+    : '— 열쇠가 없어 지금은 안 나갑니다 (~/.volcano/env)';
   $('sVer').textContent='v'+(ST.version||'-')+(ST.label?' · '+ST.label:'');
   $('sData').textContent=ST.dataDir||'-';
   $('sExe').textContent=ST.exePath||'-';
 }
+async function testTelegram(){
+  const r=await api('/api/telegram/test',{});
+  msg(r.ok?'보냈습니다 — 폰을 보세요':(r.error||'보내지 못했습니다'), r.ok?'ok':'err');
+}
 async function saveSettings(){
   const r=await api('/api/settings',{
     baseDir:$('cBase').value.trim(), pollSeconds:+$('cPoll').value,
-    stableChecks:+$('cStable').value, notifications:getSw('cOsNotify'), browser:$('cBrowser').value});
+    stableChecks:+$('cStable').value, notifications:getSw('cOsNotify'),
+    telegramAlerts:getSw('cTgAlert'), browser:$('cBrowser').value});
   if(r.error){msg(r.error,'err');poll();return;}
   msg('저장했습니다','ok');
   // 상위 폴더를 바꿨는데 밖에 남은 채널이 있으면 그냥 넘어가지 않고 알려 준다

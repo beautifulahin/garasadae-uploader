@@ -111,3 +111,16 @@ export function thumbPath(videoPath: string, thumbnail: string): string {
   const i = Math.max(videoPath.lastIndexOf("/"), videoPath.lastIndexOf("\\"));
   return join(videoPath.slice(0, i), thumbnail);
 }
+
+/** 채널에 적어 둔 **틀**에 그 영상 제목을 끼워 넣는다 (2026-08-22).
+ *
+ *  `"{제목} (결국 이렇게 됐습니다)"` + `"개헌 왜 이렇게 급해요"`
+ *      → `"개헌 왜 이렇게 급해요 (결국 이렇게 됐습니다)"`
+ *
+ * ★틀이 비어 있으면 빈 글을 돌려준다 — 부르는 쪽에서 "안 한다"로 읽는다.
+ * ★`{제목}` 이 없는 틀은 그대로 쓴다(늘 같은 말을 다는 경우).
+ */
+export function 틀채우기(틀: string, 제목: string): string {
+  if (!틀 || !틀.trim()) return "";
+  return 틀.replaceAll("{제목}", 제목 ?? "").trim();
+}

@@ -111,8 +111,20 @@ export interface ChannelDefaults {
    *  ★유튜브 API 에는 **댓글을 고정하는 길이 없다** — 다는 것까지만 한다. */
   firstComment: boolean;
 
-  /** 이 시간이 지나면 제목을 쪽지의 `titleB` 로 갈아끼운다. 0 이면 안 한다. */
+  /** 쪽지에 `firstComment` 가 없을 때 대신 쓸 글 (2026-08-22).
+   *  ★여태는 **영상마다 쪽지에 적어야만** 댓글이 달렸다. 안 적으면 조용히 아무 일도
+   *    안 해서, 켜 놓고도 안 되는 줄 모르는 일이 있었다. 늘 같은 말을 다는 채널이면
+   *    여기 한 번 적어 두면 된다. 쪽지에 적힌 것이 있으면 **그쪽이 이긴다.**
+   *  ★`{제목}` 을 쓰면 그 영상 제목이 들어간다. */
+  firstCommentText: string;
+
+  /** 이 시간이 지나면 제목을 갈아끼운다. 0 이면 안 한다. */
   retitleHours: number;
+
+  /** 쪽지에 `titleB` 가 없을 때 쓸 **새 제목 틀** (2026-08-22).
+   *  `{제목}` 자리에 원래 제목이 들어간다. 예: `{제목} (결국 이렇게 됐습니다)`.
+   *  비워 두면 쪽지에 적힌 영상만 갈아끼운다. */
+  retitleTemplate: string;
 }
 
 export const CHANNEL_DEFAULTS: ChannelDefaults = {
@@ -132,7 +144,9 @@ export const CHANNEL_DEFAULTS: ChannelDefaults = {
   dupGuard: true,
   publishSlots: [],
   firstComment: false,
+  firstCommentText: "",
   retitleHours: 0,
+  retitleTemplate: "",
 };
 
 export interface Channel extends ChannelDefaults {
@@ -154,6 +168,9 @@ export interface Config {
   pollSeconds: number;
   stableChecks: number;
   notifications: boolean;
+  /** 막힌 소식을 텔레그램으로도 보낼까 (개인판).
+   *  ★열쇠(~/.volcano/env 나 환경변수)가 없으면 켜 두어도 아무 일도 안 한다. */
+  telegramAlerts: boolean;
   autoStart: boolean;
   autoStartAsked: boolean;
   updateDeclines: Record<string, number>;
@@ -176,6 +193,7 @@ export const DEFAULTS: Config = {
   pollSeconds: 5,
   stableChecks: 3,
   notifications: true,
+  telegramAlerts: true,
   autoStart: false,
   autoStartAsked: false,
   updateDeclines: {},
@@ -298,6 +316,16 @@ export interface UploadRec {
   hash?: string;
   /** 예약 공개 시각(RFC3339). 슬롯이 겹치지 않게 하는 데도 쓴다. */
   publishAt?: string;
+
+  /* ── 제목 갈아끼우기 결과 재기 (2026-08-22) ──────────────────────
+     ★여태는 몇 시간 뒤 제목을 B 로 바꾸기만 하고 **B 가 나았는지 아무도 안 쟀다.**
+       바꾼 순간의 조회수를 찍어 두면, 그 앞뒤를 시간당 조회수로 갈라 볼 수 있다. */
+  /** 제목을 갈아끼운 때 (epoch ms) */
+  retitledAt?: number;
+  /** 갈아끼우기 전 제목 */
+  titleA?: string;
+  /** 갈아끼운 순간의 조회수 — 이 앞뒤를 갈라 견준다 */
+  viewsAtRetitle?: number;
 }
 
 /** 올린 뒤 성적. 유튜브에 다시 물어 채운다. */

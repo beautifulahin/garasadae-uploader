@@ -7,7 +7,7 @@ import {
   DAILY_QUOTA, insertComment, setThumbnail, THUMB_COST, updateVideoTitle, UPLOAD_COST,
   uploadVideo, verifyVideo, VideoMeta, WRITE_COST,
 } from "./youtube.ts";
-import { readSidecar, Sidecar, sidecarPath, thumbPath } from "./sidecar.ts";
+import { readSidecar, Sidecar, sidecarPath, thumbPath, 틀채우기 } from "./sidecar.ts";
 import { ErrKind, UploadError } from "./errors.ts";
 import { accessToken, assertSameChannel, 고급권한있나, 고급기능켰나 } from "./auth.ts";
 import { moveToTrash, notify, openUrl, 잠깨우기끝, 잠깨워두기, 쓰던탭에다시 } from "./platform.ts";
@@ -578,21 +578,26 @@ export class Manager {
     // 댓글을 달아 봐야 아무도 못 본다.
     const 기준 = Date.parse(p.publishAt || p.sidecar?.publishAt || "") || Date.now();
 
-    if (ch.firstComment && p.sidecar?.firstComment) {
+    /* ★쪽지에 적힌 것이 먼저고, 없으면 채널에 적어 둔 틀을 쓴다 (2026-08-22).
+       여태는 **쪽지에 적어야만** 됐다. 켜 놓고도 아무 일이 없어 안 되는 줄 알았다는
+       말이 나와, 늘 같은 말을 다는 채널은 한 번만 적어 두면 되게 했다. */
+    const 댓글 = p.sidecar?.firstComment || 틀채우기(ch.firstCommentText, p.title);
+    if (ch.firstComment && 댓글) {
       this.state.jobs.push({
         kind: "comment", videoId, channelId: ch.id,
         at: 기준 + 3 * 60_000,                 // 처리될 틈을 3분 준다
-        text: p.sidecar.firstComment, tries: 0,
+        text: 댓글, tries: 0,
       });
-      await log(`   💬 첫 댓글을 걸어 두었습니다`);
+      await log(`   💬 첫 댓글을 걸어 두었습니다${p.sidecar?.firstComment ? "" : " (채널 기본값)"}`);
     }
-    if (ch.retitleHours > 0 && p.sidecar?.titleB) {
+    const 새제목 = p.sidecar?.titleB || 틀채우기(ch.retitleTemplate, p.title);
+    if (ch.retitleHours > 0 && 새제목) {
       this.state.jobs.push({
         kind: "retitle", videoId, channelId: ch.id,
         at: 기준 + ch.retitleHours * 3600_000,
-        text: p.sidecar.titleB, tries: 0,
+        text: 새제목.slice(0, 100), tries: 0,
       });
-      await log(`   ✏️  ${ch.retitleHours}시간 뒤 제목을 갈아끼웁니다: ${p.sidecar.titleB}`);
+      await log(`   ✏️  ${ch.retitleHours}시간 뒤 제목을 갈아끼웁니다: ${새제목}`);
     }
     await saveState(this.state);
   }
@@ -618,7 +623,14 @@ export class Manager {
         if (ok) {
           await log(`✏️  [${ch.name}] 제목을 갈아끼웠습니다: ${r.before} → ${job.text}`);
           const u = this.state.uploads.find((x) => x.id === job.videoId);
-          if (u) u.title = job.text;
+          if (u) {
+            /* ★바꾼 순간을 찍어 둔다 — 이것이 있어야 앞뒤를 갈라 견줄 수 있다.
+               조회수는 마지막으로 잰 값을 쓴다(성적은 한 시간마다 잰다). */
+            u.titleA = r.before || u.title;
+            u.retitledAt = Date.now();
+            u.viewsAtRetitle = this.state.stats[job.videoId]?.views ?? 0;
+            u.title = job.text;
+          }
         }
       }
       this.addQuota(ch, WRITE_COST);

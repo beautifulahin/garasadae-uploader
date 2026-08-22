@@ -1,6 +1,7 @@
 // 가라사대 업로더 — 진입점
 import { APP_NAME, APP_VERSION, dataDir, ensureDataDir, loadConfig, log, saveConfig } from "./paths.ts";
 import { Manager } from "./watcher.ts";
+import { 텔레그램설정 } from "./platform.ts";
 import { autoUpdateOnStart, startServer } from "./server.ts";
 import { openUrl, 쓰던탭에다시 } from "./platform.ts";
 
@@ -12,6 +13,7 @@ async function main() {
 
   await ensureDataDir();
   const cfg = await loadConfig();
+  텔레그램설정(cfg.telegramAlerts);   // 막힌 소식을 텔레그램으로도 보낼지
   await saveConfig(cfg);                       // 첫 실행 시 기본 설정 파일 생성
 
   // 포트가 이미 쓰이고 있다면, 우리 프로그램인지 다른 프로그램인지 가려낸다

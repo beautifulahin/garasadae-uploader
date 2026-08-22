@@ -6,8 +6,9 @@ import {
 } from "./paths.ts";
 import { accessToken, authUrl, checkChannel, exchange, revoke, 고급권한있나, 고급기능켰나, 채널id메우기 } from "./auth.ts";
 import { Manager, studioEditorUrl } from "./watcher.ts";
-import { autoStartEnabled, isCompiled, listBrowsers, openPath, openUrl, pickFolder, setAutoStart, 쓰던탭에다시 } from "./platform.ts";
+import { autoStartEnabled, isCompiled, listBrowsers, openPath, openUrl, pickFolder, setAutoStart, 텔레그램설정, 쓰던탭에다시 } from "./platform.ts";
 import { checkUpdate, installUpdate, UpdateInfo } from "./update.ts";
+import { 텔레그램, 텔레그램쓸수있나 } from "./telegram.ts";
 
 const UI = await Deno.readTextFile(new URL("./ui.html", import.meta.url));
 
@@ -169,6 +170,8 @@ export function startServer(engine: Manager, port: number) {
             pollSeconds: cfg.pollSeconds,
             stableChecks: cfg.stableChecks,
             notifications: cfg.notifications,
+            telegramAlerts: cfg.telegramAlerts,
+            telegramReady: await 텔레그램쓸수있나(),
             baseDir: cfg.baseDir,
             browser: cfg.browser,
           },
@@ -187,6 +190,15 @@ export function startServer(engine: Manager, port: number) {
       if (p === "/api/log") return json({ lines: await tailLog(80) });
 
       /* ---------------- 공통 설정 ---------------- */
+      // 텔레그램이 진짜로 닿는지 한 줄 보내 본다
+      if (p === "/api/telegram/test" && req.method === "POST") {
+        if (!await 텔레그램쓸수있나()) {
+          return json({ ok: false, error: "텔레그램 열쇠를 못 찾았습니다 (~/.volcano/env)" });
+        }
+        const ok = await 텔레그램(`가라사대 업로더 🔔\n시험 삼아 보냅니다 — 이 글이 보이면 막힌 소식도 여기로 옵니다.`);
+        return json({ ok, error: ok ? "" : "보내지 못했습니다 — 열쇠나 인터넷을 살펴 주세요" });
+      }
+
       if (p === "/api/settings" && req.method === "POST") {
         const patch = await req.json();
         const cfg = await loadConfig(true);
@@ -195,6 +207,10 @@ export function startServer(engine: Manager, port: number) {
         if (patch.pollSeconds !== undefined) cfg.pollSeconds = clamp(patch.pollSeconds, 2, 3600, 5);
         if (patch.stableChecks !== undefined) cfg.stableChecks = clamp(patch.stableChecks, 1, 60, 3);
         if (patch.notifications !== undefined) cfg.notifications = !!patch.notifications;
+        if (patch.telegramAlerts !== undefined) {
+          cfg.telegramAlerts = !!patch.telegramAlerts;
+          텔레그램설정(cfg.telegramAlerts);
+        }
         if (typeof patch.browser === "string") cfg.browser = patch.browser.trim();
         await saveConfig(cfg);
         await engine.reloadConfig();
@@ -334,7 +350,7 @@ export function startServer(engine: Manager, port: number) {
           ch.sharesWith = s;
         }
         for (const k of ["privacy", "categoryId", "language", "description", "titlePrefix",
-          "titleSuffix", "afterUpload", "studioAfter"] as const) {
+          "titleSuffix", "afterUpload", "studioAfter", "firstCommentText", "retitleTemplate"] as const) {
           if (typeof patch[k] === "string") (ch[k] as string) = patch[k];
         }
         for (const k of ["madeForKids", "notifySubscribers", "reviewMode", "enabled"] as const) {
