@@ -471,12 +471,12 @@ export class Manager {
         await log(`   ⏰ ${new Date(p.sidecar.publishAt).toLocaleString()} 에 저절로 공개됩니다`);
       }
 
-      // 쪽지에 배너 그림이 적혀 있으면 얹는다. 실패해도 업로드는 이미 끝난 것이다.
+      // 쪽지에 썸네일 그림이 적혀 있으면 얹는다. 실패해도 업로드는 이미 끝난 것이다.
       if (p.sidecar?.thumbnail) {
         const 그림자리 = thumbPath(p.path, p.sidecar.thumbnail);
         const t = await setThumbnail(this.cfg, ch, res.id, 그림자리);
         this.addQuota(ch, THUMB_COST);
-        await log(t.ok ? `   🖼  배너를 얹었습니다` : `   ⚠️  ${t.message}`);
+        await log(t.ok ? `   🖼  썸네일을 얹었습니다` : `   ⚠️  ${t.message}`);
       }
       await this.뒷일걸기(p, ch, res.id);
       if (this.cfg.notifications) await notify("가라사대 업로더 ✅", `[${ch.name}] ${p.title} 업로드 완료`);
@@ -632,13 +632,13 @@ export class Manager {
       job.tries++;
       if (job.tries >= 3) {
         this.state.jobs.splice(i, 1);
-        await log(`⚠️  [${ch.name}] ${job.kind === "comment" ? "첫 댓글" : "제목 갈아끼우기"} 를 접습니다 — ${msg}`);
+        await log(`⚠️  [${ch.name}] ${job.kind === "comment" ? "첫 댓글을" : "제목 갈아끼우기를"} 접습니다 — ${msg}`);
         if (this.cfg.notifications) {
           await notify("가라사대 업로더 ⚠️", `${job.kind === "comment" ? "첫 댓글" : "제목 바꾸기"} 실패 — ${msg.slice(0, 80)}`);
         }
       } else {
         job.at = 지금 + 30 * 60_000;
-        await log(`   ⏳ ${job.kind === "comment" ? "첫 댓글" : "제목 갈아끼우기"} 를 30분 뒤 다시 해 봅니다 (${msg})`);
+        await log(`   ⏳ ${job.kind === "comment" ? "첫 댓글을" : "제목 갈아끼우기를"} 30분 뒤 다시 해 봅니다 (${msg})`);
       }
     }
     await saveState(this.state);

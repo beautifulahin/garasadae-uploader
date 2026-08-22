@@ -1,7 +1,7 @@
 // 곁딸린 쪽지(sidecar) — 영상마다 다른 제목·설명·태그·썸네일을 옆에 적어 둔다.
 //
 // 사용자 지시(2026-08-20):
-//   "영상마다 제목·해시태그·설명이 자동으로 입력되고, 핵심 장면을 배너로 지정"
+//   "영상마다 제목·해시태그·설명이 자동으로 입력되고, 핵심 장면을 썸네일로 지정"
 //   지금까지는 제목을 파일 이름에서 따오고 설명·태그는 채널 기본값 하나를 모든
 //   영상에 똑같이 썼다. 영상마다 다르게 넣을 자리가 없었다.
 //
@@ -22,7 +22,7 @@ export interface Sidecar {
   privacy?: string;
   madeForKids?: boolean;
   notifySubscribers?: boolean;
-  /** 배너(썸네일) 그림 — 절대경로이거나 영상과 같은 폴더의 파일 이름 */
+  /** 썸네일 그림 — 절대경로이거나 영상과 같은 폴더의 파일 이름 */
   thumbnail?: string;
   /** 예약 공개 시각 (RFC3339, 예: 2026-08-21T19:00:00+09:00).
    *  ★유튜브는 **비공개로 올린 것만** 예약할 수 있다. privacy 를 안 적으면 여기서
@@ -105,7 +105,7 @@ export async function readSidecar(videoPath: string): Promise<Sidecar | null> {
   return Object.values(s).some((v) => v !== undefined) ? s : null;
 }
 
-/** 배너 그림의 실제 자리 — 쪽지에 파일 이름만 적혀 있으면 영상과 같은 폴더에서 찾는다 */
+/** 썸네일 그림의 실제 자리 — 쪽지에 파일 이름만 적혀 있으면 영상과 같은 폴더에서 찾는다 */
 export function thumbPath(videoPath: string, thumbnail: string): string {
   if (thumbnail.startsWith("/") || /^[A-Za-z]:[\\/]/.test(thumbnail)) return thumbnail;
   const i = Math.max(videoPath.lastIndexOf("/"), videoPath.lastIndexOf("\\"));
