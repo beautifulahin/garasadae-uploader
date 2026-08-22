@@ -13,7 +13,9 @@
 # ★바뀐 게 없으면 아무것도 하지 않는다. 그래서 자주 돌려도 된다.
 # ★업로드가 도는 중이면 건드리지 않고 다음 번으로 미룬다.
 set -e
-cd "$(dirname "$0")"
+# ★`dirname $0` 을 쓰면 안 된다 — 도는 사본은 `~/.volcano` 에 있어서 거기로 들어간다.
+#   저장소 자리를 곧바로 적는다(2026-08-22 에 ~/volcano_jobs 에서 옮겼다).
+cd "$HOME/가라사대/youtube-uploader"
 
 # ★도중에 엎어지면 **조용히 죽지 않는다.** 점검이나 빌드가 실패하면 옛 판이 그대로
 #   돌고 있는데, 그걸 모르면 "새 공개판 기능이 왜 없지?" 하고 헤매게 된다.
@@ -31,6 +33,19 @@ trap 'rc=$?; [ $rc -ne 0 ] && 텔레그램 "⚠️ 업로더 개인판 갱신이
     "https://api.telegram.org/bot$token/sendMessage" \
     --data-urlencode "chat_id=$chat" --data-urlencode "text=$msg" || true
 }
+
+# ★**도는 사본이 낡았는지 스스로 본다** (2026-08-22).
+#   이 파일은 저장소 밖(~/.volcano)에서 돌기 때문에, 저장소 것만 고치고 사본을 안
+#   바꾸면 **고친 줄 알고 옛것이 계속 돈다.** 실제로 어제 고친 방아쇠가 사본에 안
+#   옮겨져, 개인판에 얹은 것이 또 안 깔렸다(H-190 두 번째). 어긋나면 시끄럽게 군다.
+me="$HOME/.volcano/개인판.sh"
+src="$HOME/가라사대/youtube-uploader/개인판.sh"
+if [ -f "$src" ] && ! cmp -s "$me" "$src"; then
+  로그 "도는 사본이 저장소 것과 다르다 — 저장소 것으로 갈아끼운다"
+  cp "$src" "$me"
+  텔레그램 "🔁 업로더 개인판 갱신 스크립트를 저장소 판으로 갈아끼웠다. 이번 바퀴는 새 판으로 다시 돈다."
+  exec /bin/bash "$me" "$@"
+fi
 
 git fetch -q origin main
 ahead=$(git rev-list --count 개인판..origin/main 2>/dev/null || echo 0)
