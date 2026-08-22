@@ -482,8 +482,21 @@ export async function updateVideoTitle(
 async function 권한말(r: Response, 무엇: string): Promise<string> {
   let txt = "";
   try { txt = await r.text(); } catch { /* 무시 */ }
-  if (r.status === 403 || /insufficient|forbidden|scope/i.test(txt)) {
+  /* ★403 을 전부 「권한 없음」으로 뭉뚱그리면 안 된다 (2026-08-22 실측).
+     비공개 영상에 첫 댓글을 달려다 403 이 났는데 "다시 연결하라"고만 나와,
+     권한이 멀쩡한데도 로그인만 되풀이하게 됐다. **까닭을 갈라 읽는다.** */
+  let 까닭 = "";
+  try { 까닭 = JSON.parse(txt).error?.errors?.[0]?.reason ?? ""; } catch { /* 무시 */ }
+  if (/commentsDisabled|processingFailure|videoNotFound/i.test(까닭)) {
+    return `${무엇}을 달 수 없는 영상입니다 (${까닭}) — 비공개 영상에는 댓글이 안 달립니다. 일부공개나 공개로 올려 보세요`;
+  }
+  if (/insufficientPermissions|authError|scope/i.test(까닭) || (r.status === 403 && !까닭)) {
     return `${무엇} 권한이 없습니다 — 채널 탭에서 그 채널을 **다시 연결**해야 합니다`;
+  }
+  if (r.status === 403) {
+    let d = "";
+    try { d = JSON.parse(txt).error?.message ?? ""; } catch { /* 무시 */ }
+    return `${무엇} 실패 (403 ${까닭}) ${d}`.trim();
   }
   let detail = "";
   try { detail = JSON.parse(txt).error?.message ?? ""; } catch { detail = txt.slice(0, 120); }
