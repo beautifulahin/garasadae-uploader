@@ -899,7 +899,12 @@ export class Manager {
       })),
       lastError: this.lastError,
       todayCount: this.todayCount(),
-      uploads: this.state.uploads.slice(0, 60),
+      /* ★공개 상태는 **지금 유튜브가 아는 값**으로 보인다 (2026-08-24).
+         올릴 때 값만 적어 두고 안 바꿔서, 비공개로 올린 뒤 손으로 공개한 편이
+         계속 「비공개」로 보였다. 성적을 잴 때 받아 온 값이 있으면 그것을 쓴다. */
+      uploads: this.state.uploads.slice(0, 60).map((u) => ({
+        ...u, privacy: this.state.stats[u.id]?.privacy || u.privacy,
+      })),
       failed: this.state.failed,
       stats: statsRows(this.state).slice(0, 120),
       statsAt: this.state.statsAt,
