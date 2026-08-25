@@ -20,12 +20,7 @@ async function main() {
   if (await portBusy(cfg.port)) {
     if (await isOurApp(cfg.port)) {
       // ★이미 돌고 있는데 또 눌렀다 = **화면을 보고 싶다는 뜻**이다.
-      //   끼움 화면(소재국 …)이 있으면 그 첫 번째로 곧장 연다 — 검토·승인이
-      //   거기 있어서 다시 누르는 것이지, 감시 목록을 보려는 것이 아니다
-      //   (사용자 지시 2026-08-21: "재접속 누르면 바로 소재국으로 바로 열리게").
-      const 첫끼움 = cfg.panels?.[0]?.name ?? "";
-      const url = `http://127.0.0.1:${cfg.port}` +
-        (첫끼움 ? "#" + encodeURIComponent(첫끼움) : "");
+      const url = `http://127.0.0.1:${cfg.port}`;
       console.log(`${APP_NAME} 가 이미 실행 중입니다 → ${url}`);
       // ★**새 탭을 또 만들지 않는다.** 이미 열려 있는 우리 탭이 있으면 그 자리에서
       //   다시 불러온다(사용자 지시 2026-08-21). 못 찾으면 그때만 새로 연다.

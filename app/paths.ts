@@ -177,14 +177,6 @@ export interface Config {
   baseDir: string;          // 채널 폴더들이 들어가는 상위 폴더
   browser: string;          // 화면을 띄울 브라우저. 비어 있으면 시스템 기본값
   channels: Channel[];
-  /** 이 컴퓨터에만 있는 **끼움 화면**. 탭으로 붙어 그 주소를 그대로 띄운다.
-   *
-   * ★배포본에는 목록이 비어 있다 — 붙일 화면은 각자의 설정 파일에만 있다. 자기
-   *   컴퓨터에서 돌리는 다른 도구를 업로더 안에서 함께 보려고 만들었다.
-   * ★127.0.0.1 이나 localhost 만 받는다. 남의 사이트를 탭으로 끼우면 그 화면이
-   *   업로더 안에 있는 것처럼 보여 위험하다.
-   */
-  panels: { name: string; url: string }[];
 }
 
 export const DEFAULTS: Config = {
@@ -200,7 +192,6 @@ export const DEFAULTS: Config = {
   baseDir: "",
   browser: "",
   channels: [],
-  panels: [],
 };
 
 export function newChannelId(): string {
@@ -452,14 +443,6 @@ async function normalize(raw: Record<string, unknown>): Promise<Config> {
   };
   cfg.updateDeclines = (raw.updateDeclines as Record<string, number>) ?? {};
   cfg.channels = Array.isArray(raw.channels) ? (raw.channels as Channel[]) : [];
-  // ★끼움 화면은 **내 컴퓨터의 것만** 받는다. 남의 사이트를 탭으로 끼우면 그 화면이
-  //   업로더 안에 있는 것처럼 보여, 무엇을 누르는지 헷갈리게 만들 수 있다.
-  cfg.panels = (Array.isArray(raw.panels) ? raw.panels : [])
-    .map((x) => ({ name: String((x as {name?: string}).name ?? "").slice(0, 20),
-                   url: String((x as {url?: string}).url ?? "") }))
-    .filter((x) => x.name && /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/.test(x.url))
-    .slice(0, 5);
-
   if (!cfg.baseDir) cfg.baseDir = join(await desktopDir(), "업로드대기");
 
   // ── 옛 구조에서 넘어오기 ─────────────────────────────

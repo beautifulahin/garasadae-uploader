@@ -284,7 +284,6 @@ textarea.fin{resize:vertical;line-height:1.6}
 </header>
 
 <div class="tabs">
-  <span id="panelTabs"></span>
   <button class="tab on" data-tab="t1" onclick="swTab('t1')">👀 감시 중</button>
   <button class="tab" data-tab="t2" onclick="swTab('t2')">📋 기록</button>
   <button class="tab" data-tab="t7" onclick="swTab('t7')">📊 성적</button>
@@ -883,53 +882,18 @@ function shortPath(p){if(!p)return '-';const a=p.split(/[/\\]/);return a.length>
 let ST=null, tab='t1', dirty=new Set(), dropSel=[], histCh='';
 
 function msg(t,k){const e=$('toast');e.textContent=t;e.className='toast show '+(k||'');clearTimeout(e._t);e._t=setTimeout(()=>e.className='toast',3600)}
-/* ── 끼움 화면 ────────────────────────────────────────────────
-   이 컴퓨터에서 돌리는 다른 도구를 업로더 안에서 함께 본다. 설정의 `panels` 에
-   적힌 것만 붙으며, 배포본에는 그 목록이 비어 있다.
-   ★처음 열 때 비로소 불러온다 — 안 여는 화면을 미리 띄워 둘 까닭이 없다. */
-function renderPanels(list){
-  const bar=$('panelTabs'); if(!bar) return;
-  const 이름들=(list||[]).map(p=>p.name).join('|');
-  if(bar.dataset.sig===이름들) return;
-  bar.dataset.sig=이름들;
-  bar.innerHTML=(list||[]).map((p,i)=>
-    `<button class="tab" data-tab="p${i}" onclick="swTab('p${i}')">🧩 ${esc(p.name)}</button>`).join('');
-  (list||[]).forEach((p,i)=>{
-    if(document.getElementById('p'+i)) return;
-    const d=document.createElement('div');
-    d.className='tp solo'; d.id='p'+i;
-    d.style.cssText='padding:0;height:calc(100vh - 96px)';
-    d.innerHTML=`<iframe data-src="${esc(p.url)}" style="width:100%;height:100%;border:0;border-radius:var(--r)"></iframe>`;
-    document.body.appendChild(d);
-  });
-}
-
-/** `#소재국` · `#p0` · `#t3` 를 탭 id 로 바꾼다. 못 찾으면 빈 글. */
+/** `#t3` 처럼 붙어 온 탭 id 를 받는다. 없는 탭이면 빈 글. */
 function 탭찾기(hash){
   if(!hash) return '';
   let 이름=''; try{ 이름=decodeURIComponent(hash.slice(1)); }catch(_){ 이름=hash.slice(1); }
   if(!이름) return '';
-  if(document.getElementById(이름)&&document.querySelector('.tab[data-tab="'+이름+'"]')) return 이름;
-  // 이름으로 부른 끼움 화면 — 탭에 적힌 글로 찾는다 ("🧩 소재국")
-  const 찾음=[...document.querySelectorAll('#panelTabs .tab')]
-    .find(b=>b.textContent.replace(/^🧩\s*/,'').trim()===이름.trim());
-  return 찾음 ? 찾음.dataset.tab : '';
+  return (document.getElementById(이름)&&document.querySelector('.tab[data-tab="'+이름+'"]')) ? 이름 : '';
 }
 
 function swTab(id){
   // ★어느 탭을 보고 있었는지 기억한다 — 새로고침하면 첫 탭으로 튕겨 나가
   //   보던 자리를 다시 찾아 들어가야 했다.
   try{ localStorage.setItem('마지막탭', id); }catch(_){}
-  if(id&&id[0]==='p'){
-    // ★끼움 화면은 **열 때마다 새로** 불러온다. 처음 한 번만 불러오게 했더니,
-    //   그 화면을 고쳐도 탭 안에서는 옛것이 계속 보였다(브라우저가 붙들고 있다).
-    //   주소 뒤에 시각을 붙여 캐시를 확실히 비껴간다.
-    const f=document.querySelector('#'+id+' iframe');
-    if(f&&f.dataset.src){
-      const u=f.dataset.src;
-      f.src=u+(u.indexOf('?')>=0?'&':'?')+'t='+Date.now();
-    }
-  }
   tab=id;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===id));document.querySelectorAll('.tp').forEach(p=>p.classList.toggle('on',p.id===id));if(id==='t2')loadLog();if(id==='t4')fillSettings();if(id==='t3')renderChannelList();if(id==='t7')renderStats();}
 const setSw=(id,on)=>$(id)&&$(id).classList.toggle('on',!!on);
 const getSw=id=>$(id)?$(id).classList.contains('on'):false;
@@ -1034,7 +998,6 @@ function paint(){
   if(tab==='t7')renderStats();
 
   paintUpdate(s.update,s.updating,s.updatePrompt);
-  renderPanels(s.panels);
   const upOpen=$('upModal').classList.contains('on');
   if(!upOpen)paintAutoAsk(s.askAutoStart);
   if(!upOpen&&!$('autoModal').classList.contains('on'))paintAsk(s.ask);
@@ -1950,14 +1913,12 @@ document.querySelectorAll('.modal').forEach(m=>{
     if(done&&ST&&ST.version===done){ localStorage.removeItem('justUpdatedTo'); msg('최신 버전입니다 (v'+ST.version+')','ok'); }
     else if(done&&ST&&ST.update&&!ST.update.available){ localStorage.removeItem('justUpdatedTo'); msg('최신 버전입니다','ok'); }
   }catch(_){}
-  fillSettings(); renderChannelList(); renderPanels(ST&&ST.panels);
-  // ★주소 뒤에 `#소재국` 처럼 붙어 오면 **그 화면부터** 연다 — 보던 탭보다 앞선다.
-  //   앱이 이미 돌 때 다시 누르면(재접속) 저쪽에서 이것을 붙여 보낸다
-  //   (사용자 지시 2026-08-21: "재접속 누르면 바로 소재국으로 열리게").
+  fillSettings(); renderChannelList();
+  // ★주소 뒤에 `#t3` 처럼 붙어 오면 **그 탭부터** 연다 — 보던 탭보다 앞선다.
   const 시킨탭=탭찾기(location.hash);
   if(시킨탭){ swTab(시킨탭); }
   else{
-    // 보던 탭으로 되돌아간다. 없는 탭이면 그냥 둔다(끼움 화면을 지웠을 수 있다).
+    // 보던 탭으로 되돌아간다. 없는 탭이면 그냥 둔다.
     try{
       const 마지막=localStorage.getItem('마지막탭');
       if(마지막&&document.getElementById(마지막)&&
