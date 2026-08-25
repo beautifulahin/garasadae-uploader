@@ -10,7 +10,7 @@ VER=$(grep -o 'APP_VERSION = "[^"]*"' app/paths.ts | head -1 | sed 's/.*"\(.*\)"
 # ── 어느 가지에서 굽는지 못 박는다 ────────────────────────────
 # ★2026-08-21 사고: 다른 가지에 선 채로 빌드해 **공개 릴리스에 그 가지의 기능이
 #   들어간 바이너리**가 올라갔다. dist 는 곧 릴리스에 올라가는 것이므로, 여기서 막는다.
-#   자기 판을 굽는 것은 VOLCANO_BUILD_ANY=1 을 주면 된다(개인판.sh 가 그렇게 부른다).
+#   자기 판을 굽는 것은 VOLCANO_BUILD_ANY=1 을 주면 된다.
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "?")
 if [ "$BRANCH" != "main" ] && [ "${VOLCANO_BUILD_ANY:-0}" != "1" ]; then
   echo "❌ 지금 가지가 '$BRANCH' 입니다. 배포용 빌드는 main 에서만 합니다."

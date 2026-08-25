@@ -25,11 +25,7 @@ src_ver=$(grep -o 'APP_VERSION = "[^"]*"' app/paths.ts | head -1 | sed 's/.*"\(.
 [ "v$src_ver" = "$tag" ] || { echo "❌ 태그($tag)와 버전(v$src_ver)이 다릅니다."; exit 1; }
 [ -z "$(git status --porcelain)" ] || { echo "❌ 커밋 안 한 것이 있습니다."; exit 1; }
 
-# 개인판에만 있어야 할 것이 섞였는지 마지막으로 뒤진다
-bin="dist/맥-애플실리콘/가라사대 업로더.app/Contents/MacOS/GarasadaeUploader"
-leaked=$(strings "$bin" 2>/dev/null | grep -c 'sidecarPath\|readSidecar' || true)
-[ "$leaked" = "0" ] || { echo "❌ 배포본에 개인판 기능이 섞여 있습니다($leaked곳). 올리지 않습니다."; exit 1; }
-
+# (2026-08-25) 개인판을 공개판에 합쳤다 — 쪽지·성적·슬롯은 이제 공개 기능이라 「섞임 검사」를 뺐다.
 notes="배포/릴리스노트_${src_ver}.md"
 [ -f "$notes" ] || { echo "❌ $notes 가 없습니다."; exit 1; }
 
