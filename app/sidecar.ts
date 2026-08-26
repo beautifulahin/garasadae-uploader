@@ -33,6 +33,18 @@ export interface Sidecar {
   firstComment?: string;
   /** 갈아끼울 두 번째 제목. 채널의 `retitleHours` 가 지나면 이것으로 바뀐다. */
   titleB?: string;
+  /** 승인 표식 (H-241) — 가라사대 `review.approve` 가 검사 게이트(FINAL_OUTPUT_OK · 도장 md5 = 파일 md5)를
+   *  지난 **그 파일**의 해시를 적어 보낸다. 같은 제목의 옛 기록에 걸렸을 때, 현재 파일의 전체 sha256 이
+   *  이 값과 같으면 "승인된 수정본"으로 본다. 없으면 undefined — 옛 쪽지와 완전 호환. */
+  approval?: Approval;
+}
+
+export interface Approval {
+  source: string;    // "review.approve" 만 인정한다
+  finalOk: boolean;  // FINAL_OUTPUT_OK
+  md5: string;       // 검사도장의 md5 (32 hex)
+  sha256: string;    // 같은 파일의 전체 sha256 (64 hex) — 업로더가 대조하는 축
+  at: string;        // ISO 시각
 }
 
 const 공개값 = new Set(["public", "private", "unlisted"]);
@@ -85,6 +97,17 @@ export async function readSidecar(videoPath: string): Promise<Sidecar | null> {
   s.thumbnail = 글(날것.thumbnail, 1024);
   s.firstComment = 글(날것.firstComment, 9000);
   s.titleB = 글(날것.titleB, 100);
+  // 승인 표식 — 네 필드가 다 있고 꼴이 맞을 때만 받는다. 아니면 없는 것으로(undefined).
+  const 승 = 날것.approval as Record<string, unknown> | undefined;
+  if (승 && typeof 승 === "object") {
+    const src = 글(승.source, 40), md5 = 글(승.md5, 32), sha = 글(승.sha256, 64), at = 글(승.at, 40);
+    if (src && typeof 승.finalOk === "boolean" && md5 && /^[0-9a-f]{32}$/i.test(md5)
+        && sha && /^[0-9a-f]{64}$/i.test(sha) && at) {
+      s.approval = { source: src, finalOk: 승.finalOk, md5: md5.toLowerCase(), sha256: sha.toLowerCase(), at };
+    } else {
+      await log(`   ⚠️  쪽지의 승인 표식이 온전하지 않아 무시합니다`);
+    }
+  }
 
   const 때 = 글(날것.publishAt, 40);
   if (때) {

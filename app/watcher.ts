@@ -82,6 +82,23 @@ export function studioEditorUrl(id: string): string {
 
 export interface ChannelBlock { message: string; url: string }
 
+/** 쪽지의 승인 표식이 **이 파일**을 가리키는가 (H-241).
+ *  source·finalOk·md5·sha256·at 네 가지 꼴은 readSidecar 가 이미 걸렀다. 여기서는 뜻을 본다:
+ *  review.approve 가 준 것이고 FINAL 이 참이며, 현재 파일의 전체 sha256 이 표식과 같아야 한다.
+ *  전체 해시는 제목이 겹친 그 드문 갈래에서만 한 번 낸다. 못 읽으면 false(현행대로 세운다). */
+export async function 승인된수정본인가(s: Sidecar | null, path: string): Promise<boolean> {
+  const a = s?.approval;
+  if (!a || a.source !== "review.approve" || a.finalOk !== true) return false;
+  if (!/^[0-9a-f]{32}$/.test(a.md5) || !/^[0-9a-f]{64}$/.test(a.sha256)) return false;
+  try {
+    const d = await crypto.subtle.digest("SHA-256", await Deno.readFile(path));
+    const hex = [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    return hex === a.sha256;
+  } catch {
+    return false;
+  }
+}
+
 export class Manager {
   cfg!: Config;
   state!: State;
@@ -404,7 +421,14 @@ export class Manager {
         const 겹침 = findDuplicate(this.state.uploads, {
           channelId: ch.id, hash: p.hash, title: p.title,
         });
-        if (겹침) {
+        // ★승인된 수정본 (H-241) — 판정 결과는 그대로 쓰고 **해석만** 여기서 한다.
+        //   why:"file"(같은 파일)은 예외 없이 세운다. why:"title"(제목만 같음)일 때만, 쪽지의
+        //   승인 표식(review.approve · finalOk · 해시)이 **현재 파일의 전체 sha256** 과 맞으면
+        //   지나간다. 그 한 갈래에서만 전체 해시를 한 번 낸다. 나머지는 전부 현행(사람 확인).
+        if (겹침 && 겹침.why === "title" && await 승인된수정본인가(p.sidecar, p.path)) {
+          await log(`✅ [${ch.name}] 승인된 수정본 — 동일 제목의 이전 기록(${겹침.rec.id})은 있으나 `
+            + `review.approve 표식 + 현재 파일 해시 일치 확인: ${p.name}`);
+        } else if (겹침) {
           p.status = "error";
           p.dup = dupMessage(겹침);
           p.error = p.dup;
