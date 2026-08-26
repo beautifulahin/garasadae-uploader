@@ -61,9 +61,20 @@ export async function refreshStats(
           privacy: it.privacy || 앞?.privacy,
         };
       }
-      // 돌려주지 않은 것은 사라진 영상이다. 지우지 말고 표시만 남긴다 —
-      // 지워 버리면 "왜 없어졌지?" 를 물어볼 자리가 없어진다.
+      // 돌려주지 않은 것은 사라진 영상이다. 갓 올린 것(3시간 안)은 아직 처리 중일 수
+      // 있으니 「사라짐」 표시만 남기고, **올린 지 3시간이 지났는데도 없으면 기록에서 뺀다**
+      // (사용자 지시 2026-08-26: "화면 안 나오는 영상 지워줘 — 몇 시간 지나도 똑같이
+      //  보이면 지워"). 유튜브에서 지운 편이 첫 화면 「최근 올린 영상」에 빈 칸으로
+      //  남아 있었다.
       for (const id of missing) {
+        const u = state.uploads.find((x) => x.id === id);
+        const 올린지 = u ? 이제 - Date.parse(u.at) : 0;
+        if (u && Number.isFinite(올린지) && 올린지 > 3 * 3600_000) {
+          state.uploads = state.uploads.filter((x) => x.id !== id);
+          delete state.stats[id];
+          await log(`   🗑  [${ch.name}] 유튜브에서 사라진 편을 기록에서 뺐습니다: ${u.title}`);
+          continue;
+        }
         state.stats[id] = { ...(state.stats[id] ?? { views: 0, likes: 0, comments: 0 }), at: 이제, gone: true };
       }
       잰편수 += items.length;
