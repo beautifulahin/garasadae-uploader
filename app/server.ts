@@ -644,9 +644,13 @@ export function startServer(engine: Manager, port: number) {
         }
 
         const issueBody = `${b}\n\n---\n환경: ${os} · 프로그램 ${APP_VERSION}\n보낸 때: ${when}`;
+        // ★라벨을 함께 실어 보낸다. 이 주소는 이슈 **템플릿을 거치지 않으므로**,
+        //   안 실으면 종류 표가 아무것도 안 붙는다 (실제로 #1·#2 가 빈 채로 있었다).
+        const 라벨 = kind === "idea" ? "💡 요청" : kind === "bug" ? "🐞 오류" : "";
         const issueUrl = `https://github.com/${REPO}/issues/new?` + new URLSearchParams({
           title: `[${label.replace(/^\S+\s/, "")}] ${t}`,
           body: issueBody,
+          ...(라벨 ? { labels: `${라벨},🆕 접수` } : {}),
         });
         await log(`💬 의견 접수: ${t}`);
         return json({ ok: true, url: issueUrl, saved });

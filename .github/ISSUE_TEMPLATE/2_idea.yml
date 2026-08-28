@@ -1,7 +1,7 @@
 name: 💡 기능 요청
 description: 이런 게 있었으면 좋겠어요
 title: "[요청] "
-labels: ["요청"]
+labels: ["💡 요청", "🆕 접수"]
 body:
   - type: textarea
     id: what
