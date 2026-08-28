@@ -9,6 +9,7 @@ import { Manager, studioEditorUrl } from "./watcher.ts";
 import { autoStartEnabled, isCompiled, listBrowsers, openPath, openUrl, pickFolder, setAutoStart, 텔레그램설정, 쓰던탭에다시 } from "./platform.ts";
 import { checkUpdate, installUpdate, UpdateInfo } from "./update.ts";
 import { 텔레그램, 텔레그램쓸수있나 } from "./telegram.ts";
+import { 열쇠확인 } from "./ai.ts";
 
 const UI = await Deno.readTextFile(new URL("./ui.html", import.meta.url));
 
@@ -171,6 +172,9 @@ export function startServer(engine: Manager, port: number) {
             notifications: cfg.notifications,
             telegramAlerts: cfg.telegramAlerts,
             telegramReady: await 텔레그램쓸수있나(),
+            // ★열쇠는 그대로 내보내지 않는다 — 화면에는 있다/없다만 알린다
+            aiKey: cfg.aiKey ? "********" : "",
+            aiTitles: cfg.aiTitles,
             baseDir: cfg.baseDir,
             browser: cfg.browser,
           },
@@ -211,6 +215,10 @@ export function startServer(engine: Manager, port: number) {
           텔레그램설정(cfg.telegramAlerts);
         }
         if (typeof patch.browser === "string") cfg.browser = patch.browser.trim();
+        if (patch.aiTitles !== undefined) cfg.aiTitles = !!patch.aiTitles;
+        // ★화면에는 열쇠를 ******** 로 보여 준다 — 그대로 되돌아오면 안 고친 것이다
+        if (typeof patch.aiKey === "string" && patch.aiKey !== "********") cfg.aiKey = patch.aiKey.trim();
+        if (typeof patch.aiModel === "string") cfg.aiModel = patch.aiModel.trim();
         await saveConfig(cfg);
         await engine.reloadConfig();
         await engine.ensureDirs();
@@ -492,9 +500,22 @@ export function startServer(engine: Manager, port: number) {
         const { key, title, description } = await req.json();
         const it = engine.pending.get(key);
         if (!it) return json({ error: "항목을 찾을 수 없습니다." }, 404);
-        if (typeof title === "string") it.title = title.slice(0, 100);
-        if (typeof description === "string") it.description = description.slice(0, 5000);
+        // ★사람이 손으로 고친 것은 **AI 가 덮지 않는다** (ai.ts). 파일 이름에서 딴
+        //   기본 제목과 가려내려고 여기서 표시를 남긴다.
+        if (typeof title === "string") { it.title = title.slice(0, 100); it.titleEdited = true; }
+        if (typeof description === "string") {
+          it.description = description.slice(0, 5000);
+          it.descEdited = true;
+        }
         return json({ ok: true });
+      }
+
+      // 설정 화면의 「열쇠 시험」 — 눌러 보고 바로 안다
+      if (p === "/api/ai/test" && req.method === "POST") {
+        const { key, model } = await req.json().catch(() => ({}));
+        const cfg = await loadConfig(true);
+        const 쓸열쇠 = (typeof key === "string" && key && key !== "********") ? key : cfg.aiKey;
+        return json(await 열쇠확인(쓸열쇠, typeof model === "string" ? model : cfg.aiModel));
       }
 
       if (p === "/api/item/upload" && req.method === "POST") {

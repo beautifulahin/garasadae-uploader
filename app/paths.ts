@@ -3,7 +3,7 @@ export const IS_WIN = Deno.build.os === "windows";
 export const IS_MAC = Deno.build.os === "darwin";
 export const APP_NAME = "가라사대업로더";
 export const APP_ID = "com.garasadae.uploader";
-export const APP_VERSION = "1.7.19";
+export const APP_VERSION = "1.8.0";
 export const REPO = "beautifulahin/garasadae-uploader";
 
 function env(k: string) {
@@ -176,6 +176,12 @@ export interface Config {
   updateDeclines: Record<string, number>;
   baseDir: string;          // 채널 폴더들이 들어가는 상위 폴더
   browser: string;          // 화면을 띄울 브라우저. 비어 있으면 시스템 기본값
+  /** 영상을 보고 제목·설명·태그를 지어 줄까 (선택 기능. 열쇠가 있어야 돈다) */
+  aiTitles: boolean;
+  /** 구글 AI 스튜디오 열쇠. ★쓰는 사람이 자기 것을 넣는다 — 만든 사람 것을 박지 않는다.
+   *  이 컴퓨터에만 저장되고, 켠 사람의 영상만 구글로 올라갔다가 곧바로 지워진다. */
+  aiKey: string;
+  aiModel: string;
   channels: Channel[];
 }
 
@@ -191,6 +197,9 @@ export const DEFAULTS: Config = {
   updateDeclines: {},
   baseDir: "",
   browser: "",
+  aiTitles: false,
+  aiKey: "",
+  aiModel: "",
   channels: [],
 };
 

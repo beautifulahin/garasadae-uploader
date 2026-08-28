@@ -12,6 +12,7 @@ import { ErrKind, UploadError } from "./errors.ts";
 import { accessToken, assertSameChannel, 고급권한있나, 고급기능켰나 } from "./auth.ts";
 import { moveToTrash, notify, openUrl, 잠깨우기끝, 잠깨워두기, 쓰던탭에다시 } from "./platform.ts";
 import { dupMessage, fileFingerprint, findDuplicate } from "./dedupe.ts";
+import { 메타지어보기 } from "./ai.ts";
 import { nextSlot, 슬롯말 } from "./slots.ts";
 import { refreshStats, statsRows } from "./stats.ts";
 
@@ -50,6 +51,12 @@ export interface Pending {
   tries: number;
   /** 영상 옆에 놓인 쪽지(`같은이름.json`). 없으면 null — 그러면 채널 기본값으로 간다. */
   sidecar: Sidecar | null;
+  /** AI 가 지은 태그. 쪽지·채널 태그가 없을 때만 쓴다. */
+  aiTags?: string[];
+  /** 사람이 화면에서 제목을 고쳤나 — 고쳤으면 AI 가 덮지 않는다. */
+  titleEdited?: boolean;
+  /** 사람이 화면에서 설명을 고쳤나. */
+  descEdited?: boolean;
   /** 파일 지문. 올리기 직전에 낸다(dedupe.fileFingerprint). */
   hash: string;
   /** 같은 편이라 막혔을 때의 까닭. 비어 있으면 안 막힌 것이다. */
@@ -372,7 +379,8 @@ export class Manager {
     return {
       title: p.title,
       description: p.description,
-      tags: s?.tags ?? ch.tags,
+      // 쪽지 > 채널이 걸어 둔 태그 > AI 가 지은 태그. 채널 태그를 비워 둔 사람만 AI 것을 쓴다.
+      tags: s?.tags ?? (ch.tags.length ? ch.tags : (p.aiTags ?? ch.tags)),
       categoryId: s?.categoryId ?? ch.categoryId,
       language: s?.language ?? ch.language,
       madeForKids: s?.madeForKids ?? ch.madeForKids,
@@ -411,6 +419,22 @@ export class Manager {
           if (p.sidecar.description) p.description = p.sidecar.description;
         }
       }
+      /* ── 영상을 보고 제목·설명을 지어 본다 (선택 기능, 사용자 지시 2026-08-28) ──
+         ★순서가 중요하다 — **중복 검사보다 먼저** 짓는다. 중복은 제목으로 가리므로,
+           파일 이름으로 견주고 나서 제목을 바꾸면 검사가 헛돈다.
+         ★사람이 고친 것·쪽지에 적힌 것이 이긴다. 못 지어도 그냥 넘어간다. */
+      if (this.cfg.aiTitles && this.cfg.aiKey && !p.sidecar?.title && !p.titleEdited) {
+        const 지음 = await 메타지어보기(p.path, {
+          키: this.cfg.aiKey, 모델: this.cfg.aiModel,
+          채널: ch.name, 안내: ch.description,
+        });
+        if (지음) {
+          p.title = `${ch.titlePrefix}${지음.title}${ch.titleSuffix}`.slice(0, 100);
+          if (!p.sidecar?.description && !p.descEdited) p.description = 지음.description;
+          if (지음.tags.length && !p.sidecar?.tags?.length) p.aiTags = 지음.tags;
+        }
+      }
+
       /* ── 같은 편을 두 번 올리는 것을 막는다 (H-187) ──────────────
          ★올리기 **직전**에 본다. 훑을 때 보면 그 사이에 다른 편이 올라가 판이
            달라질 수 있다. 여기가 마지막 관문이다. */

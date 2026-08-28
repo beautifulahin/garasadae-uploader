@@ -540,6 +540,25 @@ textarea.fin{resize:vertical;line-height:1.6}
   </div>
 
   <div class="card">
+    <h3>🤖 제목·설명 자동으로 짓기 <span class="must">선택</span></h3>
+    <div class="p13">켜면 올리기 직전에 <b>영상을 보고</b> 제목·설명·해시태그를 지어 넣습니다.
+    파일 이름 그대로 올라가지 않습니다. 영상 하나에 <b>20~30초</b>쯤 더 걸립니다.</div>
+    <div class="sw" onclick="tglSw('cAiOn')"><span>영상 보고 제목·설명 짓기</span><div class="tgl" id="cAiOn"></div></div>
+    <label class="flabel" style="margin-top:8px">구글 AI 스튜디오 열쇠</label>
+    <input class="fin" id="cAiKey" type="password" placeholder="AIza…" autocomplete="off"/>
+    <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+      <button class="tb on" onclick="ext('https://aistudio.google.com/apikey')">🔗 열쇠 받으러 가기</button>
+      <button class="tb" onclick="testAi()">🧪 열쇠 시험</button>
+    </div>
+    <div class="hintline" id="cAiHint">열쇠는 <b>본인 것</b>을 넣습니다. 무료로 받을 수 있고, 이 프로그램이 쓰는 만큼은
+    무료 한도 안에서 끝납니다. 열쇠는 <b>이 컴퓨터에만</b> 저장됩니다.</div>
+    <div class="danger" style="margin-top:10px">
+      켜면 올리기 직전에 <b>영상이 구글로 한 번 올라갔다가 곧바로 지워집니다.</b> 제목을 지으려면 구글이 영상을 봐야 하기 때문입니다.<br>
+      끄면 아무것도 올라가지 않습니다. <b>쪽지(json)에 적어 둔 제목과, 화면에서 손으로 고친 제목이 늘 먼저입니다.</b>
+    </div>
+  </div>
+
+  <div class="card">
     <h3>ℹ️ 프로그램 정보</h3>
     <div class="kv"><span>버전</span><b id="sVer">-</b></div>
     <div class="kv"><span>실행 파일 위치</span><b id="sExe">-</b></div>
@@ -1695,9 +1714,17 @@ function fillSettings(){
   $('cTgHint').textContent = s.telegramReady
     ? '— 자리를 비웠을 때 막힌 것을 폰으로 압니다. 잘 올라간 것은 안 보냅니다.'
     : '— 열쇠가 없어 지금은 안 나갑니다 (~/.volcano/env)';
+  setSw('cAiOn',s.aiTitles);
+  if(document.activeElement!==$('cAiKey')) $('cAiKey').value = s.aiKey||'';
   $('sVer').textContent='v'+(ST.version||'-')+(ST.label?' · '+ST.label:'');
   $('sData').textContent=ST.dataDir||'-';
   $('sExe').textContent=ST.exePath||'-';
+}
+async function testAi(){
+  $('cAiHint').textContent='구글에 물어보는 중…';
+  const r=await api('/api/ai/test',{key:$('cAiKey').value});
+  $('cAiHint').textContent=r.message||'';
+  msg(r.message||'확인했습니다', r.ok?'ok':'err');
 }
 async function testTelegram(){
   const r=await api('/api/telegram/test',{});
@@ -1707,7 +1734,8 @@ async function saveSettings(){
   const r=await api('/api/settings',{
     baseDir:$('cBase').value.trim(), pollSeconds:+$('cPoll').value,
     stableChecks:+$('cStable').value, notifications:getSw('cOsNotify'),
-    telegramAlerts:getSw('cTgAlert'), browser:$('cBrowser').value});
+    telegramAlerts:getSw('cTgAlert'), browser:$('cBrowser').value,
+    aiTitles:getSw('cAiOn'), aiKey:$('cAiKey').value});
   if(r.error){msg(r.error,'err');poll();return;}
   msg('저장했습니다','ok');
   // 상위 폴더를 바꿨는데 밖에 남은 채널이 있으면 그냥 넘어가지 않고 알려 준다
