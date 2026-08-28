@@ -1,5 +1,5 @@
 // 가라사대 업로더 — 진입점
-import { APP_NAME, APP_VERSION, dataDir, ensureDataDir, loadConfig, log, saveConfig } from "./paths.ts";
+import { APP_NAME, APP_VERSION, dataDir, ensureDataDir, loadConfig, log, saveConfig, 도는포트정하기 } from "./paths.ts";
 import { Manager } from "./watcher.ts";
 import { 텔레그램설정 } from "./platform.ts";
 import { autoUpdateOnStart, startServer } from "./server.ts";
@@ -16,31 +16,48 @@ async function main() {
   텔레그램설정(cfg.telegramAlerts);   // 막힌 소식을 텔레그램으로도 보낼지
   await saveConfig(cfg);                       // 첫 실행 시 기본 설정 파일 생성
 
-  // 포트가 이미 쓰이고 있다면, 우리 프로그램인지 다른 프로그램인지 가려낸다
-  if (await portBusy(cfg.port)) {
-    if (await isOurApp(cfg.port)) {
-      // ★이미 돌고 있는데 또 눌렀다 = **화면을 보고 싶다는 뜻**이다.
-      const url = `http://127.0.0.1:${cfg.port}`;
-      console.log(`${APP_NAME} 가 이미 실행 중입니다 → ${url}`);
-      // ★**새 탭을 또 만들지 않는다.** 이미 열려 있는 우리 탭이 있으면 그 자리에서
-      //   다시 불러온다(사용자 지시 2026-08-21). 못 찾으면 그때만 새로 연다.
-      if (!background) {
-        const 밑 = `http://127.0.0.1:${cfg.port}`;
-        if (!await 쓰던탭에다시(밑, url, cfg.browser)) await openUrl(url, cfg.browser);
-      }
-      Deno.exit(0);
+  /* ── 통신 자리(포트) 잡기 ─────────────────────────────────────
+     ★공개판 신고 #1 (2026-08-21, 윈도우): "127.0.0.1에서 연결을 거부했습니다" 가
+       **지속적으로** 떴다. 프로그램은 멀쩡히 돌고 있는데 사람이 보는 주소만 죽어
+       있었던 것으로 본다. 뿌리는 둘이었다.
+       ① 자리를 한 번 옮기면 그 자리가 **설정에 그대로 굳어** 다음부터도 8777 이
+          아니었다. 안내문·오류사전은 전부 8777 이라 사람은 영영 못 들어간다.
+          업데이트 뒤 다시 켤 때가 특히 그렇다 — 방금 꺼진 판이 자리를 아직
+          놓지 않아 잠깐 차 있고, 그 순간 옆자리로 옮겨 굳어 버린다.
+       ② 옮겨 간 뒤 다시 실행하면 8777 은 비어 있으니 "이미 도는 판"을 못 찾고
+          **두 번째 판**이 떠 버린다. 같은 영상이 두 번 올라갈 수 있는 자리다.
+     그래서 ⓐ 늘 기본 자리(8777)부터 되찾아 보고, ⓑ 원하던 자리는 곧바로
+     포기하지 않고 잠깐 기다렸다 다시 보고, ⓒ 도는 판은 이웃 자리까지 뒤진다. */
+  const 원하는자리 = cfg.port;   // 설정에 적힌 자리. 비켜 가더라도 여기에 굳히지 않는다.
+
+  // 이미 우리 프로그램이 돌고 있나 — 옮겨 가 있을 수 있으니 이웃 자리까지 본다
+  const 도는곳 = await 도는우리앱(원하는자리, 30);
+  if (도는곳 !== null) {
+    // ★이미 돌고 있는데 또 눌렀다 = **화면을 보고 싶다는 뜻**이다.
+    const url = `http://127.0.0.1:${도는곳}`;
+    console.log(`${APP_NAME} 가 이미 실행 중입니다 → ${url}`);
+    // ★**새 탭을 또 만들지 않는다.** 이미 열려 있는 우리 탭이 있으면 그 자리에서
+    //   다시 불러온다(사용자 지시 2026-08-21). 못 찾으면 그때만 새로 연다.
+    if (!background) {
+      if (!await 쓰던탭에다시(url, url, cfg.browser)) await openUrl(url, cfg.browser);
     }
-    // 다른 프로그램이 쓰는 중 → 빈 포트를 찾아 옮긴다
-    const free = await findFreePort(cfg.port + 1, 30);
-    if (!free) {
-      await fatal(`${cfg.port} 번을 포함해 쓸 수 있는 통신 포트를 찾지 못했습니다.\n` +
-        `보안 프로그램이 막고 있을 수 있습니다.`, background);
-      return;
-    }
-    await log(`⚠️  ${cfg.port} 번을 다른 프로그램이 쓰고 있어 ${free} 번으로 옮깁니다`);
-    cfg.port = free;
-    await saveConfig(cfg);
+    Deno.exit(0);
   }
+
+  const 자리 = await 자리잡기(원하는자리);
+  if (자리 === null) {
+    await fatal(`${원하는자리} 번을 포함해 쓸 수 있는 통신 포트를 찾지 못했습니다.\n` +
+      `보안 프로그램이 막고 있을 수 있습니다.`, background);
+    return;
+  }
+  if (자리 !== 원하는자리) {
+    await log(`⚠️  ${원하는자리} 번을 다른 프로그램이 쓰고 있어 이번에는 ${자리} 번으로 갑니다 — `
+      + `화면 주소는 http://127.0.0.1:${자리} 입니다. 다음에 켤 때 ${원하는자리} 번이 비어 있으면 `
+      + `그리로 돌아갑니다.`);
+  }
+  // 이번 실행 동안만 갈아 끼운다 (설정 파일에는 원하는 자리가 그대로 남는다)
+  도는포트정하기(자리);
+  cfg.port = 자리;
 
   const url = `http://127.0.0.1:${cfg.port}`;
 
@@ -116,6 +133,26 @@ async function findFreePort(from: number, tries: number): Promise<number | null>
     if (!(await portBusy(p))) return p;
   }
   return null;
+}
+
+/** 돌고 있는 우리 프로그램의 자리를 찾는다. 없으면 null.
+ *  ★옮겨 가 있을 수 있으니 이웃 자리까지 본다. 비어 있는 자리는 두드리지 않는다. */
+async function 도는우리앱(원하는자리: number, 폭: number): Promise<number | null> {
+  for (let p = 원하는자리; p < 원하는자리 + 폭; p++) {
+    if (!await portBusy(p)) continue;      // 비어 있으면 두드릴 것도 없다
+    if (await isOurApp(p)) return p;
+  }
+  return null;
+}
+
+/** 설 자리를 고른다. 원하던 자리는 곧바로 포기하지 않는다.
+ *  ★업데이트 뒤 다시 켤 때 방금 꺼진 판이 자리를 아직 놓는 중일 수 있다. */
+async function 자리잡기(원하는자리: number): Promise<number | null> {
+  for (let i = 0; i < 4; i++) {
+    if (!await portBusy(원하는자리)) return 원하는자리;
+    if (i < 3) await new Promise((r) => setTimeout(r, 400));
+  }
+  return await findFreePort(원하는자리 + 1, 30);
 }
 
 /** 치명적 오류를 사용자가 읽을 수 있게 보여주고 끝낸다. */

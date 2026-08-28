@@ -41,16 +41,30 @@ const ups: UploadRec[] = [
 ];
 같나("같은 파일이면 걸린다",
   findDuplicate(ups, { channelId: "ch1", hash: ha, title: "전혀 다른 제목" })?.why, "file");
+// 먼저 올린 기록에는 채널 접두어가 붙어 있고, 쪽지로 준 제목에는 안 붙는다.
+// 실제 부름과 똑같이 채널 설정의 접두어를 함께 넘긴다(watcher.ts).
 같나("같은 제목이면 걸린다",
-  findDuplicate(ups, { channelId: "ch1", hash: "다른지문", title: "여당만 몰랐던 209일" })?.why, "title");
+  findDuplicate(ups, {
+    channelId: "ch1", hash: "다른지문", title: "여당만 몰랐던 209일", titlePrefix: "(속보)",
+  })?.why, "title");
 같나("다른 채널이면 안 걸린다",
   findDuplicate(ups, { channelId: "ch2", hash: ha, title: "여당만 몰랐던 209일" }), null);
 같나("새 편은 안 걸린다",
   findDuplicate(ups, { channelId: "ch1", hash: "새지문", title: "아주 새로운 편" }), null);
-같나("접두어가 한쪽에만 붙어도 걸린다",
-  findDuplicate(ups, { channelId: "ch1", hash: "다른지문", title: "(속보)'여당만 몰랐던 209일' 완전판" })?.why, "title");
-같나("여덟 자 안 되는 토막은 안 걸린다",
+같나("접두어가 한쪽에만 붙어도 걸린다 (채널 설정의 접두·접미를 떼고 견준다)",
+  findDuplicate(ups, {
+    channelId: "ch1", hash: "다른지문", title: "(속보)'여당만 몰랐던 209일' 완전판",
+    titlePrefix: "(속보)", titleSuffix: " 완전판",
+  })?.why, "title");
+같나("토막은 안 걸린다",
   findDuplicate(ups, { channelId: "ch1", hash: "다른지문", title: "209일" }), null);
+// 공개판 신고 #2 (2026-08-27) — 제목이 서로 다른데 중복으로 세워졌다.
+같나("먼저 올린 제목을 품고 있어도 다른 편이면 안 걸린다",
+  findDuplicate(ups, { channelId: "ch1", hash: "다른지문", title: "여당만 몰랐던 209일의 진실" }), null);
+같나("먼저 올린 제목에 품혀 있어도 다른 편이면 안 걸린다",
+  findDuplicate(ups, { channelId: "ch1", hash: "다른지문", title: "여당만 몰랐던" }), null);
+같나("접두·접미를 안 걸어 둔 채널은 붙은 말이 있으면 다른 편으로 본다",
+  findDuplicate(ups, { channelId: "ch1", hash: "다른지문", title: "여당만 몰랐던 209일 2부" }), null);
 같나("30일 넘은 것은 안 걸린다",
   findDuplicate(ups, { channelId: "ch1", hash: "옛지문", title: "아주 옛날 편" }), null);
 

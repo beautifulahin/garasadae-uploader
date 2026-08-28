@@ -420,6 +420,8 @@ export class Manager {
         } catch { /* 지문을 못 내면 제목만으로 본다 */ }
         const 겹침 = findDuplicate(this.state.uploads, {
           channelId: ch.id, hash: p.hash, title: p.title,
+          // 접두·접미는 파일 이름에서 딴 제목에만 붙는다 — 견주기 전에 양쪽에서 뗀다
+          titlePrefix: ch.titlePrefix, titleSuffix: ch.titleSuffix,
         });
         // ★승인된 수정본 (H-241) — 판정 결과는 그대로 쓰고 **해석만** 여기서 한다.
         //   why:"file"(같은 파일)은 예외 없이 세운다. why:"title"(제목만 같음)일 때만, 쪽지의
@@ -434,7 +436,9 @@ export class Manager {
           p.error = p.dup;
           p.retryAt = 0;                       // 저절로 다시 시도하지 않는다
           this.uploadingKey = "";
+          // ★두 제목을 다 남긴다 — 잘못 세웠다는 신고가 오면 이 줄이 유일한 증거다
           await log(`🛑 [${ch.name}] 중복이라 세웠습니다: ${p.name} — ${p.dup}`);
+          await log(`   견준 것: 이번 「${p.title}」 ↔ 먼저 올린 「${겹침.rec.title}」 (${겹침.why})`);
           if (this.cfg.notifications) {
             await notify("가라사대 업로더 🛑", `[${ch.name}] 같은 편이 이미 올라가 있습니다`);
           }

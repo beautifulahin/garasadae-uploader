@@ -10,6 +10,8 @@
 // 무엇으로 가리나 — 두 가지를 본다
 //   ① **파일 지문** — 똑같은 파일이 다시 들어온 경우. 확실하다.
 //   ② **제목** — 다시 만들어 파일은 다르지만 같은 편인 경우. 이쪽이 실제로 잦다.
+//      채널 접두·접미를 뗀 뒤 **똑같을 때만** 같은 편으로 본다. 품기(부분 일치)로 보다가
+//      멀쩡히 다른 편이 걸리는 일이 있어 2026-08-28 에 없앴다 (공개판 신고 #2).
 //
 // ★막기만 하고 지우지는 않는다. 화면에 세워 두고 사용자가 「그래도 올리기」를
 //   누르면 그때 올라간다. 사람이 일부러 다시 올리려는 것을 프로그램이 이길 수는 없다.
@@ -67,20 +69,34 @@ export function 제목열쇠(s: string): string {
     .replace(/[^0-9a-z가-힣ㄱ-ㆎ]/g, "");
 }
 
-/** 한쪽이 다른 쪽을 통째로 품고 있으면 같은 편으로 본다.
+/** 채널이 붙이는 접두·접미를 떼어 낸다.
  *
- * ★왜 '똑같은가' 만 보면 안 되나 — 채널에 `titlePrefix`("(속보)") 를 걸어 두면
- *   파일 이름에서 딴 제목에는 그것이 붙고, **쪽지에 적어 준 제목에는 안 붙는다**.
- *   그래서 같은 편인데 한쪽만 "(속보)" 가 붙어 서로 다른 것으로 보였다(실측).
- * ★짧은 쪽이 여덟 자는 되어야 한다. "개헌" 같은 토막이 아무 데나 걸리면
- *   멀쩡한 편이 자꾸 세워져 성가시다.
+ * ★왜 필요한가 — 채널에 `titlePrefix`("(속보)") 를 걸어 두면 파일 이름에서 딴
+ *   제목에는 그것이 붙고, **쪽지에 적어 준 제목에는 안 붙는다**. 그래서 같은
+ *   편인데 한쪽만 "(속보)" 가 붙어 서로 다른 것으로 보였다(실측).
+ * ★붙는 말은 채널 설정에 적혀 있으니 **짐작하지 않고 그것만** 뗀다.
  */
-const 품는최소 = 8;
+function 껍질벗기기(열쇠: string, 접두: string, 접미: string): string {
+  let s = 열쇠;
+  if (접두 && s.length > 접두.length && s.startsWith(접두)) s = s.slice(접두.length);
+  if (접미 && s.length > 접미.length && s.endsWith(접미)) s = s.slice(0, -접미.length);
+  return s;
+}
+
+/** 접두·접미를 뗀 뒤 **똑같아야** 같은 편으로 본다.
+ *
+ * ★예전에는 "한쪽이 다른 쪽을 품고 있으면" 같은 편으로 봤다(여덟 자 이상).
+ *   그런데 제목이 짧은 숏폼에서는 멀쩡히 다른 편이 서로를 품는 일이 잦다 —
+ *   「여당만 몰랐던 209일」 과 「여당만 몰랐던 209일의 진실」 은 다른 영상인데
+ *   품는다는 이유로 중복으로 세워졌다. 실제 신고(2026-08-27, 공개판 1.7.18):
+ *   "제목이 애초에 서로 다른데 중복영상이라고 보류할지 그대로 올릴지 뜹니다".
+ * ★품기를 두었던 까닭(접두·접미가 한쪽에만 붙는 것)은 위 `껍질벗기기` 가
+ *   채널 설정을 보고 정확히 처리한다. 그래서 여기서는 짐작을 없앤다.
+ * ★같은 파일을 다시 떨구는 것은 제목과 상관없이 **지문**이 잡는다.
+ */
 function 같은편인가(a: string, b: string): boolean {
   if (!a || !b) return false;
-  if (a === b) return true;
-  const [짧, 긺] = a.length <= b.length ? [a, b] : [b, a];
-  return 짧.length >= 품는최소 && 긺.includes(짧);
+  return a === b;
 }
 
 export interface DupHit {
@@ -97,10 +113,20 @@ export interface DupHit {
  */
 export function findDuplicate(
   uploads: UploadRec[],
-  opt: { channelId: string; hash: string; title: string; days?: number },
+  opt: {
+    channelId: string;
+    hash: string;
+    title: string;
+    days?: number;
+    /** 채널이 제목 앞뒤에 붙이는 말. 견주기 전에 양쪽에서 뗀다. */
+    titlePrefix?: string;
+    titleSuffix?: string;
+  },
 ): DupHit | null {
   const 문턱 = Date.now() - (opt.days ?? 30) * 86400_000;
-  const 열쇠 = 제목열쇠(opt.title);
+  const 접두 = 제목열쇠(opt.titlePrefix ?? "");
+  const 접미 = 제목열쇠(opt.titleSuffix ?? "");
+  const 열쇠 = 껍질벗기기(제목열쇠(opt.title), 접두, 접미);
   let 제목맞음: DupHit | null = null;
 
   for (const u of uploads) {
@@ -110,7 +136,9 @@ export function findDuplicate(
     // 파일이 같은 것이 제일 확실하다 — 찾는 즉시 돌려준다
     if (opt.hash && u.hash && u.hash === opt.hash) return { why: "file", rec: u };
     // 제목은 한 번 기억만 해 두고 계속 본다(더 확실한 파일 일치가 있을 수 있다)
-    if (!제목맞음 && 같은편인가(제목열쇠(u.title), 열쇠)) 제목맞음 = { why: "title", rec: u };
+    if (!제목맞음 && 같은편인가(껍질벗기기(제목열쇠(u.title), 접두, 접미), 열쇠)) {
+      제목맞음 = { why: "title", rec: u };
+    }
   }
   return 제목맞음;
 }

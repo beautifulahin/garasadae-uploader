@@ -640,6 +640,28 @@ textarea.fin{resize:vertical;line-height:1.6}
       <b>범위</b>는 동의 화면 만들기 안에 없습니다. 왼쪽 <b>데이터 액세스</b> 메뉴에 따로 있습니다. 저장까지 꼭 누르세요.<br>
       <b>앱 게시</b>를 안 하고 <b>테스트</b> 상태로 두면 <b>7일마다 로그인이 풀립니다.</b>
     </div>
+    <div class="p13" style="margin-top:12px"><b>「브랜딩」의 앱 도메인 세 칸은 비워 두세요.</b>
+    내 컴퓨터에서만 도는 프로그램이라 홈페이지 주소가 필요 없습니다.
+    주소만 적고 <b>승인된 도메인</b>을 등록하지 않으면 오히려 저장이 거부됩니다.</div>
+    <div class="p13" style="margin-top:8px">그런데 구글이 <b>세 칸을 채우라며 게시를 막는 경우</b>가 있습니다.
+    그때만 아래를 그대로 넣으세요. 이 프로그램의 공개 페이지입니다.</div>
+    <pre class="guide-tree">애플리케이션 홈페이지        https://beautifulahin.github.io/garasadae-uploader/
+개인정보처리방침 링크        https://beautifulahin.github.io/garasadae-uploader/privacy.html
+서비스 약관 링크             https://beautifulahin.github.io/garasadae-uploader/terms.html
+승인된 도메인                beautifulahin.github.io</pre>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+      <button class="tb" onclick="cpy('https://beautifulahin.github.io/garasadae-uploader/')">📋 홈페이지</button>
+      <button class="tb" onclick="cpy('https://beautifulahin.github.io/garasadae-uploader/privacy.html')">📋 개인정보처리방침</button>
+      <button class="tb" onclick="cpy('https://beautifulahin.github.io/garasadae-uploader/terms.html')">📋 서비스 약관</button>
+      <button class="tb" onclick="cpy('beautifulahin.github.io')">📋 승인된 도메인</button>
+    </div>
+    <div class="p13" style="color:var(--t3);font-size:11px;margin-top:8px">
+      <b>승인된 도메인</b>에는 <code>https://</code> 와 뒷부분을 빼고 <code>beautifulahin.github.io</code> 만 넣습니다.
+      네 칸을 함께 넣어야 합니다 — 주소만 넣고 도메인을 빠뜨리면 거부됩니다.<br>
+      <b>「도메인 소유권을 확인할 수 없습니다」</b> 가 뜨면 구글이 남의 도메인이라 막은 것입니다.
+      그때는 게시를 포기하고 <b>테스트</b> 상태로 쓰세요 — 업로드는 정상으로 되고,
+      <b>7일마다</b> <b>채널</b> 탭에서 <b>🔑 구글 계정 연결</b>만 다시 누르면 됩니다.
+    </div>
   </div>
 
   <div class="card">
@@ -731,7 +753,8 @@ textarea.fin{resize:vertical;line-height:1.6}
     </div>
     <div class="tro">
       <div class="tro-q">홈페이지·개인정보처리방침 주소를 적었다</div>
-      <div class="tro-a">이 프로그램은 <b>내 컴퓨터에서만</b> 도는 데스크톱 앱이라 주소가 필요 없습니다. 적어 두었다면 <b>비우세요.</b> 승인된 도메인에 등록되지 않은 주소는 저장이 거부됩니다.</div>
+      <div class="tro-a">이 프로그램은 <b>내 컴퓨터에서만</b> 도는 데스크톱 앱이라 주소가 필요 없습니다. 적어 두었다면 <b>비우세요.</b> 승인된 도메인에 등록되지 않은 주소는 저장이 거부됩니다.<br>
+      반대로 구글이 <b>세 칸을 채우라며</b> 막는다면, 3️⃣ 카드에 적어 둔 <b>공개 페이지 주소 3개와 승인된 도메인</b>을 <b>네 칸 모두</b> 넣으세요.</div>
     </div>
     <div class="tro">
       <div class="tro-q">회사·학교 계정이다</div>
@@ -877,6 +900,7 @@ const fmtSize=b=>b>1073741824?(b/1073741824).toFixed(2)+'GB':(b/1048576).toFixed
 const num=v=>Number(v||0).toLocaleString();
 const api=(p,body)=>fetch(p,body!==undefined?{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}:undefined).then(r=>r.json());
 function ext(u){window.open(u,'_blank','noopener')}
+function cpy(t){navigator.clipboard.writeText(t).then(()=>msg('복사했습니다 — 구글 콘솔 칸에 붙여넣으세요','ok'),()=>msg('복사하지 못했습니다. 위 글자를 직접 선택해 복사해 주세요','err'))}
 function shortPath(p){if(!p)return '-';const a=p.split(/[/\\]/);return a.length>2?'…/'+a.slice(-2).join('/'):p}
 
 let ST=null, tab='t1', dirty=new Set(), dropSel=[], histCh='';

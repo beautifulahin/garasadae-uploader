@@ -3,7 +3,7 @@ export const IS_WIN = Deno.build.os === "windows";
 export const IS_MAC = Deno.build.os === "darwin";
 export const APP_NAME = "가라사대업로더";
 export const APP_ID = "com.garasadae.uploader";
-export const APP_VERSION = "1.7.18";
+export const APP_VERSION = "1.7.19";
 export const REPO = "beautifulahin/garasadae-uploader";
 
 function env(k: string) {
@@ -419,19 +419,38 @@ async function writeJsonNow(path: string, data: unknown, secret = false) {
 
 let confCache: Config | null = null;
 
+/* ── 통신 자리(포트) ──────────────────────────────────────────
+   설정에 적힌 자리(=사람이 원하는 자리)와, 이번 실행이 실제로 잡은 자리는
+   다를 수 있다. 원하던 자리를 다른 프로그램이 잠깐 물고 있으면 옆으로 비킨다.
+   ★그 옆자리를 **설정에 굳히지 않는다.** 굳히면 다음 실행부터도 옆자리를 쓰게 되어,
+     안내문·오류사전이 말하는 8777 로는 영영 못 들어간다. 프로그램은 멀쩡히 도는데
+     사람만 "연결을 거부했습니다" 를 보게 된다 (공개판 신고 #1, 2026-08-21 윈도우).
+   그래서 굳히는 대신, 이번 실행 동안만 갈아 끼운다. 다음에 켤 때는 원래 자리부터
+   다시 잡아 본다. */
+let 원하는포트 = 0;
+let 도는포트 = 0;
+
+/** 이번 실행이 실제로 잡은 자리를 알린다 (main 이 부른다). */
+export function 도는포트정하기(p: number) { 도는포트 = p; }
+
 export async function loadConfig(force = false): Promise<Config> {
   if (confCache && !force) return confCache;
   let raw: Record<string, unknown> = {};
   try { raw = JSON.parse(await Deno.readTextFile(CONF_F())); } catch { /* 처음 실행 */ }
 
   const cfg = await normalize(raw);
+  원하는포트 = cfg.port;
+  // 실제로 잡은 자리가 따로 있으면 그것을 쓴다 — 로그인 되돌림 주소(auth.ts)와
+  // 화면 주소가 반드시 같은 자리를 가리켜야 한다.
+  if (도는포트) cfg.port = 도는포트;
   confCache = cfg;
   return cfg;
 }
 
 export async function saveConfig(c: Config): Promise<void> {
   confCache = c;
-  await writeJson(CONF_F(), c);
+  // 비켜 간 자리는 설정에 적지 않는다 — 원하는 자리를 그대로 지킨다
+  await writeJson(CONF_F(), 원하는포트 && c.port === 도는포트 ? { ...c, port: 원하는포트 } : c);
 }
 
 /** 옛 설정(채널 하나짜리)을 새 구조로 옮기고, 빠진 값을 채운다. */
