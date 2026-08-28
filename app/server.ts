@@ -18,15 +18,39 @@ let upState = { running: false, pct: 0, text: "", error: "" };
 /** 켠 직후 딱 한 번, 묻지 않고 새 버전을 받는다.
  *  올리는 중이거나 전에 거절한 버전이면 건너뛰고 예전처럼 물어본다.
  *  성공하면 프로그램이 스스로 다시 시작하므로 여기서 돌아오지 않는다. */
+const 한시간 = 60 * 60_000;
+/** 받다가 넘어진 판은 한동안 다시 건드리지 않는다 — 한 시간마다 헛되이 되풀이하지 않게. */
+const 넘어진판 = new Map<string, number>();
+const 넘어지면쉼 = 6 * 한시간;
+
+/**
+ * 새 판이 나오면 묻지 않고 받아서 스스로 다시 뜬다.
+ *
+ * ★켤 때 한 번 보고, **그 뒤로도 한 시간에 한 번** 본다 (사용자 지시 2026-08-28).
+ *   여태는 시작할 때 딱 한 번만 봤다. 그런데 이 프로그램은 「컴퓨터 켤 때 자동 실행」을
+ *   켜 두고 **몇 주씩 안 끄고** 쓰는 게 정상 사용법이라, 켜 둔 사람은 새 판이 나와도
+ *   영영 옛 판을 썼다. 실제로 1.8.0 을 올린 날 그대로 겪었다 — 앱은 새 판이 있는 것을
+ *   알면서도(available:true) 스스로 받지 않았다.
+ */
 export async function autoUpdateOnStart(engine: Manager) {
   await new Promise((r) => setTimeout(r, 5000));   // 화면이 먼저 뜨도록 잠깐 기다린다
+  await 새판받기(engine);
+  setInterval(() => { 새판받기(engine).catch(() => {}); }, 한시간);
+}
+
+async function 새판받기(engine: Manager) {
   const wasPaused = engine.paused;
+  let 판 = "";
   try {
+    // ★올리는 중이면 건드리지 않는다. 다음 시간에 다시 보면 된다.
     if (upState.running || engine.uploadingKey) return;
     const info = await checkUpdate(false);
     if (!info.available || !info.canInstall) return;
     // 사용자가 전에 "아니오" 를 누른 버전은 몰래 밀어 넣지 않는다
     if ((engine.cfg.updateDeclines[info.version] ?? 0) > 0) return;
+    const 쉰때 = 넘어진판.get(info.version) ?? 0;
+    if (Date.now() - 쉰때 < 넘어지면쉼) return;
+    판 = info.version;
 
     await log(`⬆️  새 버전 ${info.version} — 묻지 않고 바로 받습니다`);
     engine.paused = true;                          // 받는 동안 새 업로드가 시작되지 않게 한다
@@ -34,8 +58,10 @@ export async function autoUpdateOnStart(engine: Manager) {
     await installUpdate(info, (pct, text) => { upState.pct = pct; upState.text = text; });
   } catch (e) {
     engine.paused = wasPaused;
+    if (판) 넘어진판.set(판, Date.now());
     upState = { running: false, pct: 0, text: "", error: e instanceof Error ? e.message : String(e) };
-    await log(`⚠️  자동 업데이트 실패: ${upState.error} — 화면에서 다시 시도할 수 있습니다`);
+    await log(`⚠️  자동 업데이트 실패: ${upState.error} — 화면에서 다시 시도할 수 있습니다 `
+      + `(6시간 뒤 스스로 다시 해 봅니다)`);
   }
 }
 
