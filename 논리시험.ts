@@ -15,7 +15,7 @@ function 같나(무엇: string, 실제: unknown, 바람: unknown) {
 console.log("── 제목 열쇠 ──");
 같나("괄호·따옴표·물음표를 털어 낸다",
   제목열쇠("(속보)'개헌 왜 이렇게 급해요?'"), 제목열쇠("속보 개헌 왜 이렇게 급해요"));
-같나("띄어쓰기가 달라도 같다", 제목열쇠("여당만 몰랐던 209일"), 제목열쇠("여당만몰랐던209일"));
+같나("띄어쓰기가 달라도 같다", 제목열쇠("가나다 뉴스 100일"), 제목열쇠("가나다뉴스100일"));
 같나("다른 편은 다르다", 제목열쇠("개헌 급해요") === 제목열쇠("개헌 안 급해요"), false);
 
 console.log("── 지문 ──");
@@ -34,7 +34,7 @@ const 이제 = new Date();
 const 어제 = new Date(Date.now() - 86400_000).toISOString().slice(0, 19);
 const 넉달전 = new Date(Date.now() - 120 * 86400_000).toISOString().slice(0, 19);
 const ups: UploadRec[] = [
-  { id: "V1", title: "(속보)'여당만 몰랐던 209일'", file: "a.mp4", size: 1, privacy: "public",
+  { id: "V1", title: "(속보)'가나다 뉴스 100일'", file: "a.mp4", size: 1, privacy: "public",
     at: 어제, channelId: "ch1", channelName: "내", hash: ha },
   { id: "V0", title: "아주 옛날 편", file: "z.mp4", size: 1, privacy: "public",
     at: 넉달전, channelId: "ch1", channelName: "내", hash: "옛지문" },
@@ -45,26 +45,26 @@ const ups: UploadRec[] = [
 // 실제 부름과 똑같이 채널 설정의 접두어를 함께 넘긴다(watcher.ts).
 같나("같은 제목이면 걸린다",
   findDuplicate(ups, {
-    channelId: "ch1", hash: "다른지문", title: "여당만 몰랐던 209일", titlePrefix: "(속보)",
+    channelId: "ch1", hash: "다른지문", title: "가나다 뉴스 100일", titlePrefix: "(속보)",
   })?.why, "title");
 같나("다른 채널이면 안 걸린다",
-  findDuplicate(ups, { channelId: "ch2", hash: ha, title: "여당만 몰랐던 209일" }), null);
+  findDuplicate(ups, { channelId: "ch2", hash: ha, title: "가나다 뉴스 100일" }), null);
 같나("새 편은 안 걸린다",
   findDuplicate(ups, { channelId: "ch1", hash: "새지문", title: "아주 새로운 편" }), null);
 같나("접두어가 한쪽에만 붙어도 걸린다 (채널 설정의 접두·접미를 떼고 견준다)",
   findDuplicate(ups, {
-    channelId: "ch1", hash: "다른지문", title: "(속보)'여당만 몰랐던 209일' 완전판",
+    channelId: "ch1", hash: "다른지문", title: "(속보)'가나다 뉴스 100일' 완전판",
     titlePrefix: "(속보)", titleSuffix: " 완전판",
   })?.why, "title");
 같나("토막은 안 걸린다",
-  findDuplicate(ups, { channelId: "ch1", hash: "다른지문", title: "209일" }), null);
+  findDuplicate(ups, { channelId: "ch1", hash: "다른지문", title: "100일" }), null);
 // 공개판 신고 #2 (2026-08-27) — 제목이 서로 다른데 중복으로 세워졌다.
 같나("먼저 올린 제목을 품고 있어도 다른 편이면 안 걸린다",
-  findDuplicate(ups, { channelId: "ch1", hash: "다른지문", title: "여당만 몰랐던 209일의 진실" }), null);
+  findDuplicate(ups, { channelId: "ch1", hash: "다른지문", title: "가나다 뉴스 100일의 진실" }), null);
 같나("먼저 올린 제목에 품혀 있어도 다른 편이면 안 걸린다",
-  findDuplicate(ups, { channelId: "ch1", hash: "다른지문", title: "여당만 몰랐던" }), null);
+  findDuplicate(ups, { channelId: "ch1", hash: "다른지문", title: "가나다 뉴스" }), null);
 같나("접두·접미를 안 걸어 둔 채널은 붙은 말이 있으면 다른 편으로 본다",
-  findDuplicate(ups, { channelId: "ch1", hash: "다른지문", title: "여당만 몰랐던 209일 2부" }), null);
+  findDuplicate(ups, { channelId: "ch1", hash: "다른지문", title: "가나다 뉴스 100일 2부" }), null);
 같나("30일 넘은 것은 안 걸린다",
   findDuplicate(ups, { channelId: "ch1", hash: "옛지문", title: "아주 옛날 편" }), null);
 
