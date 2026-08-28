@@ -827,6 +827,13 @@ textarea.fin{resize:vertical;line-height:1.6}
   </div>
 
   <div class="card">
+    <h3>📋 보낸 의견이 어떻게 되고 있나요? <button class="tb" style="margin-left:6px" onclick="loadFeedbackList(true)">↻ 새로고침</button></h3>
+    <div class="p13">여기 올라온 것은 모두 읽습니다. <b>✅ 완료</b> 는 고친 것이 <b>배포까지 끝나</b>
+    실제로 받으실 수 있게 됐다는 뜻입니다.</div>
+    <div id="fbList" class="p13" style="margin-top:10px">불러오는 중…</div>
+  </div>
+
+  <div class="card">
     <h3>📮 다른 방법</h3>
     <div class="p13">깃허브 계정이 없으시면 바탕화면에 저장된 <b>가라사대_피드백.txt</b> 내용을 그대로 복사해 보내주셔도 됩니다.</div>
     <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
@@ -926,6 +933,7 @@ let ST=null, tab='t1', dirty=new Set(), dropSel=[], histCh='';
 
 function msg(t,k){const e=$('toast');e.textContent=t;e.className='toast show '+(k||'');clearTimeout(e._t);e._t=setTimeout(()=>e.className='toast',3600)}
 function swTab(id){
+  if(id==='t6') setTimeout(()=>loadFeedbackList(false),0);
   tab=id;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===id));document.querySelectorAll('.tp').forEach(p=>p.classList.toggle('on',p.id===id));if(id==='t2')loadLog();if(id==='t4')fillSettings();if(id==='t3')renderChannelList();if(id==='t7')renderStats();}
 const setSw=(id,on)=>$(id)&&$(id).classList.toggle('on',!!on);
 const getSw=id=>$(id)?$(id).classList.contains('on'):false;
@@ -1895,6 +1903,32 @@ async function answerAsk(open,remember){
 }
 
 /* ================= 의견 ================= */
+// 게시판의 상태 표를 화면 색으로 옮긴다. 모르는 표는 회색으로 그냥 보여 준다.
+const 의견색 = {
+  '🆕 접수':'#0075ca', '🔍 살펴보는 중':'#fbca04', '🔧 고침 · 배포 대기':'#2dd4a8',
+  '✅ 완료':'#3fb950', '❓ 확인 필요':'#d876e3', '🙅 안 하기로':'#8b949e',
+  '🐞 오류':'#f85149', '💡 요청':'#a371f7',
+};
+let 의견불렀나=false;
+async function loadFeedbackList(강제){
+  if(의견불렀나&&!강제)return; 의견불렀나=true;
+  const box=$('fbList'); box.textContent='불러오는 중…';
+  let r; try{ r=await (await fetch('/api/feedback/list')).json(); }catch(e){ r={error:String(e)}; }
+  if(r.error){ box.innerHTML=`<span style="color:var(--t3)">${esc(r.error)} — 
+    <a href="#" onclick="ext('https://github.com/beautifulahin/garasadae-uploader/issues');return false" style="color:var(--blue)">게시판에서 직접 보기</a></span>`; return; }
+  if(!r.items.length){ box.innerHTML='<span style="color:var(--t3)">아직 올라온 의견이 없습니다. 첫 의견을 남겨 주세요.</span>'; return; }
+  box.innerHTML=r.items.map(x=>{
+    const 표=x.labels.map(n=>`<span class="badge" style="background:${의견색[n]||'#6e7681'}22;color:${의견색[n]||'#8b949e'}">${esc(n)}</span>`).join(' ')
+      || `<span class="badge wait">${x.closed?'닫힘':'열림'}</span>`;
+    const 때=(x.at||'').slice(0,10);
+    return `<div style="padding:9px 0;border-bottom:1px solid var(--bdr)">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:4px">${표}
+        <span style="color:var(--t3);font-size:10px">${때}</span></div>
+      <a href="#" onclick="ext('${x.url}');return false" style="color:var(--t1);text-decoration:none">#${x.number} ${esc(x.title)}</a>
+    </div>`;
+  }).join('');
+}
+
 let fbKind='idea';
 function pickKind(b){
   document.querySelectorAll('[data-fk]').forEach(x=>x.classList.remove('on'));
@@ -1908,6 +1942,7 @@ async function sendFeedback(){
   if(r.error)return msg(r.error,'err');
   $('fbTitle').value=''; $('fbBody').value='';
   msg('의견을 저장했습니다. 깃허브 창에서 Submit 을 눌러주세요','ok');
+  setTimeout(()=>loadFeedbackList(true), 8000);   // Submit 을 누를 짬을 주고 목록을 새로 본다
   ext(r.url);
 }
 async function openFeedbackFile(){ const r=await api('/api/openfeedback',{}); if(r.error)msg(r.error,'err'); }

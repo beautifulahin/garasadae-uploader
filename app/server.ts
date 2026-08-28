@@ -131,6 +131,10 @@ async function channelView(cfg: Config, ch: Channel) {
   };
 }
 
+// 게시판을 5분 동안 재사용한다 (깃허브는 로그인 없이 시간 60회까지만 받아 준다)
+let 의견목록: unknown[] | null = null;
+let 의견본때 = 0;
+
 export function startServer(engine: Manager, port: number) {
   return Deno.serve({ port, hostname: "127.0.0.1", onListen: () => {} }, async (req) => {
     const url = new URL(req.url);
@@ -654,6 +658,44 @@ export function startServer(engine: Manager, port: number) {
         });
         await log(`💬 의견 접수: ${t}`);
         return json({ ok: true, url: issueUrl, saved });
+      }
+
+      /* 보낸 의견이 지금 어디까지 왔나 — 게시판을 프로그램 안에서 보여 준다.
+         ★사용자 지시(2026-08-28): "가라사대 업로더 의견에도 보이나?"
+           여태는 깃허브로 나가는 링크뿐이라, 내가 보낸 것이 어떻게 됐는지 알 수 없었다.
+         ★로그인 없이 읽는다(공개 저장소). 대신 IP 당 시간 60회 제한이 있어 **5분 동안 재사용**한다. */
+      if (p === "/api/feedback/list") {
+        const 이제 = Date.now();
+        if (의견목록 && 이제 - 의견본때 < 5 * 60_000) return json({ ok: true, items: 의견목록 });
+        try {
+          const c = new AbortController();
+          const t = setTimeout(() => c.abort(), 8000);
+          const r = await fetch(
+            `https://api.github.com/repos/${REPO}/issues?state=all&per_page=30&sort=created&direction=desc`,
+            // ★User-Agent 는 ASCII 여야 한다 — APP_NAME("가라사대업로더")을 넣으면 헤더를
+            //   못 만들고 통째로 실패한다 (실측 2026-08-28). 깃허브는 UA 를 요구한다.
+            { headers: { "Accept": "application/vnd.github+json", "User-Agent": "garasadae-uploader" }, signal: c.signal });
+          clearTimeout(t);
+          if (!r.ok) {
+            await r.body?.cancel();
+            return json({ error: `게시판을 읽지 못했습니다 (${r.status}).` }, 502);
+          }
+          const 날것 = await r.json();
+          의견목록 = (Array.isArray(날것) ? 날것 : [])
+            .filter((x: Record<string, unknown>) => !x.pull_request)   // PR 은 의견이 아니다
+            .map((x: Record<string, unknown>) => ({
+              number: x.number,
+              title: x.title,
+              closed: x.state === "closed",
+              at: x.created_at,
+              url: x.html_url,
+              labels: ((x.labels ?? []) as { name: string }[]).map((l) => l.name),
+            }));
+          의견본때 = 이제;
+          return json({ ok: true, items: 의견목록 });
+        } catch (e) {
+          return json({ error: `게시판에 연결하지 못했습니다 — ${e instanceof Error ? e.message : e}` }, 502);
+        }
       }
 
       if (p === "/api/openself" && req.method === "POST") {
