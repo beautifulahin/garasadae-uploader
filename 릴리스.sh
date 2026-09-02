@@ -31,3 +31,69 @@ notes="배포/릴리스노트_${src_ver}.md"
 
 echo "✅ 검사 통과 — main · v$src_ver · 깨끗함. 올립니다."
 gh release create "$tag" dist/*.zip dist/notes.md --title "$title" --notes-file "$notes"
+
+# ---------- 문서 사이트(gh-pages) 올리기 ----------
+# ★2026-09-02: 깃허브 페이지의 소스는 docs/ 가 아니라 **gh-pages 라는 딴 가지**다.
+#   그동안 사람이 손으로 옮겨서, main 의 docs/ 를 고쳐도 사이트는 낡은 채로 남아 있었다.
+#   docs/install.sh(맥 한 줄 설치)가 그 주소에서 살아야 하므로 여기서 기계가 옮긴다.
+#
+#   · 지금 작업 폴더의 가지는 절대 갈아타지 않는다 — git worktree 로 딴 데 붙여서 쓰고 뗀다.
+#   · .nojekyll 은 손대지 않는다 (gh-pages 에 이미 있다).
+#   · 바뀐 것이 없으면 커밋하지 않는다.
+#   · 여기서 실패해도 **이미 올라간 릴리스는 건드리지 않는다.** 손으로 올리라고 알리고 끝낸다.
+#   · rm -rf 를 쓰지 않는다(저장소 규칙). 임시 폴더는 내가 만든 것만 find -delete 로 치운다.
+publish_docs () {
+  local wt_base wt_dir file names rc
+  wt_base="$(mktemp -d)"
+  wt_dir="$wt_base/site"
+  rc=0
+
+  git fetch --quiet origin gh-pages || return 1
+  git worktree add --quiet -B gh-pages "$wt_dir" origin/gh-pages || return 1
+
+  names=()
+  for file in docs/*.html docs/install.sh; do
+    if [ -f "$file" ]; then
+      cp "$file" "$wt_dir/" || rc=1
+      names+=("$(basename "$file")")
+    fi
+  done
+  if [ ${#names[@]} -eq 0 ]; then rc=1; fi
+
+  if [ "$rc" = "0" ]; then
+    git -C "$wt_dir" add -- "${names[@]}" || rc=1
+  fi
+
+  if [ "$rc" = "0" ]; then
+    if git -C "$wt_dir" diff --cached --quiet; then
+      echo "   ↳ 문서 사이트는 이미 최신입니다 (올릴 것 없음)."
+    else
+      git -C "$wt_dir" commit -q -m "문서 사이트 갱신 — v$src_ver" || rc=1
+      if [ "$rc" = "0" ]; then
+        git -C "$wt_dir" push --quiet origin gh-pages || rc=1
+      fi
+      if [ "$rc" = "0" ]; then
+        echo "   ↳ 문서 사이트를 올렸습니다: ${names[*]}"
+      fi
+    fi
+  fi
+
+  # 뒷정리 — 붙였던 worktree 를 떼고 임시 폴더를 치운다
+  git worktree remove --force "$wt_dir" >/dev/null 2>&1 || true
+  git worktree prune >/dev/null 2>&1 || true
+  if [ -d "$wt_base" ]; then /usr/bin/find "$wt_base" -delete 2>/dev/null || true; fi
+  return "$rc"
+}
+
+echo "📄 문서 사이트(gh-pages)를 갱신합니다…"
+if ! publish_docs; then
+  echo ""
+  echo "⚠️  릴리스는 올라갔지만 **문서 사이트 올리기는 실패**했습니다."
+  echo "   릴리스는 그대로 둡니다. 아래를 손으로 해 주세요."
+  echo "     git fetch origin gh-pages"
+  echo "     git worktree add -B gh-pages /tmp/site origin/gh-pages"
+  echo "     cp docs/*.html docs/install.sh /tmp/site/"
+  echo "     git -C /tmp/site add -A && git -C /tmp/site commit -m '문서 사이트 갱신'"
+  echo "     git -C /tmp/site push origin gh-pages"
+  echo "     git worktree remove /tmp/site"
+fi

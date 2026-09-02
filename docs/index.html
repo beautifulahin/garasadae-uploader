@@ -37,6 +37,14 @@ h1 span{background:linear-gradient(135deg,var(--accent),#ff8844);-webkit-backgro
 .warn b{color:var(--gold)}
 .notice{background:rgba(255,68,102,.09);border:1px solid rgba(255,68,102,.35);border-radius:12px;padding:16px 18px;font-size:12.5px;color:var(--t2);margin-bottom:16px}
 .notice b{color:var(--accent)}
+.oneline{background:rgba(45,212,168,.07);border:1px solid rgba(45,212,168,.35);border-radius:12px;padding:16px 18px;margin-bottom:14px}
+.oneline .ol-t{font-size:13.5px;font-weight:800;color:var(--cyan);margin-bottom:8px}
+.oneline .ol-d{font-size:12.5px;color:var(--t2);line-height:1.65}
+.oneline .ol-d b{color:var(--t1)}
+.ol-cmd{display:flex;gap:8px;align-items:center;margin:10px 0}
+.ol-cmd code{flex:1;min-width:0;overflow-x:auto;white-space:nowrap;background:var(--bg);border:1px solid var(--bdr);border-radius:8px;padding:10px 12px;font-size:11.5px;color:var(--cyan)}
+.ol-cmd button{flex-shrink:0;padding:10px 14px;border-radius:8px;border:1px solid var(--bdr);background:var(--bg3);color:var(--t2);font-size:12px;font-weight:700;cursor:pointer}
+.ol-cmd button:hover{border-color:var(--cyan);color:var(--cyan)}
 h2{font-size:17px;font-weight:800;margin:36px 0 14px}
 .faq{border-top:1px solid var(--bdr);padding:14px 0}
 .faq-q{font-size:13.5px;font-weight:700;margin-bottom:5px}
@@ -126,6 +134,23 @@ h2{font-size:17px;font-weight:800;margin:36px 0 14px}
     프로그램 내용은 같은 1.7.0 이고, <b>설정과 로그인은 그대로 남아 있습니다.</b> 다시 설정하실 필요 없습니다.
   </div>
 
+  <div class="oneline">
+    <div class="ol-t">🍎 맥이라면 — 한 줄 설치 (경고창이 안 뜹니다)</div>
+    <div class="ol-d">
+      <b>응용 프로그램 → 유틸리티 → 터미널</b> 을 열고, 아래를 붙여넣고 Enter 를 누르세요.
+    </div>
+    <div class="ol-cmd">
+      <code id="olCmd">curl -fsSL https://beautifulahin.github.io/garasadae-uploader/install.sh | bash</code>
+      <button type="button" onclick="copyCmd(this)">복사</button>
+    </div>
+    <div class="ol-d">
+      받기 · 설치 · 실행까지 알아서 다 합니다. 1분이면 끝나고 브라우저에 설정 화면이 열립니다.
+      Apple 칩인지 Intel 칩인지도 알아서 가려 받습니다.<br>
+      <b>왜 터미널인가요?</b> 브라우저로 받으면 맥이 「인터넷에서 받음」 표를 붙여 보안 경고가 뜹니다.
+      터미널로 받으면 그 표가 안 붙어서 <b>경고창 자체가 나오지 않습니다.</b>
+    </div>
+  </div>
+
   <div class="dl" id="dlBox">
     <div class="dl-os" id="osLine">내 컴퓨터를 확인하는 중…</div>
     <a class="btn" id="mainBtn" href="https://github.com/beautifulahin/garasadae-uploader/releases/latest">
@@ -136,16 +161,17 @@ h2{font-size:17px;font-weight:800;margin:36px 0 14px}
   </div>
 
   <div class="warn">
-    <b>처음 실행할 때만</b> 보안 경고가 나옵니다.<br><br>
-    <b>맥 (macOS 15 이상 · 요즘 맥 대부분)</b><br>
-    같이 들어 있는 <b>열기.command</b> 를 더블클릭하면 아래를 대신해 줍니다. 손으로 하시려면 —<br>
+    <b>zip 을 직접 받으셨다면 — 처음 실행할 때만</b> 보안 경고가 나옵니다.
+    (위의 <b>한 줄 설치</b>로 하시면 이 경고를 아예 안 보십니다.)<br><br>
+    <b>맥 ① 열기.command 를 더블클릭</b> — 압축 안에 같이 들어 있고, 아래 ②를 대신해 줍니다.<br><br>
+    <b>맥 ② 손으로 하기 (macOS 15 이상 · 요즘 맥 대부분)</b><br>
     1. 앱을 <b>응용 프로그램</b> 폴더로 옮깁니다.<br>
     2. 한 번 더블클릭하고, <b>「열지 않음」</b> 창이 뜨면 <b>완료</b> 를 누릅니다.
     　<b>⚠️ [휴지통으로 이동] 은 절대 누르지 마세요</b> — 앱이 지워집니다.<br>
     3. <b>시스템 설정 → 개인정보 보호 및 보안</b> 을 열고 아래로 내려,
     　「'가라사대 업로더'이(가) 차단되었습니다」 옆의 <b>무시하고 열기</b> 를 누르고 암호를 넣습니다.<br>
     4. 다음부터는 그냥 더블클릭하면 열립니다.<br><br>
-    <b>맥 (macOS 14 이하)</b> — 아이콘에 오른쪽 클릭 → <b>열기</b> → 경고창에서 다시 <b>열기</b><br>
+    <b>맥 ③ 옛 맥 (macOS 14 이하)</b> — 아이콘에 오른쪽 클릭 → <b>열기</b> → 경고창에서 다시 <b>열기</b><br>
     <b>윈도우</b> — 파란 창의 <b>추가 정보</b> → <b>실행</b><br><br>
     인증 비용을 들이지 않은 개인 배포 프로그램이라 나오는 안내입니다. 프로그램에 이상이 있는 것이 아닙니다.
   </div>
@@ -294,6 +320,20 @@ function closeUp(){ document.getElementById('upModal').classList.remove('on'); }
 /* 이 탭을 앱 화면으로 바꾼다. 브라우저는 스스로 연 탭만 닫을 수 있어,
    창을 닫는 대신 같은 탭을 앱 주소로 옮긴다. 결과적으로 창이 하나만 남는다. */
 function goApp(){ if(appBase) location.replace(appBase); }
+
+/* 맥 한 줄 설치 명령을 클립보드로. 옛 브라우저에서는 글자를 잡아만 준다. */
+function copyCmd(btn){
+  var t = document.getElementById('olCmd').textContent;
+  var done = function(){ btn.textContent='복사됨 ✓'; setTimeout(function(){ btn.textContent='복사'; }, 1800); };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(done, function(){ selectCmd(); });
+  } else { selectCmd(); }
+}
+function selectCmd(){
+  var el = document.getElementById('olCmd'), r = document.createRange();
+  r.selectNodeContents(el);
+  var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+}
 
 function liveUpdate(){
   document.getElementById('upModal').classList.add('on');
