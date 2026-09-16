@@ -4,6 +4,9 @@ import { 슬롯정리 } from "./app/paths.ts";
 import { EMPTY_STATE, localStamp, State, UploadRec } from "./app/paths.ts";
 import { statsRows } from "./app/stats.ts";
 import { 틀채우기 } from "./app/sidecar.ts";
+import { CHANNEL_DEFAULTS, Channel, Config, DEFAULTS, quotaDate } from "./app/paths.ts";
+import { Manager } from "./app/watcher.ts";
+import { DAILY_QUOTA, UPLOAD_COST } from "./app/youtube.ts";
 
 let 실패 = 0;
 function 같나(무엇: string, 실제: unknown, 바람: unknown) {
@@ -166,6 +169,26 @@ console.log("── 안 갈아끼운 편 ──");
     stats: { N: { views: 100, likes: 0, comments: 0, at: Date.now() } },
   };
   같나("앞뒤 견줌이 안 붙는다", statsRows(st)[0].swapped, false);
+}
+
+console.log("── 할당량 세기 ──");
+{
+  /* 적을 때(addQuota)와 읽을 때(quotaOf)의 날짜 눈금이 어긋나면, 적어 둔 사용량을
+     읽는 쪽이 「어제 것」으로 보아 0 으로 지운다. 한국(태평양 +16~17시간)에서는 거의
+     늘 어긋나, 몇 편을 올려도 「남음」이 안 줄었다 (2026-09-16). */
+  const ch: Channel = {
+    ...CHANNEL_DEFAULTS, id: "ch1", name: "시험", folder: "/tmp", enabled: true,
+    sharesWith: "", clientId: "", clientSecret: "",
+  } as unknown as Channel;
+  const m = new Manager();
+  m.cfg = { ...DEFAULTS, channels: [ch] } as Config;
+  m.state = { ...EMPTY_STATE, quota: {} };
+  m.addQuota(ch, UPLOAD_COST);
+  같나("올린 값이 곧바로 읽힌다", m.quotaOf(ch).used, UPLOAD_COST);
+  같나("남은 양이 그만큼 준다", m.quotaOf(ch).left, DAILY_QUOTA - UPLOAD_COST);
+  m.addQuota(ch, UPLOAD_COST);
+  같나("두 번 올리면 두 배", m.quotaOf(ch).used, UPLOAD_COST * 2);
+  같나("적어 둔 날짜는 태평양 날짜", Object.values(m.state.quota)[0].date, quotaDate());
 }
 
 console.log(실패 ? `\n❌ ${실패}개 틀렸다` : "\n🟢 전부 통과");

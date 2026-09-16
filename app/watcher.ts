@@ -197,10 +197,15 @@ export class Manager {
     return { used: q.used, left: DAILY_QUOTA - q.used };
   }
 
+  /** ★쓴 양을 적을 때도 **태평양 날짜**로 적는다 (고침 2026-09-16).
+   *  `quotaOf` 는 태평양 날짜(quotaDate)로 보는데 여기만 그 컴퓨터 날짜(today)로
+   *  적고 있었다. 한국은 태평양보다 16~17시간 빠르므로 두 날짜가 거의 늘 어긋났고,
+   *  적어 둔 사용량을 `quotaOf` 가 「어제 것」으로 보아 **매번 0 으로 지웠다.**
+   *  그래서 몇 편을 올려도 「남음 6개」(=10000/1600)가 그대로였다. */
   addQuota(ch: Channel, n: number) {
     const key = projectKey(this.cfg, ch);
     const q = this.state.quota[key];
-    if (!q || q.date !== this.today()) this.state.quota[key] = { date: this.today(), used: n };
+    if (!q || q.date !== quotaDate()) this.state.quota[key] = { date: quotaDate(), used: n };
     else q.used += n;
   }
 
