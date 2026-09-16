@@ -86,6 +86,10 @@ export function isVideoFile(name: string): boolean {
 export function studioEditorUrl(id: string): string {
   return `https://studio.youtube.com/video/${id}/editor`;
 }
+/** 세부정보 화면 — 쇼핑 제품 태그는 여기서 붙인다 (공식 API 에는 제품 태그 기능이 없다) */
+export function studioDetailsUrl(id: string): string {
+  return `https://studio.youtube.com/video/${id}/edit`;
+}
 
 export interface ChannelBlock { message: string; url: string }
 
@@ -546,6 +550,9 @@ export class Manager {
         if (ch.studioAfter === "always") {
           await openUrl(studioEditorUrl(res.id), this.cfg.browser);
           await log(`   🎬 스튜디오 편집기를 열었습니다`);
+        } else if (ch.studioAfter === "shop") {
+          await openUrl(studioDetailsUrl(res.id), this.cfg.browser);
+          await log(`   🛍 쇼핑 태그를 붙이도록 세부정보 화면을 열었습니다`);
         } else if (ch.studioAfter === "ask") {
           this.ask = { id: res.id, title: p.title, channelName: ch.name };
           if (Date.now() - this.lastSeen > 15_000) {

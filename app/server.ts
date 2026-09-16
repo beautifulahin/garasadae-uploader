@@ -5,7 +5,7 @@ import {
   newChannelId, safeFolderName, saveConfig, tailLog, 슬롯정리,
 } from "./paths.ts";
 import { accessToken, authUrl, checkChannel, exchange, revoke, 고급권한있나, 고급기능켰나, 채널id메우기 } from "./auth.ts";
-import { Manager, studioEditorUrl } from "./watcher.ts";
+import { Manager, studioDetailsUrl, studioEditorUrl } from "./watcher.ts";
 import { autoStartEnabled, isCompiled, listBrowsers, openPath, openUrl, pickFolder, setAutoStart, 텔레그램설정, 쓰던탭에다시 } from "./platform.ts";
 import { checkUpdate, installUpdate, UpdateInfo } from "./update.ts";
 import { 텔레그램, 텔레그램쓸수있나 } from "./telegram.ts";
@@ -772,8 +772,12 @@ export function startServer(engine: Manager, port: number) {
         const { open, remember, channelId } = await req.json();
         const target = engine.ask;
         engine.ask = null;
-        if (open && target) await openUrl(studioEditorUrl(target.id), engine.cfg.browser);
-        if (remember === "always" || remember === "never") {
+        // open: "shop" 이면 쇼핑 태그(세부정보), 그 밖의 참값은 음악(편집기)
+        if (open && target) {
+          await openUrl(open === "shop" ? studioDetailsUrl(target.id) : studioEditorUrl(target.id),
+            engine.cfg.browser);
+        }
+        if (remember === "always" || remember === "shop" || remember === "never") {
           const cfg = await loadConfig(true);
           const ch = cfg.channels.find((c) => c.id === channelId) ??
             cfg.channels.find((c) => c.name === target?.channelName);

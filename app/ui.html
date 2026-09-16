@@ -907,9 +907,14 @@ textarea.fin{resize:vertical;line-height:1.6}
     <div class="modal-btns">
       <button class="mbtn ghost" onclick="answerAsk(false)">그냥 두기</button>
       <button class="mbtn primary" onclick="answerAsk(true)">🎵 음악 넣기</button>
+      <button class="mbtn primary" onclick="answerAsk('shop')">🛍 쇼핑 태그</button>
     </div>
+    <p class="modal-note">🛍 <b>쇼핑 태그</b> 를 누르면 세부정보 화면이 열립니다. <b>제품</b> 칸에서 제품을 고르고 <b>저장</b>.<br>
+    채널이 유튜브 쇼핑 제휴 프로그램에 가입돼 있어야 제품 칸이 보입니다.</p>
     <div class="modal-remember">
       <button class="mlink" onclick="answerAsk(true,'always')">이 채널은 앞으로 항상 열기</button>
+      <span>·</span>
+      <button class="mlink" onclick="answerAsk('shop','shop')">앞으로 항상 쇼핑 태그 열기</button>
       <span>·</span>
       <button class="mlink" onclick="answerAsk(false,'never')">이 채널은 다시 묻지 않기</button>
     </div>
@@ -1551,6 +1556,7 @@ function renderChannelList(){
               <select class="fin" id="f_${v.id}_studioAfter">
                 <option value="ask" ${v.studioAfter==='ask'?'selected':''}>🎵 음악 넣을지 물어보기</option>
                 <option value="always" ${v.studioAfter==='always'?'selected':''}>항상 편집기 열기</option>
+                <option value="shop" ${v.studioAfter==='shop'?'selected':''}>🛍 항상 쇼핑 태그 열기</option>
                 <option value="never" ${v.studioAfter==='never'?'selected':''}>열지 않기</option>
               </select></div>
           </div>
@@ -1896,8 +1902,9 @@ async function answerAsk(open,remember){
   const a=ST?ST.ask:null;
   const chId=a?((ST.channelList||[]).find(c=>c.name===a.channelName)||{}).id:'';
   $('askModal').classList.remove('on'); askShown='';
-  await api('/api/ask/answer',{open:!!open,remember:remember||null,channelId:chId||''});
+  await api('/api/ask/answer',{open:open==='shop'?'shop':!!open,remember:remember||null,channelId:chId||''});
   if(remember==='always')msg('이 채널은 앞으로 업로드가 끝나면 바로 편집기가 열립니다','ok');
+  if(remember==='shop')msg('이 채널은 앞으로 업로드가 끝나면 쇼핑 태그 화면이 열립니다','ok');
   if(remember==='never')msg('이 채널은 앞으로 묻지 않습니다','ok');
   poll();
 }

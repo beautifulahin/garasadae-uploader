@@ -95,7 +95,7 @@ export interface ChannelDefaults {
   reviewMode: boolean;
   afterUpload: "move" | "trash" | "delete" | "keep";
   dailyLimit: number;
-  studioAfter: "ask" | "always" | "never";
+  studioAfter: "ask" | "always" | "shop" | "never";   // shop = 항상 쇼핑 태그(세부정보) 열기
 
   /** 같은 편을 두 번 올리는 것을 막는다 (파일이 같거나 제목이 같을 때).
    *  ★여태 막힌 것은 '그대로 두기' 로 둔 파일뿐이었다. `_완료로 옮기기`(기본값)로
