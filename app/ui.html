@@ -1119,7 +1119,12 @@ function renderChannelCards(stats,views){
   box.innerHTML=views.map(v=>{
     const st=byId[v.id]||{};
     const cap=st.capacityLeft??0, lim=st.dailyLimit??6, done=st.todayCount??0;
-    const pct=Math.min(100,(done/Math.max(1,lim))*100);
+    /* ★바는 아래 「남음 N개」 그대로를 그린다 (2026-09-16).
+       여태 done/dailyLimit 이라 ① 하루 한도가 0(무제한)이면 1 로 나눠 한 편만 올려도 늘 100%,
+       ② 남음이 1개인 채널도 바가 끝까지 차 있었다. 오늘 쓸 수 있던 칸(= 남음 + 오늘 올린 것,
+       하루 한도가 있으면 그 한도와 큰 쪽) 가운데 **남은 몫**을 채운다 — 한도에 닿으면 0%. */
+    const slots=Math.max(1,lim>0?Math.max(lim,cap+done):cap+done);
+    const pct=st.limitReached?0:Math.max(0,Math.min(100,(cap/slots)*100));
     let badge='<span class="chbadge no">미연결</span>';
     if(v.authed&&st.limitReached)badge='<span class="chbadge full">한도</span>';
     else if(v.authed)badge='<span class="chbadge ok">연결됨</span>';
