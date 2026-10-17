@@ -1,0 +1,325 @@
+{
+  "ok": true,
+  "total": 10,
+  "items": [
+    {
+      "id": "AAAAAAAAA01",
+      "ch": "채널A",
+      "t": "영상 1 — 오늘 올린 쇼츠",
+      "at": "2026-10-17T09:15:00",
+      "kind": "쇼츠",
+      "sec": 31,
+      "size": "1080x1920",
+      "visibility": "public",
+      "publishAt": null,
+      "publishedAt": "2026-10-17 09:31",
+      "views": 12345,
+      "likes": 321,
+      "comments": 12,
+      "url": "https://youtu.be/AAAAAAAAA01",
+      "studioUrl": "https://studio.youtube.com/video/AAAAAAAAA01/edit",
+      "links": [
+        {
+          "name": "무선 이어폰 케이스",
+          "url": "https://example.com/coupang/a1-1"
+        },
+        {
+          "name": "스마트폰 거치대",
+          "url": "https://example.com/coupang/a1-2"
+        }
+      ],
+      "linkStatus": "붙임",
+      "metaSource": "자동"
+    },
+    {
+      "id": "AAAAAAAAA02",
+      "ch": "채널A",
+      "t": "영상 2 — 어제 올린 쇼츠",
+      "at": "2026-10-16T15:15:00",
+      "kind": "쇼츠",
+      "sec": 42,
+      "size": "1080x1920",
+      "visibility": "public",
+      "publishAt": null,
+      "publishedAt": "2026-10-16 15:40",
+      "views": 4210,
+      "likes": 88,
+      "comments": 3,
+      "url": "https://youtu.be/AAAAAAAAA02",
+      "studioUrl": "https://studio.youtube.com/video/AAAAAAAAA02/edit",
+      "links": [],
+      "linkStatus": "없음",
+      "metaSource": "사람"
+    },
+    {
+      "id": "AAAAAAAAA03",
+      "ch": "채널A",
+      "t": "영상 3 — 예약해 둔 쇼츠",
+      "at": "2026-10-17T11:00:00",
+      "kind": "쇼츠",
+      "sec": 28,
+      "size": "1080x1920",
+      "visibility": "예약",
+      "publishAt": "2026-10-19 09:00",
+      "publishedAt": null,
+      "views": null,
+      "likes": null,
+      "comments": null,
+      "url": "https://youtu.be/AAAAAAAAA03",
+      "studioUrl": "https://studio.youtube.com/video/AAAAAAAAA03/edit",
+      "links": [],
+      "linkStatus": "건너뜀",
+      "metaSource": "쪽지",
+      "linkWhy": "쿠팡 파트너스 열쇠가 없어 링크 없이 올렸습니다"
+    },
+    {
+      "id": "BBBBBBBBB01",
+      "ch": "채널B",
+      "t": "영상 4 — 심사를 기다리는 롱폼",
+      "at": "2026-10-17T10:00:00",
+      "kind": "롱폼",
+      "sec": 905,
+      "size": "1920x1080",
+      "visibility": "비공개(검토대기)",
+      "publishAt": "2026-10-18 18:00",
+      "publishedAt": null,
+      "views": null,
+      "likes": null,
+      "comments": null,
+      "url": "https://youtu.be/BBBBBBBBB01",
+      "studioUrl": "https://studio.youtube.com/video/BBBBBBBBB01/edit",
+      "links": [
+        {
+          "name": "사람이 넣은 링크",
+          "url": "https://example.com/coupang/h1-1"
+        }
+      ],
+      "linkStatus": "사람이넣음",
+      "metaSource": "파일이름"
+    },
+    {
+      "id": "BBBBBBBBB02",
+      "ch": "채널B",
+      "t": "영상 5 — 길게 만든 롱폼",
+      "at": "2026-10-15T18:00:00",
+      "kind": "롱폼",
+      "sec": 842,
+      "size": "1920x1080",
+      "visibility": "public",
+      "publishAt": null,
+      "publishedAt": "2026-10-15 18:30",
+      "views": 98765,
+      "likes": 2345,
+      "comments": 210,
+      "url": "https://youtu.be/BBBBBBBBB02",
+      "studioUrl": "https://studio.youtube.com/video/BBBBBBBBB02/edit",
+      "links": [
+        {
+          "name": "캠핑 의자",
+          "url": "https://example.com/coupang/b2-1"
+        },
+        {
+          "name": "휴대용 랜턴",
+          "url": "https://example.com/coupang/b2-2"
+        },
+        {
+          "name": "보냉 가방",
+          "url": "https://example.com/coupang/b2-3"
+        }
+      ],
+      "linkStatus": "붙임",
+      "metaSource": "자동"
+    },
+    {
+      "id": "AAAAAAAAA04",
+      "ch": "채널A",
+      "t": "영상 6 — 사람이 내린 쇼츠",
+      "at": "2026-10-14T09:15:00",
+      "kind": "쇼츠",
+      "sec": 35,
+      "size": "1080x1920",
+      "visibility": "private",
+      "publishAt": null,
+      "publishedAt": null,
+      "views": 520,
+      "likes": 11,
+      "comments": 0,
+      "url": "https://youtu.be/AAAAAAAAA04",
+      "studioUrl": "https://studio.youtube.com/video/AAAAAAAAA04/edit",
+      "links": [],
+      "linkStatus": "아직",
+      "metaSource": "사람"
+    },
+    {
+      "id": "BBBBBBBBB03",
+      "ch": "채널B",
+      "t": "영상 7 — 일부 공개 롱폼",
+      "at": "2026-10-13T20:00:00",
+      "kind": "롱폼",
+      "sec": 1260,
+      "size": "1920x1080",
+      "visibility": "unlisted",
+      "publishAt": null,
+      "publishedAt": "2026-10-13 20:20",
+      "views": 120,
+      "likes": 4,
+      "comments": 0,
+      "url": "https://youtu.be/BBBBBBBBB03",
+      "studioUrl": "https://studio.youtube.com/video/BBBBBBBBB03/edit",
+      "links": [],
+      "linkStatus": "아직",
+      "metaSource": "쪽지"
+    },
+    {
+      "id": "AAAAAAAAA05",
+      "ch": "채널A",
+      "t": "영상 8 — 조회가 정말 0 인 쇼츠",
+      "at": "2026-10-12T09:15:00",
+      "kind": "쇼츠",
+      "sec": 30,
+      "size": "1080x1920",
+      "visibility": "public",
+      "publishAt": null,
+      "publishedAt": "2026-10-12 09:40",
+      "views": 0,
+      "likes": 0,
+      "comments": 0,
+      "url": "https://youtu.be/AAAAAAAAA05",
+      "studioUrl": "https://studio.youtube.com/video/AAAAAAAAA05/edit",
+      "links": [],
+      "linkStatus": "아직",
+      "metaSource": "사람"
+    },
+    {
+      "id": "BBBBBBBBB04",
+      "ch": "채널B",
+      "t": "영상 9 — 댓글을 막아 둔 롱폼",
+      "at": "2026-10-11T19:00:00",
+      "kind": "롱폼",
+      "sec": 733,
+      "size": "1920x1080",
+      "visibility": "public",
+      "publishAt": null,
+      "publishedAt": "2026-10-11 19:25",
+      "views": 33000,
+      "likes": 1200,
+      "comments": null,
+      "url": "https://youtu.be/BBBBBBBBB04",
+      "studioUrl": "https://studio.youtube.com/video/BBBBBBBBB04/edit",
+      "links": [],
+      "linkStatus": "아직",
+      "metaSource": "자동"
+    },
+    {
+      "id": "AAAAAAAAA06",
+      "ch": "채널A",
+      "t": "영상 10 — 제목이 아주아주 길어서 한 줄에 다 들어가지 않는 쇼츠 제목입니다 정말로 길어서 말줄임표가 나와야 합니다",
+      "at": "2026-10-10T09:15:00",
+      "kind": "쇼츠",
+      "sec": 29,
+      "size": "1080x1920",
+      "visibility": "public",
+      "publishAt": null,
+      "publishedAt": "2026-10-10 09:44",
+      "views": 7788,
+      "likes": 120,
+      "comments": 9,
+      "url": "https://youtu.be/AAAAAAAAA06",
+      "studioUrl": "https://studio.youtube.com/video/AAAAAAAAA06/edit",
+      "links": [],
+      "linkStatus": "아직",
+      "metaSource": "사람"
+    }
+  ],
+  "byDay": {
+    "2026-10-17": {
+      "n": 3,
+      "open": 1,
+      "ch": {
+        "채널A": 2,
+        "채널B": 1
+      }
+    },
+    "2026-10-16": {
+      "n": 1,
+      "open": 1,
+      "ch": {
+        "채널A": 1
+      }
+    },
+    "2026-10-15": {
+      "n": 1,
+      "open": 1,
+      "ch": {
+        "채널B": 1
+      }
+    },
+    "2026-10-14": {
+      "n": 1,
+      "open": 1,
+      "ch": {
+        "채널A": 1
+      }
+    },
+    "2026-10-13": {
+      "n": 1,
+      "open": 1,
+      "ch": {
+        "채널B": 1
+      }
+    },
+    "2026-10-12": {
+      "n": 1,
+      "open": 1,
+      "ch": {
+        "채널A": 1
+      }
+    },
+    "2026-10-11": {
+      "n": 1,
+      "open": 1,
+      "ch": {
+        "채널B": 1
+      }
+    },
+    "2026-10-10": {
+      "n": 1,
+      "open": 1,
+      "ch": {
+        "채널A": 1
+      }
+    }
+  },
+  "byChannel": {
+    "채널A": {
+      "2026-10-11": 0,
+      "2026-10-12": 1,
+      "2026-10-13": 0,
+      "2026-10-14": 1,
+      "2026-10-15": 0,
+      "2026-10-16": 1,
+      "2026-10-17": 2
+    },
+    "채널B": {
+      "2026-10-11": 1,
+      "2026-10-12": 0,
+      "2026-10-13": 1,
+      "2026-10-14": 0,
+      "2026-10-15": 1,
+      "2026-10-16": 0,
+      "2026-10-17": 1
+    }
+  },
+  "log": [
+    "2026-10-17 09:15:02  올리기 시작  [채널A] 영상 1 — 오늘 올린 쇼츠",
+    "2026-10-17 09:15:41  비공개 업로드 완료  https://youtu.be/AAAAAAAAA01  (검토 후 공개)",
+    "2026-10-17 09:31:10  공개로 바꿨습니다  [채널A] 영상 1 — 오늘 올린 쇼츠",
+    "2026-10-17 10:00:05  올리기 시작  [채널B] 영상 4 — 심사를 기다리는 롱폼",
+    "2026-10-17 10:03:58  비공개 업로드 완료  https://youtu.be/BBBBBBBBB01  (검토 후 예약 2026-10-18 18:00)",
+    "2026-10-17 11:00:12  올리기 시작  [채널A] 영상 3 — 예약해 둔 쇼츠",
+    "2026-10-17 11:00:49  쿠팡 링크는 건너뛰었습니다 — 열쇠가 없습니다",
+    "2026-10-17 11:00:50  비공개 업로드 완료  https://youtu.be/AAAAAAAAA03  (검토 후 예약 2026-10-19 09:00)",
+    "2026-10-17 12:00:00  심사 확인 — 검토 대기 1건 (2번째 확인까지 18분 남음)",
+    "2026-10-17 12:30:00  심사확인 한 번 돌았습니다 (쏘기 0 · 공개 0 · 구독 찍기 2)"
+  ]
+}

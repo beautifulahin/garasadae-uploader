@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "conf": {
+    "folder": "/tmp/예시/채널A",
+    "publish": "schedule",
+    "daily_rule": "views",
+    "times": [
+      "09:15",
+      "15:15"
+    ],
+    "pick": "order"
+  }
+}

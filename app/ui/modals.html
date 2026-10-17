@@ -1,0 +1,184 @@
+<!-- ============ 공통 모달 (modals.html): 첫 갈림길 · 업데이트 · 자동 실행 · 일반 질문 ============ -->
+<style>
+/* 공통 모달 전용 부품 — 접두사 mo- (색·글꼴은 ui.html 의 변수만 쓴다) */
+.mo-pick{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.mo-opt{display:block;width:100%;text-align:left;padding:14px 16px;border-radius:var(--r);border:1px solid var(--bdr);background:var(--bg2);color:var(--t1);transition:.15s}
+.mo-opt:hover,.mo-opt:focus-visible{border-color:var(--accent);background:var(--bg3);outline:none}
+.mo-opt b{display:block;font-size:14px;font-weight:800;margin-bottom:3px}
+.mo-opt>span{display:block;font-size:12px;color:var(--t2);line-height:1.6;margin-bottom:6px}
+.mo-opt ul{list-style:none;padding:0;margin:0;display:grid;gap:3px}
+.mo-opt li{font-size:11.5px;color:var(--t3);line-height:1.6;padding-left:12px;position:relative}
+.mo-opt li::before{content:"";position:absolute;left:0;top:.75em;width:4px;height:4px;border-radius:50%;background:var(--cyan)}
+#askBtns{flex-wrap:wrap}
+#askBtns .mbtn{flex:1 1 140px}
+.mo-x{position:absolute;top:8px;right:10px;border:none;background:none;color:var(--t3);font-size:22px;line-height:1;padding:4px 9px;border-radius:var(--rs)}
+.mo-x:hover,.mo-x:focus-visible{color:var(--accent);background:var(--bg3);outline:none}
+.mo-err{margin:0 0 14px;padding:9px 11px;border-radius:var(--rs);background:var(--accentG);border:1px solid rgba(255,68,102,.35);color:var(--accent);font-size:12px;line-height:1.6;text-align:left;word-break:break-word}
+.mo-form{text-align:left;margin-bottom:12px}
+.mo-form .fin{font-family:'JetBrains Mono',monospace;font-size:12px}
+/* 옛 판 자료를 옮기다 빠진 것이 있어 올리기를 멈춘 상태 — 화면 맨 위 빨간 띠 (JS 가 body 맨 앞으로 옮긴다) */
+.mo-mig{background:var(--accentG);border-bottom:2px solid var(--accent);padding:10px 20px;color:var(--t1)}
+.mo-mig-in{max-width:1400px;margin:0 auto}
+.mo-mig-t{font-size:13px;line-height:1.7}
+.mo-mig-t b{color:var(--accent)}
+.mo-mig-t code{background:var(--bg3);padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--cyan);word-break:break-all}
+.mo-mig-s{font-size:11.5px;color:var(--t2);line-height:1.7;margin-top:2px}
+.mo-mig-b{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.mo-mig-d{margin-top:8px;padding:9px 11px;border-radius:var(--rs);background:var(--bg1);border:1px solid var(--bdr);font-size:11.5px;color:var(--t2);line-height:1.8}
+.mo-mig-d b{color:var(--t1)}
+.mo-mig-d ul{padding-left:18px;margin:2px 0 6px}
+/* 🔑 AI·쿠팡 열쇠 창 — 한 창 두 구역 */
+.mo-key{position:relative;width:600px;max-height:88vh;overflow-y:auto}
+.mo-secs{display:flex;flex-direction:column;gap:10px;margin-bottom:12px;text-align:left}
+.mo-sec{border:1px solid var(--bdr);border-radius:var(--r);background:var(--bg2)}
+.mo-sec.mo-sec-on{border-color:rgba(45,212,168,.45)}
+.mo-sec-h{display:flex;align-items:center;gap:8px;padding:11px 14px;flex-wrap:wrap}
+.mo-sec-h b{font-size:13.5px}
+.mo-sp{flex:1}
+.mo-sec-b{padding:2px 14px 14px;border-top:1px solid var(--bdr)}
+.mo-help{font-size:12px;color:var(--t2);line-height:1.75;margin:10px 0 8px}
+.mo-find{margin:8px 0 10px;padding:10px 12px;border-radius:var(--rs);background:var(--bg1);border:1px solid var(--bdr)}
+.mo-find-h{font-size:11px;font-weight:700;color:var(--t3);margin-bottom:6px}
+.mo-find-m{font-size:11.5px;color:var(--t2);line-height:1.7}
+.mo-find-m b{color:var(--t1)}
+.mo-fr{display:flex;gap:8px;align-items:flex-start;padding:8px 9px;border:1px solid var(--bdr);border-radius:var(--rs);margin-bottom:5px;cursor:pointer;background:var(--bg2);transition:.15s}
+.mo-fr:hover{border-color:var(--blue)}
+.mo-fr.on{border-color:var(--cyan);background:var(--cyanG)}
+.mo-fr input{margin-top:3px;flex-shrink:0}
+.mo-fb{min-width:0;flex:1}
+.mo-fm{display:block;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--t1);word-break:break-all}
+.mo-fw{display:block;font-size:10.5px;color:var(--t3);line-height:1.6;margin-top:1px;word-break:break-all}
+.mo-ft{display:block;font-size:11px;margin-top:2px;color:var(--t3)}
+.mo-ft.ok{color:var(--cyan)}
+.mo-ft.bad{color:var(--accent)}
+.mo-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.mo-acts .mbtn{flex:0 1 auto;padding:9px 16px;font-size:12px}
+.mo-off{margin-top:6px;text-align:right}
+</style>
+
+<!-- 옛 판 자료 확인 중 문제로 올리기·공개를 멈춘 상태(ST.migrate.hold) -->
+<div class="mo-mig hide" id="migBar" role="alert">
+  <div class="mo-mig-in">
+    <div class="mo-mig-t"><b>⛔ 옛 판 자료 확인 중 문제로 올리기를 멈춰 두었습니다</b> — 복사본: <code id="migDir">-</code></div>
+    <div class="mo-mig-s">옛 판 자료를 새 판으로 옮기다 빠진 것이 있어 새 판이 올리기와 공개를 멈췄습니다. 옛 판 자료의 복사본은 위 폴더에 있습니다.
+    아래 <b>자세히</b>에서 빠진 것을 확인하고 <b>다시 옮기기</b>를 눌러 주세요.</div>
+    <div class="mo-mig-b">
+      <button type="button" class="tb on" id="migRetry" onclick="moMigRetry()">🔁 다시 옮기기</button>
+      <button type="button" class="tb" id="migMore" onclick="moMigDetail()">자세히 보기</button>
+      <button type="button" class="tb" onclick="moMigCopy()">📋 복사본 경로 복사</button>
+      <button type="button" class="tb" onclick="moMigAccept()" title="빠진 것이 있는 채로 새 판을 쓰겠다고 받아들입니다 (확인 창을 거칩니다)">빠진 채로 새 판 쓰기…</button>
+    </div>
+    <div class="mo-mig-d hide" id="migDetail"></div>
+  </div>
+</div>
+
+<!-- 첫 갈림길: ST.mode 가 null 일 때 (대행 관리자 / 채널 소유주) -->
+<div class="modal" id="modeModal">
+  <div class="modal-box" style="width:560px">
+    <div class="modal-emoji">🧭</div>
+    <h3>어떻게 쓰시나요?</h3>
+    <p class="modal-desc">
+      채널 주인이 누구냐에 따라 로그인 절차와 확인 단계가 달라집니다.<br>
+      나중에 <b>설정</b> 탭에서 언제든 바꿀 수 있습니다.
+    </p>
+    <div class="mo-pick">
+      <button type="button" class="mo-opt" onclick="moPickMode('agency')">
+        <b>🏢 대행 관리자로 시작</b>
+        <span>채널 주인이 저마다 다른 여러 고객사를 대신 올려 줍니다.</span>
+        <ul>
+          <li>고객사별로 따로 — 폴더·성적이 고객사 단위로 갈립니다</li>
+          <li>매번 짝을 확인 — 이 폴더가 이 채널 것이 맞는지 올리기 전에 검사합니다</li>
+        </ul>
+      </button>
+      <button type="button" class="mo-opt" onclick="moPickMode('owner')">
+        <b>👤 채널 소유주로 시작</b>
+        <span>채널이 모두 내 구글 계정 안에 있습니다.</span>
+        <ul>
+          <li>짝 확인 단계를 건너뜁니다 — 전부 내 채널이라 필요 없습니다</li>
+          <li>합쳐서 봅니다 — 성적을 채널별·전체 두 가지로 나란히 봅니다</li>
+        </ul>
+      </button>
+    </div>
+    <p class="modal-note">영상을 올리려면 채널 주인이 구글 로그인 창에서 직접 승인해야 합니다.<br>
+    승인이 끝나면 채널 이름·배너·프로필 사진은 알아서 받아 둡니다.</p>
+    <div class="modal-remember"><span>바깥을 누르거나 Esc 를 눌러도 닫힙니다 (고를 때까지 다시 물어봅니다)</span></div>
+  </div>
+</div>
+
+<!-- 업데이트: 확인 → 진행 막대 -->
+<div class="modal" id="upModal">
+  <div class="modal-box">
+    <div class="modal-emoji">🆕</div>
+    <h3 id="upTitle">업데이트 하시겠습니까?</h3>
+    <div class="modal-title" id="upVer"></div>
+    <div id="upNotes" class="upnotes" style="display:none"></div>
+    <p class="modal-desc" id="upDesc">
+      새 버전이 나왔습니다. 확인을 누르면 프로그램이 알아서 받아서<br>
+      교체하고 다시 시작합니다. <b>설정과 로그인은 그대로 유지됩니다.</b>
+    </p>
+    <div id="upProg" style="display:none">
+      <div class="gauge" style="margin-bottom:6px"><div class="gauge-f" id="upBar"></div></div>
+      <div class="gauge-l"><span id="upText">준비 중…</span><span id="upPct">0%</span></div>
+    </div>
+    <div class="modal-btns" id="upBtns">
+      <button type="button" class="mbtn ghost" id="upNo" onclick="moCloseUp()">취소</button>
+      <button type="button" class="mbtn primary" id="upYes" onclick="moDoUpdate()">확인</button>
+    </div>
+    <div class="modal-remember" id="upRemember">
+      <button type="button" class="mlink" onclick="moUpPage()">바뀐 내용 보기</button>
+      <span>·</span>
+      <button type="button" class="mlink" onclick="moCloseUp()">닫기 (Esc)</button>
+    </div>
+  </div>
+</div>
+
+<!-- 컴퓨터를 켤 때 항상 실행할까요? -->
+<div class="modal" id="autoModal">
+  <div class="modal-box">
+    <div class="modal-emoji">🔌</div>
+    <h3>컴퓨터를 켤 때 항상 실행할까요?</h3>
+    <p class="modal-desc">
+      켜두면 이 창을 닫아도, 컴퓨터를 껐다 켜도<br>
+      <b>뒤에서 계속 예약한 시각에 영상을 올립니다.</b><br>
+      <b>10분마다 올릴 시각과 심사 결과를 확인하는 작업도 함께 켭니다.</b>
+    </p>
+    <p class="modal-note">끄시면 이 프로그램을 직접 실행했을 때만 동작합니다.<br>
+    나중에 <b>설정</b> 탭에서 언제든 바꿀 수 있습니다.</p>
+    <div class="modal-btns">
+      <button type="button" class="mbtn ghost" onclick="moAnswerAuto(false)">필요할 때만 켤게요</button>
+      <button type="button" class="mbtn primary" onclick="moAnswerAuto(true)">🔌 항상 켜기</button>
+    </div>
+    <div class="modal-remember"><span>바깥을 누르거나 Esc 를 눌러도 닫힙니다</span></div>
+  </div>
+</div>
+
+<!-- 서버가 화면에 묻는 일 (ST.ask) — 제목·본문·고를 것은 서버가 정한다 -->
+<div class="modal" id="askModal">
+  <div class="modal-box">
+    <div class="modal-emoji" id="askEmoji">❓</div>
+    <h3 id="askTitle"></h3>
+    <p class="modal-desc" id="askBody"></p>
+    <div class="modal-btns" id="askBtns"></div>
+    <div class="modal-remember"><span>바깥을 누르거나 Esc 를 누르면 나중에 답합니다</span></div>
+  </div>
+</div>
+
+<!-- 🔑 AI + 🛒 쿠팡 파트너스 연결 — 한 창, 두 구역(구역 내용은 modals.js 가 만든다). 열쇠 값은 이 창 밖으로 나오지 않는다(저장 뒤 입력칸을 비운다).
+     헤더 단추·설정 탭·시작하기가 openAi() / openCoupang() 으로 연다 -->
+<div class="modal" id="keyModal">
+  <div class="modal-box mo-key">
+    <button type="button" class="mo-x" aria-label="닫기" title="닫기 (Esc)" onclick="moKeyClose()">×</button>
+    <div class="modal-emoji">🔑</div>
+    <h3>AI·쿠팡 파트너스 연결</h3>
+    <p class="modal-desc">둘 다 <b>선택</b>입니다. 열쇠는 <b>이 컴퓨터에만</b> 저장됩니다.<br>
+    이 컴퓨터에 이미 있는 열쇠를 찾아 보여 드립니다 — 열쇠를 골라 「이걸로 쓰기」만 누르면 됩니다.</p>
+    <div class="mo-secs">
+      <section class="mo-sec" id="kyAi"></section>
+      <section class="mo-sec" id="kyCp"></section>
+    </div>
+    <div class="modal-btns">
+      <button type="button" class="mbtn ghost" id="kyLater" onclick="moKeyClose()">나중에</button>
+    </div>
+    <div class="modal-remember"><span>바깥을 누르거나 Esc 를 눌러도 닫힙니다</span></div>
+  </div>
+</div>

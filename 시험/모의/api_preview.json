@@ -1,0 +1,63 @@
+{
+  "ok": true,
+  "channels": [
+    {
+      "ch": "채널A",
+      "note": "오늘 몫 2편 · 파일 이름 순서대로 고릅니다",
+      "items": [
+        {
+          "file": "/tmp/예시/채널A/영상1.mp4",
+          "name": "영상1.mp4",
+          "title": "영상 1",
+          "kind": "쇼츠",
+          "publishAt": "",
+          "fireAt": "2026-10-17T13:00:00",
+          "reason": "이름 순서 1번",
+          "thumb": null,
+          "issues": [],
+          "meta": {
+            "title": "자동으로 지은 제목 예시",
+            "desc": "예시 설명",
+            "tags": [
+              "예시",
+              "자동"
+            ],
+            "source": {
+              "title": "자동",
+              "desc": "자동",
+              "tags": "자동"
+            },
+            "status": "자동"
+          },
+          "links": [
+            {
+              "name": "예시 상품 A",
+              "url": "https://link.coupang.com/a/exampleA"
+            }
+          ],
+          "linkStatus": "붙임"
+        },
+        {
+          "file": "/tmp/예시/채널A/영상5.mp4",
+          "name": "영상5.mp4",
+          "title": "영상 5",
+          "kind": "쇼츠",
+          "publishAt": "",
+          "fireAt": "2026-10-17T15:00:00",
+          "reason": "이름 순서 2번",
+          "thumb": null,
+          "issues": [
+            "같은 제목이 이미 올라갔다"
+          ],
+          "links": [],
+          "linkStatus": "아직"
+        }
+      ]
+    },
+    {
+      "ch": "채널B",
+      "note": "오늘 올릴 영상이 없습니다",
+      "items": []
+    }
+  ]
+}

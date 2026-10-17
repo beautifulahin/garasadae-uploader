@@ -1,0 +1,8 @@
+{
+  "ok": true,
+  "message": "연결됐습니다",
+  "sample": {
+    "name": "예시 상품",
+    "price": 12900
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "ok": true,
+  "status": "붙임",
+  "links": [
+    {
+      "name": "예시 상품 A",
+      "url": "https://link.coupang.com/a/exampleA"
+    },
+    {
+      "name": "예시 상품 B (이름이 아주 길면 줄여서 보입니다 — 길어도 한 줄)",
+      "url": "https://link.coupang.com/a/exampleB"
+    }
+  ],
+  "queries": [
+    "예시 검색어",
+    "관련 용품"
+  ],
+  "why": "",
+  "cached": false,
+  "block": "예시 상품 A\nhttps://link.coupang.com/a/exampleA\n예시 상품 B\nhttps://link.coupang.com/a/exampleB\n\n이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다."
+}

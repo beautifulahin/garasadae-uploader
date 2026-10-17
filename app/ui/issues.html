@@ -1,0 +1,82 @@
+<!-- ============ 문제·알림 팝업 (헤더의 신호등 알약을 누르면 열린다) ============ -->
+<style>
+/* 문제·알림 팝업 — 옛 .modal 부품 위에 얹는다. 새 색은 없다(빨강=--accent · 노랑=--gold · 초록=--cyan). */
+/* 높이는 vh 가 아니라 바깥 .modal 의 100% — 껍데기가 html{zoom:1.25} 라 vh 로 재면 창보다 25% 커져 아래 단추가 잘린다 */
+.iss-box{width:min(720px,100%);max-height:100%;display:flex;flex-direction:column;text-align:left;padding:22px 22px 18px}
+.iss-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.iss-head .modal-emoji{font-size:26px;margin:0}
+.iss-head h3{margin:0;font-size:17px}
+.iss-sum{font-size:11px;color:var(--t3);font-family:'JetBrains Mono',monospace}
+.iss-x{margin-left:auto;background:none;border:0;color:var(--t3);font-size:26px;line-height:1;padding:0 4px}
+.iss-x:hover{color:var(--t1)}
+.iss-body{flex:1;min-height:60px;overflow-y:auto;display:grid;gap:10px;margin-bottom:14px;padding-right:2px;align-content:start}
+.iss-gh{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--t2);margin:6px 0 0}
+.iss-gh .sp{flex:1}
+.iss-gh .tb{padding:3px 10px}
+.iss-it{border:1px solid var(--bdr);border-left:4px solid var(--t3);border-radius:var(--r);padding:11px 14px;background:var(--bg2)}
+.iss-it.red{border-color:rgba(255,68,102,.28);border-left-color:var(--accent);background:rgba(255,68,102,.05)}
+.iss-it.yellow{border-color:rgba(240,180,41,.28);border-left-color:var(--gold);background:rgba(240,180,41,.05)}
+.iss-it.green{border-left-color:var(--cyan)}
+.iss-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.iss-h b{font-size:14px;font-weight:700}
+.iss-tag{flex:0 0 auto;font-size:10px;font-weight:800;padding:2px 8px;border-radius:99px;background:var(--bg4);color:var(--t2)}
+.iss-tag.red{background:var(--accentG);color:var(--accent)}
+.iss-tag.yellow{background:rgba(240,180,41,.16);color:var(--gold)}
+.iss-tag.green{background:var(--cyanG);color:var(--cyan)}
+.iss-ch{font-size:11px;padding:1px 8px;border-radius:20px;background:var(--bg3);color:var(--t2)}
+.iss-fn{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--t3);word-break:break-all;width:100%}
+.iss-auto{font-size:10px;color:var(--cyan);border:1px solid rgba(45,212,168,.4);border-radius:99px;padding:1px 8px}
+.iss-r{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:9px;font-size:12.5px;line-height:1.7;margin-top:5px;align-items:start}
+.iss-r i{font-style:normal;color:var(--t3);font-size:11px;padding-top:2px}
+.iss-r span{color:var(--t2);word-break:break-word}
+.iss-r.do span{color:var(--cyan)}
+.iss-r .tb{padding:3px 10px;white-space:nowrap}
+.iss-raw{margin-top:8px}
+.iss-raw summary{cursor:pointer;font-size:11px;color:var(--t3)}
+.iss-raw pre{white-space:pre-wrap;word-break:break-all;font-family:'JetBrains Mono',monospace;font-size:10.5px;line-height:1.6;background:var(--bg);border:1px solid var(--bdr);padding:8px 10px;border-radius:var(--rs);margin-top:6px;color:var(--t2);max-height:170px;overflow:auto}
+.iss-empty{text-align:center;color:var(--t3);padding:30px 0;font-size:13px;line-height:1.8}
+.iss-empty b{display:block;font-size:16px;color:var(--t1)}
+.iss-empty .e{font-size:34px;margin-bottom:6px}
+.iss-grn>summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--t2);padding:4px 0;margin:6px 0 4px}
+.iss-grn .iss-it{margin-bottom:8px}
+.iss-note{font-size:11px;color:var(--t3);line-height:1.7}
+.iss-foot{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.iss-foot .mbtn{flex:1 1 140px;padding:10px 8px;font-size:12.5px}
+.iss-foot .mbtn:disabled{opacity:.5;cursor:default}
+.iss-brief{width:min(560px,100%)}
+.iss-brief .iss-it{margin-bottom:0}
+.iss-meta{font-size:11px;color:var(--t3);margin-top:3px}
+</style>
+
+<div class="modal" id="issModal">
+  <div class="modal-box iss-box" role="dialog" aria-modal="true" aria-label="문제·알림">
+    <div class="iss-head">
+      <span class="modal-emoji">🚦</span>
+      <h3>문제·알림</h3>
+      <span class="iss-sum" id="issSum"></span>
+      <button class="iss-x" onclick="closeIssues()" title="닫기" aria-label="닫기">&times;</button>
+    </div>
+    <div class="iss-body" id="issBody"><div class="iss-empty">불러오는 중…</div></div>
+    <div class="iss-foot" id="issFoot">
+      <button class="mbtn ghost" id="issBtnCopy" onclick="issCopy()" title="문제 설명을 복사합니다 — AI 앱이나 메모에 붙여 넣을 수 있습니다">📋 복사</button>
+      <button class="mbtn ghost" id="issBtnAi" onclick="issClaude()" title="문제 설명을 복사하고 AI 앱을 엽니다 — 열리지 않아도 복사는 됩니다">🤖 AI 에게 보여주기</button>
+      <button class="mbtn ghost hide" id="issBtnFix" onclick="issFix()" title="앱이 스스로 고칠 수 있는 것만 고칩니다">🛠 자동으로 고치기</button>
+      <button class="mbtn primary hide" id="issBtnAck" onclick="issAck()" title="노란 알림을 오늘은 접어 둡니다 — 내일 다시 나옵니다">✔ 확인했음</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="issBrief">
+  <div class="modal-box iss-box iss-brief" role="dialog" aria-modal="true" aria-label="확인이 필요합니다">
+    <div class="iss-head">
+      <span class="modal-emoji">🔔</span>
+      <h3>확인이 필요합니다</h3>
+      <span class="iss-sum" id="issBriefN"></span>
+    </div>
+    <div class="iss-body" id="issBriefList"></div>
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="issBriefClose()">닫기</button>
+      <button class="mbtn primary" onclick="issBriefMore()">문제 자세히 보기</button>
+    </div>
+  </div>
+</div>

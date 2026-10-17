@@ -1,874 +1,316 @@
-// 로컬 웹 UI + API
-import {
-  APP_NAME, APP_VERSION, buildLabel, CHANNEL_DEFAULTS, Channel, Config, IS_MAC, IS_WIN, REPO,
-  clearTokens, credsOf, dataDir, desktopDir, join, loadConfig, loadTokens, log,
-  newChannelId, safeFolderName, saveConfig, tailLog, 슬롯정리,
-} from "./paths.ts";
-import { accessToken, authUrl, checkChannel, exchange, revoke, 고급권한있나, 고급기능켰나, 채널id메우기 } from "./auth.ts";
-import { Manager, studioDetailsUrl, studioEditorUrl } from "./watcher.ts";
-import { autoStartEnabled, isCompiled, listBrowsers, openPath, openUrl, pickFolder, setAutoStart, 텔레그램설정, 쓰던탭에다시 } from "./platform.ts";
-import { checkUpdate, installUpdate, UpdateInfo } from "./update.ts";
-import { 텔레그램, 텔레그램쓸수있나 } from "./telegram.ts";
-import { 열쇠확인 } from "./ai.ts";
+// 화면 서버 — 이 컴퓨터 안에서만 닿는 작은 웹 서버. (파이썬: serve.py)
+//
+// 왜 서버인가: 화면(브라우저)이 누른 것을 이 컴퓨터에 적고, 영상을 재생하고, 폴더를 고르려면 127.0.0.1 로만 여는 서버가 필요하다. 바깥에서는 못 들어온다.
+//
+// 문지기 (모든 요청이 먼저 지난다)
+//   · Host 가 127.0.0.1/localhost 의 이 포트가 아니면 거절한다(DNS 되돌림 공격 — 다른 사이트가 내 컴퓨터 서버를 부리는 것을 막는다).
+//   · Origin 이 있으면 이 서버 자신이어야 한다. 예외는 공개 안내 페이지가 「이미 실행 중인 앱을 찾아 업데이트」 하려고 부르는 세 길뿐이다.
+//   · 시키는 길(POST)은 JSON 으로 와야 한다(다른 사이트는 서버 허락 없이 JSON 을 못 보낸다) — 끌어다 놓기(drop)만 파일 바이트.
+//   · 영상·그림 재생은 등록된 채널 폴더 안의 파일만 내준다.
+//   · 올리기는 표(ticket)·사람이 누른 출처·20개·되풀이 검사를 지난다(safety.ts).
+//
+// 심사확인 틱: 서버가 켜져 있는 동안은 여기서 10분마다 돈다(꺼져 있으면 예약 작업이 돈다 — tick.ts 가 겹침을 막는다).
+import { APP_VERSION, extOf, join, log } from "./paths.ts";
+import { composePage, readAsset } from "./uipage.ts";
+import { Bad, buildRoutes, type Ctx, type Handler, newAppState } from "./routes.ts";
+import * as TK from "./tick.ts";
+import * as SG from "./settings.ts";
+import * as V from "./views.ts";
+import * as PLAT from "./platform.ts";
+import { checkUpdate, installUpdate, type UpdateInfo } from "./update.ts";
+import { artDir } from "./profile.ts";
+import { loadChannels } from "./channels.ts";
+import { setTelegramAlerts } from "./notify.ts";
 
-const UI = await Deno.readTextFile(new URL("./ui.html", import.meta.url));
+type Obj = Record<string, any>;
 
-let upState = { running: false, pct: 0, text: "", error: "" };
-
-/** 켠 직후 딱 한 번, 묻지 않고 새 버전을 받는다.
- *  올리는 중이거나 전에 거절한 버전이면 건너뛰고 예전처럼 물어본다.
- *  성공하면 프로그램이 스스로 다시 시작하므로 여기서 돌아오지 않는다. */
-const 한시간 = 60 * 60_000;
-/** 받다가 넘어진 판은 한동안 다시 건드리지 않는다 — 한 시간마다 헛되이 되풀이하지 않게. */
-const 넘어진판 = new Map<string, number>();
-const 넘어지면쉼 = 6 * 한시간;
-
-/**
- * 새 판이 나오면 묻지 않고 받아서 스스로 다시 뜬다.
- *
- * ★켤 때 한 번 보고, **그 뒤로도 한 시간에 한 번** 본다 (사용자 지시 2026-08-28).
- *   여태는 시작할 때 딱 한 번만 봤다. 그런데 이 프로그램은 「컴퓨터 켤 때 자동 실행」을
- *   켜 두고 **몇 주씩 안 끄고** 쓰는 게 정상 사용법이라, 켜 둔 사람은 새 판이 나와도
- *   영영 옛 판을 썼다. 실제로 1.8.0 을 올린 날 그대로 겪었다 — 앱은 새 판이 있는 것을
- *   알면서도(available:true) 스스로 받지 않았다.
- */
-export async function autoUpdateOnStart(engine: Manager) {
-  await new Promise((r) => setTimeout(r, 5000));   // 화면이 먼저 뜨도록 잠깐 기다린다
-  await 새판받기(engine);
-  setInterval(() => { 새판받기(engine).catch(() => {}); }, 한시간);
+export interface ServerOpts {
+  /** 쓸 포트(0 이면 운영체제가 빈 포트를 준다) */
+  port?: number;
+  /** 10분마다 도는 심사확인을 서버가 돌리나(기본 참) */
+  tick?: boolean;
+  /** 켠 뒤 새 버전을 보고, 있으면 묻지 않고 받는다(기본 참) */
+  autoUpdate?: boolean;
+  /** 심사확인 첫 실행을 늦추는 시간(ms, 기본 20초) */
+  firstTickMs?: number;
 }
 
-async function 새판받기(engine: Manager) {
-  const wasPaused = engine.paused;
-  let 판 = "";
-  try {
-    // ★올리는 중이면 건드리지 않는다. 다음 시간에 다시 보면 된다.
-    if (upState.running || engine.uploadingKey) return;
-    const info = await checkUpdate(false);
-    if (!info.available || !info.canInstall) return;
-    // 사용자가 전에 "아니오" 를 누른 버전은 몰래 밀어 넣지 않는다
-    if ((engine.cfg.updateDeclines[info.version] ?? 0) > 0) return;
-    const 쉰때 = 넘어진판.get(info.version) ?? 0;
-    if (Date.now() - 쉰때 < 넘어지면쉼) return;
-    판 = info.version;
-
-    await log(`⬆️  새 버전 ${info.version} — 묻지 않고 바로 받습니다`);
-    engine.paused = true;                          // 받는 동안 새 업로드가 시작되지 않게 한다
-    upState = { running: true, pct: 0, text: "준비 중…", error: "" };
-    await installUpdate(info, (pct, text) => { upState.pct = pct; upState.text = text; });
-  } catch (e) {
-    engine.paused = wasPaused;
-    if (판) 넘어진판.set(판, Date.now());
-    upState = { running: false, pct: 0, text: "", error: e instanceof Error ? e.message : String(e) };
-    await log(`⚠️  자동 업데이트 실패: ${upState.error} — 화면에서 다시 시도할 수 있습니다 `
-      + `(6시간 뒤 스스로 다시 해 봅니다)`);
-  }
+export interface RunningServer {
+  port: number;
+  url: string;
+  /** 지금 심사확인 한 번 */
+  runTick: () => Promise<TK.TickResult>;
+  shutdown: () => Promise<void>;
 }
 
-/** 안내 페이지에서만 말을 걸 수 있게 허용한다. 다른 사이트는 접근할 수 없다. */
-const ALLOWED_ORIGINS = [
-  "https://beautifulahin.github.io",
-  "http://127.0.0.1:8777",
-  "http://localhost:8777",
-];
+/** 공개 안내 페이지가 이미 실행 중인 앱을 찾아 부르는 것을 허락한다(그 밖의 사이트는 안 된다) */
+const ALLOWED_ORIGINS = ["https://beautifulahin.github.io"];
 const PUBLIC_PATHS = ["/api/state", "/api/update/check", "/api/update/install"];
 
-/* ── 화면은 한 번에 하나만 ──────────────────────────────────
-   업로드가 끝날 때마다 화면이 새로 열려 탭이 쌓였다. 어느 창이 최신인지 헷갈리고,
-   창마다 1.5초에 한 번씩 서버를 두드렸다.
+const 한시간 = 60 * 60_000;
+const 한줄 = (e: unknown) => (e instanceof Error ? e.message : String(e)).split("\n")[0].slice(0, 200);
 
-   ★처음엔 브라우저의 BroadcastChannel 로 창끼리 이야기하게 했는데, 창 사이에 말이
-     아예 오가지 않는 조합이 있었다(실측). 그래서 **서버가 주인을 정한다.** 어차피
-     모든 창이 1.5초마다 여기를 두드리므로, 주인이 아닌 창은 그때 알고 물러난다.
-   ★주인이 8초 넘게 안 보이면(창을 닫았다는 뜻) 다음에 두드리는 창이 주인이 된다.
-     안 그러면 닫은 창이 주인 자리를 붙들고 있어 아무 창도 못 쓴다. */
-let 주인표 = "";
-let 주인본때 = 0;
-const 주인놓침 = 8000;
-
-function 주인정하기(표: string, 새로켬: boolean) {
-  const 이제 = Date.now();
-  if (!표) return;
-  if (새로켬 || !주인표 || 이제 - 주인본때 > 주인놓침) {
-    주인표 = 표;
-  }
-  if (표 === 주인표) 주인본때 = 이제;
-}
-
-function corsFor(req: Request, path: string): Record<string, string> {
-  const origin = req.headers.get("origin") ?? "";
-  if (!origin || !ALLOWED_ORIGINS.includes(origin) || !PUBLIC_PATHS.includes(path)) return {};
-  return {
-    "access-control-allow-origin": origin,
-    "access-control-allow-methods": "GET, POST, OPTIONS",
-    "access-control-allow-headers": "content-type, access-control-request-private-network",
-    "access-control-max-age": "600",
-    "access-control-allow-private-network": "true",
-  };
-}
-
-let corsHeaders: Record<string, string> = {};
-
-const json = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store",
-      ...corsHeaders,
-    },
-  });
-
-const page = (title: string, body: string) =>
-  new Response(
-    `<!doctype html><meta charset="utf-8"><title>${title}</title>
-     <body style="background:#0b0b11;color:#ededf4;font-family:-apple-system,'Malgun Gothic',sans-serif;text-align:center;padding:90px 20px">
-     ${body}</body>`,
-    { headers: { "content-type": "text/html; charset=utf-8" } },
-  );
-
-const esc = (s: string) =>
-  s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
-
-const clamp = (n: unknown, lo: number, hi: number, dflt: number) => {
-  const v = Number(n);
-  return isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt;
+const MIME: Record<string, string> = {
+  ".mp4": "video/mp4", ".m4v": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm",
+  ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp",
 };
 
-/** 채널 하나의 현재 모습 (로그인 상태까지) */
-async function channelView(cfg: Config, ch: Channel) {
-  let tok = await loadTokens(ch.id);
-  if (tok && !tok.channel?.id) {                 // 옛 연결이면 채널 id 를 한 번 메운다
-    await 채널id메우기(cfg, ch);
-    tok = await loadTokens(ch.id);
+export async function startServer(o: ServerOpts = {}): Promise<RunningServer> {
+  const S = { ...newAppState(), ownerSeen: 0 } as ReturnType<typeof newAppState> & { ownerSeen: number } & Obj;
+  let port = 0;
+  let 판정보: UpdateInfo | null = null;
+  const timers: number[] = [];
+  const 넘어진판 = new Map<string, number>();
+
+  // 앱 설정에 적힌 텔레그램 알림 여부를 알림 모듈에 알린다
+  try { setTelegramAlerts(SG.appSettings().telegramAlerts); } catch { /* 기본값 */ }
+
+  /* ── 새 판 보기(네트워크) — 상태 응답은 이 기억만 읽는다. 화면이 1.5초마다 부르는 길에서 네트워크를 기다리면 안 된다 ── */
+  const 새판보기 = async (force = false) => {
+    try { 판정보 = await checkUpdate(force); } catch { /* 못 보면 다음에 */ }
+  };
+  const 새판보기글 = (): Obj => {
+    const i = 판정보;
+    const declines = SG.appSettings().updateDeclines;
+    return {
+      available: !!i?.available, version: i?.version ?? "", current: APP_VERSION, notes: String(i?.notes ?? "").split("\n").filter(Boolean),
+      page: i?.page ?? "", url: i?.url ?? "", canInstall: !!i?.canInstall, reason: i?.reason ?? "",
+      running: S.upd.running, pct: S.upd.pct, text: S.upd.text, error: S.upd.error,
+      prompt: !!i?.available && (declines[i.version] ?? 0) < 2,
+    };
+  };
+
+  // routes 가 쓰는 살아 있는 값들
+  const state = Object.assign(S, {
+    port: () => port, tickEvery: () => SG.appSettings().tickMinutes, residentOn: o.tick !== false,
+    tick: () => runTick(), update: async () => 새판보기글(),
+  }) as unknown as import("./routes.ts").AppState;
+  const R = buildRoutes(state);
+
+  /* ── 심사확인 ── */
+  let 도는중: Promise<TK.TickResult> | null = null;
+  const runTick = (): Promise<TK.TickResult> => {
+    if (도는중) return 도는중;
+    const p = TK.tick({ force: true }).catch(async (e) => {
+      await log(`[예외] 심사확인: ${한줄(e)}`);
+      return { skipped: `오류 — ${한줄(e)}`, fired: 0, reviewed: null, steps: [], lines: [] } as TK.TickResult;
+    }).finally(() => { 도는중 = null; });
+    도는중 = p;
+    return p;
+  };
+  let 끝남 = false;
+  const 틱반복 = async () => {
+    if (끝남) return;
+    try {
+      // 겹쳐 돌지 않게 tick() 이 마지막으로 돈 때를 본다(force 아님) — 예약 작업과 같이 있어도 한 번만 돈다
+      if (!도는중) await TK.tick({}).catch(async (e) => { await log(`[예외] 심사확인: ${한줄(e)}`); });
+    } finally {
+      // 도는 사이에 서버가 꺼졌으면 다음 차례를 걸지 않는다 — 걸면 꺼진 뒤에도 프로세스가 10분 더 남는다
+      if (!끝남) timers.push(setTimeout(틱반복, Math.max(1, SG.appSettings().tickMinutes) * 60_000) as unknown as number);
+    }
+  };
+  if (o.tick !== false) timers.push(setTimeout(틱반복, o.firstTickMs ?? 20_000) as unknown as number);
+
+  /* ── 새 판 자동 받기: 켠 직후 한 번, 그 뒤 한 시간에 한 번. 올리는 중이거나 전에 거절한 판이면 건너뛴다. ── */
+  const 새판받기 = async () => {
+    try {
+      if (S.upd.running || S.job.running) return;
+      await 새판보기(false);
+      const info = 판정보;
+      if (!info?.available || !info.canInstall) return;
+      if ((SG.appSettings().updateDeclines[info.version] ?? 0) > 0) return; // 전에 「아니오」 를 누른 판은 몰래 밀어 넣지 않는다
+      if (Date.now() - (넘어진판.get(info.version) ?? 0) < 6 * 한시간) return;
+      await log(`⬆️  새 버전 ${info.version} — 묻지 않고 바로 받습니다`);
+      S.upd = { running: true, pct: 0, text: "준비 중…", error: "" };
+      try {
+        await installUpdate(info, (pct, text) => { S.upd.pct = pct; S.upd.text = text; });
+      } catch (e) {
+        넘어진판.set(info.version, Date.now());
+        S.upd = { running: false, pct: 0, text: "", error: 한줄(e) };
+        await log(`⚠️  자동 업데이트 실패: ${S.upd.error} — 화면에서 다시 시도할 수 있습니다 (6시간 뒤 스스로 다시 해 봅니다)`);
+      }
+    } catch { /* 다음 시간에 */ }
+  };
+  if (o.autoUpdate !== false) {
+    timers.push(setTimeout(async () => { await 새판받기(); if (!끝남) timers.push(setInterval(() => { 새판받기().catch(() => {}); }, 한시간) as unknown as number); }, 5000) as unknown as number);
+  } else {
+    void 새판보기(false);
   }
+
+  /* ── 요청 처리 ── */
+  const hostOk = (h: string) => { const x = h.toLowerCase(); return x === `127.0.0.1:${port}` || x === `localhost:${port}` || x === "127.0.0.1" || x === "localhost"; };
+  const originOk = (origin: string, path: string) => {
+    if (!origin) return true;
+    if (origin === `http://127.0.0.1:${port}` || origin === `http://localhost:${port}`) return true;
+    return ALLOWED_ORIGINS.includes(origin) && PUBLIC_PATHS.includes(path);
+  };
+  const corsFor = (req: Request, path: string): Record<string, string> => {
+    const origin = req.headers.get("origin") ?? "";
+    if (!origin || !ALLOWED_ORIGINS.includes(origin) || !PUBLIC_PATHS.includes(path)) return {};
+    return {
+      "access-control-allow-origin": origin, "access-control-allow-methods": "GET, POST, OPTIONS",
+      "access-control-allow-headers": "content-type, access-control-request-private-network", "access-control-max-age": "600",
+      "access-control-allow-private-network": "true",
+    };
+  };
+
+  const jsonRes = (data: unknown, status = 200, extra: Record<string, string> = {}) =>
+    new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...extra } });
+  /** 실패 응답 — 새 이름 why 와 옛 공개 안내 페이지가 읽는 error 를 함께 싣는다 */
+  const failRes = (why: string, status = 200, extra: Record<string, string> = {}) => jsonRes({ ok: false, why, error: why }, status, extra);
+
+  /** 영상·그림 내주기(구간 요청 지원 — 재생 위치를 옮길 때) */
+  const serveFile = async (req: Request, path: string): Promise<Response> => {
+    let st: Deno.FileInfo;
+    try { st = await Deno.stat(path); if (!st.isFile) throw new Error("not file"); } catch { return new Response("", { status: 404 }); }
+    const ctype = MIME[extOf(path).toLowerCase()] ?? "application/octet-stream";
+    const size = st.size;
+    const range = req.headers.get("range");
+    const f = await Deno.open(path, { read: true });
+    let start = 0, end = size - 1, status = 200;
+    const headers: Record<string, string> = { "content-type": ctype, "accept-ranges": "bytes", "cache-control": "no-store" };
+    if (range && range.startsWith("bytes=")) {
+      const [a, b] = range.slice(6).split("-");
+      start = a ? Number(a) : 0;
+      end = b ? Math.min(Number(b), size - 1) : size - 1;
+      if (!(start >= 0) || start > end) { f.close(); return new Response("", { status: 416 }); }
+      status = 206;
+      headers["content-range"] = `bytes ${start}-${end}/${size}`;
+    }
+    const len = end - start + 1;
+    headers["content-length"] = String(len);
+    await f.seek(start, Deno.SeekMode.Start);
+    let left = len;
+    const stream = new ReadableStream<Uint8Array>({
+      async pull(ctl) {
+        if (left <= 0) { try { f.close(); } catch { /* 이미 닫힘 */ } ctl.close(); return; }
+        const buf = new Uint8Array(Math.min(262144, left));
+        const n = await f.read(buf);
+        if (n === null) { try { f.close(); } catch { /* 이미 닫힘 */ } ctl.close(); return; }
+        left -= n;
+        ctl.enqueue(buf.subarray(0, n));
+      },
+      cancel() { try { f.close(); } catch { /* 이미 닫힘 */ } },
+    });
+    return new Response(stream, { status, headers });
+  };
+
+  const handler = async (req: Request): Promise<Response> => {
+    const url = new URL(req.url);
+    const p = url.pathname;
+    const cors = corsFor(req, p);
+
+    // ── 문지기 ──
+    if (!hostOk(req.headers.get("host") ?? "")) return failRes("이 주소로는 열 수 없습니다", 403);
+    const origin = req.headers.get("origin") ?? "";
+    if (!originOk(origin, p)) return failRes("다른 곳에서 부른 요청입니다", 403);
+    if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+    const site = (req.headers.get("sec-fetch-site") ?? "").toLowerCase();
+    if (p.startsWith("/api/") && site && !["same-origin", "none"].includes(site) && !(origin && cors["access-control-allow-origin"])) {
+      return failRes("다른 곳에서 부른 요청입니다", 403);
+    }
+
+    try {
+      /* ---------- 화면과 정적 파일 ---------- */
+      if (req.method === "GET" || req.method === "HEAD") {
+        if (p === "/" || p === "/index.html") return new Response(await composePage(), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+        if (p.startsWith("/ui/")) {
+          const a = await readAsset(decodeURIComponent(p.slice(4)));
+          return a ? new Response(a.body as BodyInit, { headers: { "content-type": a.type, "cache-control": "no-store" } }) : new Response("not found", { status: 404 });
+        }
+        if (p === "/alive") return new Response("ok");
+        if (p === "/favicon.ico") return new Response(null, { status: 204 });
+        if (p === "/media" || p === "/thumb") {
+          const f = url.searchParams.get("p") ?? "";
+          if (!f) return new Response("", { status: 400 });
+          if (!V.underRoots(f)) return new Response("", { status: 403 }); // 등록된 채널 폴더 안의 파일만 내준다
+          if (p === "/thumb" && !/\.(jpe?g|png|webp)$/i.test(f)) return new Response("", { status: 403 });
+          if (p === "/media" && !/\.(mp4|m4v|mov|webm)$/i.test(f)) return new Response("", { status: 403 });
+          return await serveFile(req, f);
+        }
+        if (p === "/art") {
+          const name = url.searchParams.get("f") ?? "";
+          if (!name || /[\\/]/.test(name) || name.startsWith(".")) return new Response("", { status: 400 });
+          return await serveFile(req, join(artDir(), name));
+        }
+        if (p === "/studio") {
+          const cid = url.searchParams.get("cid") ?? "";
+          if (!/^UC[\w-]{22}$/.test(cid)) return new Response("채널 번호가 올바르지 않습니다", { status: 400 });
+          // 열리는 쪽(브라우저)이 같은 계정으로 로그인돼 있어야 한다 — 채널 칸의 크롬 프로필 이름이 있으면 그 프로필로
+          const conf = Object.values(loadChannels()).find((c) => c.channel_id === cid);
+          const target = `https://studio.youtube.com/channel/${cid}/videos`;
+          const prof = String(conf?.studio_profile ?? "");
+          if (prof && /^(Default|Profile \d+)$/.test(prof) && Deno.build.os === "darwin") {
+            try { new Deno.Command("open", { args: ["-na", "Google Chrome", "--args", `--profile-directory=${prof}`, target], stdout: "null", stderr: "null" }).spawn(); return new Response("ok"); } catch { /* 기본 브라우저로 */ }
+          }
+          await PLAT.openUrl(target, SG.appSettings().browser);
+          return new Response("ok");
+        }
+      }
+
+      /* ---------- API ---------- */
+      if (p.startsWith("/api/")) {
+        const name = p.slice(5);
+        const isGet = req.method === "GET";
+        const table = isGet ? R.get : R.post;
+        const h: Handler | undefined = table[name];
+        if (!h) {
+          // 있는 길인데 방법이 틀렸나
+          if ((isGet ? R.post : R.get)[name]) return failRes("이 길은 " + (isGet ? "POST" : "GET") + " 로만 열립니다", 405);
+          return failRes("모르는 요청입니다", 404);
+        }
+        let body: Obj = {};
+        if (!isGet) {
+          const ct = (req.headers.get("content-type") ?? "").toLowerCase();
+          if (name === "drop") {
+            if (!ct.startsWith("application/octet-stream")) return failRes("파일 바이트로 보내 주세요", 415);
+          } else {
+            if (!ct.startsWith("application/json")) return failRes("JSON 으로 보내 주세요", 415, cors);
+            const txt = await req.text();
+            if (txt.length > 4 * 1024 * 1024) return failRes("보낸 내용이 너무 큽니다", 413, cors);
+            try { body = txt.trim() ? JSON.parse(txt) : {}; } catch { return failRes("JSON 이 아닙니다", 400, cors); }
+            if (!body || typeof body !== "object" || Array.isArray(body)) body = {};
+          }
+        }
+        const ctx: Ctx = { q: url.searchParams, body, headers: req.headers, req, port };
+        // 상태를 읽는 길(GET state)은 창의 주인 표를 본다 — 창은 하나만 살려 둔다(8초 넘게 안 보이면 다음 창이 주인)
+        if (name === "state") {
+          const tab = url.searchParams.get("tab") ?? "";
+          const now = Date.now();
+          if (tab) {
+            if (url.searchParams.get("claim") === "1" || !S.owner || now - S.ownerSeen > 8000) S.owner = tab;
+            if (tab === S.owner) S.ownerSeen = now;
+          }
+        }
+        const out = await h(ctx);
+        if (out instanceof Response) return out;
+        const data: Obj = out ?? {};
+        const res: Obj = name === "state" ? { ...data, updating: { running: S.upd.running, pct: S.upd.pct, text: S.upd.text, error: S.upd.error } } : { ok: true, ...data };
+        return jsonRes(res, 200, cors);
+      }
+      return new Response("not found", { status: 404 });
+    } catch (e) {
+      if (e instanceof Bad) return jsonRes({ ...e.extra, ok: false, why: e.why, error: e.why }, e.status, cors);
+      await log(`[예외] ${p}: ${한줄(e)}`);
+      return failRes(한줄(e), 500, cors);
+    }
+  };
+
+  /* ── 켜기 ── */
+  const want = o.port ?? 0;
+  const srv = Deno.serve({ port: want, hostname: "127.0.0.1", onListen: (a) => { port = a.port; } }, handler);
+  for (let i = 0; i < 100 && !port; i++) await new Promise((r) => setTimeout(r, 10));
+
   return {
-    ...ch,
-    clientSecret: ch.clientSecret ? "********" : "",
-    authed: !!tok,
-    youtube: tok?.channel ?? null,
-    channelError: tok?.channelError ?? "",
-    channelErrorUrl: tok?.channelErrorUrl ?? "",
-    usesCredsOf: ch.sharesWith,
-    hasCreds: !!credsOf(cfg, ch).clientId,
-    // 고급 기능을 켰는데 옛 권한으로 로그인돼 있으면 화면에서 알려 줘야 한다
-    고급켬: 고급기능켰나(ch),
-    고급권한: !!tok && await 고급권한있나(ch.id),
+    port, url: `http://127.0.0.1:${port}`, runTick,
+    shutdown: async () => {
+      끝남 = true;
+      for (const t of timers) { clearTimeout(t); clearInterval(t); }
+      // 돌고 있던 심사확인이 있으면 끝나기를 잠깐(최대 5초) 기다린다 — 파일을 쓰는 중에 끊기지 않게
+      if (도는중) await Promise.race([도는중.catch(() => {}), new Promise((r) => setTimeout(r, 5000))]);
+      for (const t of timers) { clearTimeout(t); clearInterval(t); }
+      try { await srv.shutdown(); } catch { /* 이미 꺼짐 */ }
+    },
   };
 }
 
-// 게시판을 5분 동안 재사용한다 (깃허브는 로그인 없이 시간 60회까지만 받아 준다)
-let 의견목록: unknown[] | null = null;
-let 의견본때 = 0;
-
-export function startServer(engine: Manager, port: number) {
-  return Deno.serve({ port, hostname: "127.0.0.1", onListen: () => {} }, async (req) => {
-    const url = new URL(req.url);
-    const p = url.pathname;
-    corsHeaders = corsFor(req, p);
-
-    if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
-
-    try {
-      const isCallback = url.searchParams.has("code") || url.searchParams.has("error");
-
-      if ((p === "/" || p === "/index.html") && !isCallback) {
-        return new Response(UI, { headers: { "content-type": "text/html; charset=utf-8" } });
-      }
-
-      /* ---------------- 상태 ---------------- */
-      if (p === "/api/state") {
-        engine.lastSeen = Date.now();
-        주인정하기(url.searchParams.get("tab") ?? "",
-                   url.searchParams.get("claim") === "1");
-        const cfg = engine.cfg;
-        const snap = engine.snapshot();
-        const views = await Promise.all(cfg.channels.map((c) => channelView(cfg, c)));
-        const up = await checkUpdate(false);
-        const times = up.version ? (cfg.updateDeclines[up.version] ?? 0) : 0;
-        return json({
-          주인: 주인표,                       // 이 표를 가진 창만 화면을 쓴다
-          app: APP_NAME,
-          version: APP_VERSION,
-          label: buildLabel(),
-          platform: IS_WIN ? "windows" : IS_MAC ? "mac" : "linux",
-          compiled: isCompiled(),
-          dataDir: dataDir(),
-          exePath: Deno.execPath(),
-          settings: {
-            port: cfg.port,
-            pollSeconds: cfg.pollSeconds,
-            stableChecks: cfg.stableChecks,
-            notifications: cfg.notifications,
-            telegramAlerts: cfg.telegramAlerts,
-            telegramReady: await 텔레그램쓸수있나(),
-            // ★열쇠는 그대로 내보내지 않는다 — 화면에는 있다/없다만 알린다
-            aiKey: cfg.aiKey ? "********" : "",
-            aiTitles: cfg.aiTitles,
-            baseDir: cfg.baseDir,
-            browser: cfg.browser,
-          },
-          browsers: await listBrowsers(),
-          channelList: views,
-          autoStart: await autoStartEnabled(),
-          askAutoStart: isCompiled() && views.some((v) => v.authed) && !cfg.autoStartAsked &&
-            !(await autoStartEnabled()),
-          update: up,
-          updating: upState,
-          updatePrompt: { show: up.available && times < 2, times, second: times === 1 },
-          ...snap,
-        });
-      }
-
-      if (p === "/api/log") return json({ lines: await tailLog(80) });
-
-      /* ---------------- 공통 설정 ---------------- */
-      // 텔레그램이 진짜로 닿는지 한 줄 보내 본다
-      if (p === "/api/telegram/test" && req.method === "POST") {
-        if (!await 텔레그램쓸수있나()) {
-          return json({ ok: false, error: "텔레그램 열쇠를 못 찾았습니다 (~/.volcano/env)" });
-        }
-        const ok = await 텔레그램(`가라사대 업로더 🔔\n시험 삼아 보냅니다 — 이 글이 보이면 막힌 소식도 여기로 옵니다.`);
-        return json({ ok, error: ok ? "" : "보내지 못했습니다 — 열쇠나 인터넷을 살펴 주세요" });
-      }
-
-      if (p === "/api/settings" && req.method === "POST") {
-        const patch = await req.json();
-        const cfg = await loadConfig(true);
-        const baseBefore = cfg.baseDir;
-        if (typeof patch.baseDir === "string" && patch.baseDir.trim()) cfg.baseDir = patch.baseDir.trim();
-        if (patch.pollSeconds !== undefined) cfg.pollSeconds = clamp(patch.pollSeconds, 2, 3600, 5);
-        if (patch.stableChecks !== undefined) cfg.stableChecks = clamp(patch.stableChecks, 1, 60, 3);
-        if (patch.notifications !== undefined) cfg.notifications = !!patch.notifications;
-        if (patch.telegramAlerts !== undefined) {
-          cfg.telegramAlerts = !!patch.telegramAlerts;
-          텔레그램설정(cfg.telegramAlerts);
-        }
-        if (typeof patch.browser === "string") cfg.browser = patch.browser.trim();
-        if (patch.aiTitles !== undefined) cfg.aiTitles = !!patch.aiTitles;
-        // ★화면에는 열쇠를 ******** 로 보여 준다 — 그대로 되돌아오면 안 고친 것이다
-        if (typeof patch.aiKey === "string" && patch.aiKey !== "********") cfg.aiKey = patch.aiKey.trim();
-        if (typeof patch.aiModel === "string") cfg.aiModel = patch.aiModel.trim();
-        await saveConfig(cfg);
-        await engine.reloadConfig();
-        await engine.ensureDirs();
-
-        // 상위 폴더를 바꿨는데 기존 채널이 그 밖에 남아 있으면 알려 준다.
-        // 말없이 두면 "바꿨는데 왜 그대로지?" 하고 헷갈린다.
-        const baseChanged = !samePath(baseBefore, cfg.baseDir);
-        const outside = baseChanged
-          ? cfg.channels
-            .filter((c) => !underBase(c.folder, cfg.baseDir))
-            .map((c) => ({ id: c.id, name: c.name, folder: c.folder }))
-          : [];
-        return json({ ok: true, baseChanged, outside });
-      }
-
-      // 상위 폴더 밖에 남은 채널 폴더를 새 상위 폴더 안으로 옮긴다
-      if (p === "/api/channel/movetobase" && req.method === "POST") {
-        if (engine.uploadingKey) {
-          return json({ error: "지금 영상을 올리고 있습니다. 끝난 뒤에 다시 눌러 주세요." }, 409);
-        }
-        const cfg = await loadConfig(true);
-        if (!cfg.baseDir) return json({ error: "상위 폴더가 정해져 있지 않습니다." }, 400);
-
-        const done: string[] = [];
-        const failed: { name: string; why: string }[] = [];
-
-        for (const ch of cfg.channels) {
-          if (underBase(ch.folder, cfg.baseDir)) continue;
-          const dest = join(cfg.baseDir, safeFolderName(ch.name));
-          if (samePath(dest, ch.folder)) continue;
-
-          if (await pathExists(dest)) {
-            failed.push({ name: ch.name, why: "옮길 자리에 같은 이름의 폴더가 이미 있습니다" });
-            continue;
-          }
-          if (!(await pathExists(ch.folder))) {
-            ch.folder = dest;                 // 원래 폴더가 없으면 자리만 새 위치로 잡아 준다
-            done.push(ch.name);
-            continue;
-          }
-          try {
-            await Deno.mkdir(cfg.baseDir, { recursive: true });
-            await Deno.rename(ch.folder, dest);
-            ch.folder = dest;
-            done.push(ch.name);
-            await log(`📦 [${ch.name}] 폴더를 옮겼습니다: ${dest}`);
-          } catch (e) {
-            const m = e instanceof Error ? e.message : String(e);
-            failed.push({
-              name: ch.name,
-              why: /cross-device|EXDEV/i.test(m)
-                ? "다른 디스크로는 앱이 옮길 수 없습니다. 직접 옮긴 뒤 「폴더 바꾸기」로 지정해 주세요"
-                : m,
-            });
-            await log(`⚠️  [${ch.name}] 폴더를 옮기지 못했습니다: ${m}`);
-          }
-        }
-
-        if (done.length) {
-          await saveConfig(cfg);
-          await engine.reloadConfig();
-          await engine.ensureDirs();
-        }
-        return json({ ok: true, done, failed });
-      }
-
-      if (p === "/api/defaults") {
-        const d = await desktopDir();
-        return json({ desktop: d, suggested: join(d, "업로드대기") });
-      }
-
-      /* ---------------- 채널 ---------------- */
-      if (p === "/api/channel/add" && req.method === "POST") {
-        const { name, clientId, clientSecret, sharesWith, folder } = await req.json();
-        const cfg = await loadConfig(true);
-        const nm = String(name ?? "").trim();
-        if (!nm) return json({ error: "채널 이름을 입력해 주세요." }, 400);
-        if (cfg.channels.some((c) => c.name === nm)) {
-          return json({ error: "같은 이름의 채널이 이미 있습니다." }, 400);
-        }
-        const share = String(sharesWith ?? "").trim();
-        const cid = String(clientId ?? "").trim();
-        const sec = String(clientSecret ?? "").trim();
-        if (!share) {
-          if (!cid.includes("apps.googleusercontent.com")) {
-            return json({ error: "클라이언트 ID 형식이 올바르지 않습니다. (....apps.googleusercontent.com)" }, 400);
-          }
-          if (!sec) return json({ error: "클라이언트 보안 비밀번호를 입력해 주세요." }, 400);
-        } else if (!cfg.channels.some((c) => c.id === share)) {
-          return json({ error: "같이 쓸 채널을 찾을 수 없습니다." }, 400);
-        }
-
-        const ch: Channel = {
-          ...structuredClone(CHANNEL_DEFAULTS),
-          id: newChannelId(),
-          name: nm,
-          folder: String(folder ?? "").trim() || join(cfg.baseDir, safeFolderName(nm)),
-          clientId: share ? "" : cid,
-          clientSecret: share ? "" : sec,
-          sharesWith: share,
-          enabled: true,
-          createdAt: new Date().toISOString(),
-        };
-        cfg.channels.push(ch);
-        await saveConfig(cfg);
-        await engine.reloadConfig();
-        await engine.ensureDirs();
-        await log(`➕ 채널 추가: ${ch.name} → ${ch.folder}`);
-        return json({ ok: true, id: ch.id });
-      }
-
-      if (p === "/api/channel/update" && req.method === "POST") {
-        const patch = await req.json();
-        const cfg = await loadConfig(true);
-        const ch = cfg.channels.find((c) => c.id === patch.id);
-        if (!ch) return json({ error: "채널을 찾을 수 없습니다." }, 404);
-
-        if (typeof patch.name === "string" && patch.name.trim()) {
-          const nm = patch.name.trim();
-          if (cfg.channels.some((c) => c.id !== ch.id && c.name === nm)) {
-            return json({ error: "같은 이름의 채널이 이미 있습니다." }, 400);
-          }
-          ch.name = nm;
-        }
-        if (typeof patch.folder === "string" && patch.folder.trim()) ch.folder = patch.folder.trim();
-        if (typeof patch.clientId === "string") ch.clientId = patch.clientId.trim();
-        if (typeof patch.clientSecret === "string" && patch.clientSecret !== "********") {
-          ch.clientSecret = patch.clientSecret.trim();
-        }
-        if (typeof patch.sharesWith === "string") {
-          const s = patch.sharesWith.trim();
-          if (s && s === ch.id) return json({ error: "자기 자신과는 공유할 수 없습니다." }, 400);
-          if (s && !cfg.channels.some((c) => c.id === s)) {
-            return json({ error: "같이 쓸 채널을 찾을 수 없습니다." }, 400);
-          }
-          ch.sharesWith = s;
-        }
-        for (const k of ["privacy", "categoryId", "language", "description", "titlePrefix",
-          "titleSuffix", "afterUpload", "studioAfter", "firstCommentText", "retitleTemplate"] as const) {
-          if (typeof patch[k] === "string") (ch[k] as string) = patch[k];
-        }
-        for (const k of ["madeForKids", "notifySubscribers", "reviewMode", "enabled"] as const) {
-          if (patch[k] !== undefined) (ch[k] as boolean) = !!patch[k];
-        }
-        // 0 = 하루 한도 없음 (사용자 지시 2026-08-21)
-        if (patch.dailyLimit !== undefined) ch.dailyLimit = clamp(patch.dailyLimit, 0, 50, 6);
-        if (patch.dupGuard !== undefined) ch.dupGuard = !!patch.dupGuard;
-        if (patch.firstComment !== undefined) ch.firstComment = !!patch.firstComment;
-        if (patch.retitleHours !== undefined) ch.retitleHours = clamp(patch.retitleHours, 0, 720, 0);
-        if (patch.publishSlots !== undefined) {
-          // 화면에서는 "07:00, 12:00, 19:00" 처럼 한 줄로 적는다
-          const 날것 = Array.isArray(patch.publishSlots)
-            ? patch.publishSlots
-            : String(patch.publishSlots).split(/[,\s]+/);
-          ch.publishSlots = 슬롯정리(날것);
-        }
-        if (Array.isArray(patch.tags)) ch.tags = patch.tags;
-        else if (typeof patch.tags === "string") {
-          ch.tags = patch.tags.split(",").map((s: string) => s.trim()).filter(Boolean);
-        }
-        await saveConfig(cfg);
-        await engine.reloadConfig();
-        await engine.ensureDirs();
-        return json({ ok: true });
-      }
-
-      if (p === "/api/channel/remove" && req.method === "POST") {
-        const { id } = await req.json();
-        const cfg = await loadConfig(true);
-        const ch = cfg.channels.find((c) => c.id === id);
-        if (!ch) return json({ error: "채널을 찾을 수 없습니다." }, 404);
-        const dependents = cfg.channels.filter((c) => c.sharesWith === ch.id);
-        if (dependents.length) {
-          return json({
-            error: `${dependents.map((c) => c.name).join(", ")} 채널이 이 채널의 구글 설정을 같이 쓰고 있습니다. 그 채널들을 먼저 정리해 주세요.`,
-          }, 400);
-        }
-        cfg.channels = cfg.channels.filter((c) => c.id !== id);
-        await saveConfig(cfg);
-        await revoke(id);
-        await clearTokens(id);
-        await engine.reloadConfig();
-        await log(`➖ 채널 삭제: ${ch.name} (폴더와 파일은 그대로 둡니다)`);
-        return json({ ok: true });
-      }
-
-      if (p === "/api/channel/auth/url" && req.method === "POST") {
-        const { id } = await req.json();
-        const cfg = await loadConfig(true);
-        const ch = cfg.channels.find((c) => c.id === id);
-        if (!ch) return json({ error: "채널을 찾을 수 없습니다." }, 404);
-        if (!credsOf(cfg, ch).clientId) {
-          return json({ error: "이 채널의 클라이언트 ID와 보안 비밀번호를 먼저 저장해 주세요." }, 400);
-        }
-        try {
-          return json({ url: await authUrl(cfg, ch) });
-        } catch (e) {
-          return json({ error: e instanceof Error ? e.message : String(e) }, 400);
-        }
-      }
-
-      if (p === "/api/channel/auth/check" && req.method === "POST") {
-        const { id } = await req.json();
-        const cfg = await loadConfig(true);
-        const ch = cfg.channels.find((c) => c.id === id);
-        if (!ch) return json({ error: "채널을 찾을 수 없습니다." }, 404);
-        const tok = await loadTokens(ch.id);
-        if (!tok) return json({ error: "먼저 구글 계정을 연결해 주세요." }, 400);
-        try { tok.access_token = await accessToken(cfg, ch); } catch (e) {
-          return json({ error: e instanceof Error ? e.message : String(e) }, 400);
-        }
-        const t = await checkChannel(ch.id, tok);
-        if (t.channelError) return json({ ok: false, error: t.channelError, url: t.channelErrorUrl });
-        engine.blocks.delete(ch.id);
-        return json({ ok: true, youtube: t.channel });
-      }
-
-      if (p === "/api/channel/auth/logout" && req.method === "POST") {
-        const { id } = await req.json();
-        await revoke(id);
-        await clearTokens(id);
-        await log("🚪 채널 연결 해제");
-        return json({ ok: true });
-      }
-
-      if (p === "/api/channel/pickfolder" && req.method === "POST") {
-        const { id } = await req.json();
-        const cfg = await loadConfig(true);
-        const ch = cfg.channels.find((c) => c.id === id);
-        const picked = await pickFolder(ch?.folder ?? cfg.baseDir);
-        return json({ path: picked });
-      }
-
-      if (p === "/api/channel/openfolder" && req.method === "POST") {
-        const { id } = await req.json();
-        const cfg = await loadConfig(true);
-        const ch = cfg.channels.find((c) => c.id === id);
-        const target = ch?.folder ?? cfg.baseDir;
-        try { await Deno.mkdir(target, { recursive: true }); } catch { /* 무시 */ }
-        await openPath(target);
-        return json({ ok: true });
-      }
-
-      /* ---------------- 로그인 콜백 ---------------- */
-      if (isCallback || p === "/oauth/callback") {
-        const code = url.searchParams.get("code");
-        const st = url.searchParams.get("state") ?? "";
-        const err = url.searchParams.get("error");
-        if (err || !code) {
-          return page("인증 실패", `<h2 style="color:#ff4466">❌ 인증에 실패했습니다</h2>
-            <p style="color:#8e8ea8">${esc(err ?? "인증 코드를 받지 못했습니다")}</p>
-            <p style="color:#5a5a72;font-size:13px">이 창을 닫고 앱에서 다시 시도해 주세요.</p>`);
-        }
-        try {
-          const cfg = await loadConfig(true);
-          const { channel, tokens } = await exchange(cfg, code, st);
-          await engine.reloadConfig();
-          if (tokens.channelError) {
-            return page("설정이 하나 남았습니다", `
-              <h2 style="color:#f0b429">⚠️ 로그인은 됐지만 설정이 하나 남았습니다</h2>
-              <p style="color:#ededf4;font-size:15px">${esc(channel.name)}</p>
-              <p style="color:#8e8ea8;max-width:560px;margin:14px auto;line-height:1.8">${esc(tokens.channelError)}</p>
-              ${tokens.channelErrorUrl ? `<p><a href="${esc(tokens.channelErrorUrl)}" target="_blank"
-                 style="display:inline-block;margin-top:8px;padding:10px 18px;border-radius:8px;background:#4c8dff;color:#fff;text-decoration:none;font-weight:600">🔗 구글 설정 화면 열기</a></p>` : ""}
-              <p style="color:#5a5a72;font-size:13px;margin-top:22px">처리한 뒤 앱 화면에서 <b>연결 점검</b> 을 눌러주세요.</p>`);
-          }
-          return page("연결 완료", `<h2 style="color:#2dd4a8">✅ 연결되었습니다</h2>
-            <p style="color:#ededf4;font-size:18px">${esc(channel.name)} · ${esc(tokens.channel?.title ?? "")}</p>
-            <p style="color:#5a5a72;font-size:13px">이 창을 닫고 앱으로 돌아가세요.</p>
-            <script>setTimeout(()=>window.close(),2500)</script>`);
-        } catch (e) {
-          return page("인증 실패", `<h2 style="color:#ff4466">❌ 인증에 실패했습니다</h2>
-            <p style="color:#8e8ea8;max-width:520px;margin:0 auto;line-height:1.7">${esc(e instanceof Error ? e.message : String(e))}</p>`);
-        }
-      }
-
-      /* ---------------- 대기 항목 ---------------- */
-      if (p === "/api/item/meta" && req.method === "POST") {
-        const { key, title, description } = await req.json();
-        const it = engine.pending.get(key);
-        if (!it) return json({ error: "항목을 찾을 수 없습니다." }, 404);
-        // ★사람이 손으로 고친 것은 **AI 가 덮지 않는다** (ai.ts). 파일 이름에서 딴
-        //   기본 제목과 가려내려고 여기서 표시를 남긴다.
-        if (typeof title === "string") { it.title = title.slice(0, 100); it.titleEdited = true; }
-        if (typeof description === "string") {
-          it.description = description.slice(0, 5000);
-          it.descEdited = true;
-        }
-        return json({ ok: true });
-      }
-
-      // 설정 화면의 「열쇠 시험」 — 눌러 보고 바로 안다
-      if (p === "/api/ai/test" && req.method === "POST") {
-        const { key, model } = await req.json().catch(() => ({}));
-        const cfg = await loadConfig(true);
-        const 쓸열쇠 = (typeof key === "string" && key && key !== "********") ? key : cfg.aiKey;
-        return json(await 열쇠확인(쓸열쇠, typeof model === "string" ? model : cfg.aiModel));
-      }
-
-      if (p === "/api/item/upload" && req.method === "POST") {
-        const { key } = await req.json();
-        const it = engine.pending.get(key);
-        if (!it) return json({ error: "항목을 찾을 수 없습니다." }, 404);
-        if (engine.uploadingKey) return json({ error: "다른 업로드가 진행 중입니다." }, 409);
-        if (!it.title.trim()) return json({ error: "제목을 입력해 주세요." }, 400);
-        // ★**기다리지 않고 띄운다** — 업로드는 몇 분씩 걸려서 화면을 붙들 수 없다.
-        //   대신 넘어지면 반드시 받아 낸다. 데노는 아무도 안 받은 실패 하나로
-        //   **프로그램을 통째로 끝낸다** — 올리는 도중에 그러면 최악이다.
-        engine.uploadOne(it).catch(async (e) => {
-          const 말 = e instanceof Error ? e.message : String(e);
-          engine.lastError = 말;
-          await log(`⚠️  업로드 처리 중 예기치 못한 오류: ${말}`);
-        });
-        return json({ ok: true });
-      }
-
-      // 중복이라 세워 둔 것을 그래도 올린다
-      if (p === "/api/item/force" && req.method === "POST") {
-        const { key } = await req.json();
-        const ok = engine.force(String(key ?? ""));
-        if (ok) await log(`▶️  사용자가 중복 경고를 넘기고 올리기로 했습니다: ${key}`);
-        return json({ ok });
-      }
-
-      // 성적을 지금 다시 잰다
-      if (p === "/api/stats/refresh" && req.method === "POST") {
-        await engine.성적재기(true);
-        return json({ ok: true, statsAt: engine.state.statsAt });
-      }
-
-      if (p === "/api/item/hold" && req.method === "POST") {
-        const { key } = await req.json();
-        return json({ ok: await engine.hold(key) });
-      }
-
-      /* ---------------- 화면에 끌어다 놓은 파일 ---------------- */
-      if (p === "/api/drop" && req.method === "POST") {
-        const raw = req.headers.get("x-filename") ?? "";
-        const want = (req.headers.get("x-channel") ?? "").trim();   // 쉼표로 여러 개, "*" 는 전체
-        const name = decodeURIComponent(raw).replace(/[/\\]/g, "_").trim();
-        if (!name) return json({ error: "파일 이름을 읽지 못했습니다." }, 400);
-        if (!req.body) return json({ error: "파일 내용이 비어 있습니다." }, 400);
-
-        const cfg = engine.cfg;
-        const enabled = cfg.channels.filter((c) => c.enabled);
-        if (!enabled.length) return json({ error: "먼저 채널을 하나 만들어 주세요." }, 400);
-
-        let targets: Channel[];
-        if (want === "*") targets = enabled;
-        else {
-          const ids = want.split(",").map((x) => x.trim()).filter(Boolean);
-          targets = ids.length
-            ? enabled.filter((c) => ids.includes(c.id))
-            : [enabled[0]];
-          if (!targets.length) targets = [enabled[0]];
-        }
-
-        await engine.ensureDirs();
-
-        // 여러 채널로 보낼 수 있으므로 먼저 임시 파일로 받아 둔다
-        const tmp = await Deno.makeTempFile({ prefix: "garasadae_drop_" });
-        try {
-          const f = await Deno.open(tmp, { write: true, truncate: true });
-          await req.body.pipeTo(f.writable);
-        } catch (e) {
-          try { await Deno.remove(tmp); } catch { /* 무시 */ }
-          return json({ error: `파일을 받지 못했습니다: ${e instanceof Error ? e.message : e}` }, 500);
-        }
-
-        const dot = name.lastIndexOf(".");
-        const [base, ext2] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
-        const sent: string[] = [];
-        for (const ch of targets) {
-          try {
-            let dest = join(ch.folder, name);
-            let i = 1;
-            while (await fileExists(dest)) dest = join(ch.folder, `${base} (${i++})${ext2}`);
-            // 아직 쓰는 중인 파일로 오인하지 않도록 임시 이름으로 놓고 옮긴다
-            const part = dest + ".part";
-            await Deno.copyFile(tmp, part);
-            await Deno.rename(part, dest);
-            sent.push(ch.name);
-          } catch (e) {
-            await log(`⚠️  [${ch.name}] 파일을 넣지 못했습니다: ${e instanceof Error ? e.message : e}`);
-          }
-        }
-        try { await Deno.remove(tmp); } catch { /* 무시 */ }
-        if (!sent.length) return json({ error: "파일을 넣지 못했습니다." }, 500);
-        await log(`📥 화면에서 받은 파일: ${name} → ${sent.join(", ")}`);
-        return json({ ok: true, channels: sent });
-      }
-
-      /* ---------------- 의견 ---------------- */
-      if (p === "/api/feedback" && req.method === "POST") {
-        const { kind, title, body } = await req.json();
-        const t = String(title ?? "").trim().slice(0, 120);
-        const b = String(body ?? "").trim().slice(0, 4000);
-        if (!t) return json({ error: "제목을 입력해 주세요." }, 400);
-        if (!b) return json({ error: "내용을 입력해 주세요." }, 400);
-
-        const kindLabel: Record<string, string> = {
-          bug: "🐞 오류 신고", idea: "💡 기능 요청", etc: "💬 기타 의견",
-        };
-        const label = kindLabel[kind] ?? kindLabel.etc;
-        const os = IS_WIN ? "윈도우" : IS_MAC ? "맥" : "리눅스";
-        const when = new Date().toLocaleString("ko-KR");
-
-        let saved = "";
-        try {
-          const f = join(await desktopDir(), "가라사대_피드백.txt");
-          let prev = "";
-          try { prev = await Deno.readTextFile(f); } catch { /* 처음이면 없음 */ }
-          const n = (prev.match(/^\d+\. /gm) ?? []).length + 1;
-          const entry = `${n}. [${label}] ${t}\n` +
-            `   보낸 때 : ${when}\n` +
-            `   환경    : ${os} · 프로그램 ${APP_VERSION}\n` +
-            `   내용    : ${b.split("\n").join("\n             ")}\n\n`;
-          const head = prev ? "" : "가라사대 업로더 — 보낸 의견 모음\n" + "=".repeat(40) + "\n\n";
-          await Deno.writeTextFile(f, head + prev + entry);
-          saved = f;
-        } catch (e) {
-          await log(`⚠️  의견을 파일로 저장하지 못했습니다: ${e instanceof Error ? e.message : e}`);
-        }
-
-        const issueBody = `${b}\n\n---\n환경: ${os} · 프로그램 ${APP_VERSION}\n보낸 때: ${when}`;
-        // ★라벨을 함께 실어 보낸다. 이 주소는 이슈 **템플릿을 거치지 않으므로**,
-        //   안 실으면 종류 표가 아무것도 안 붙는다 (실제로 #1·#2 가 빈 채로 있었다).
-        const 라벨 = kind === "idea" ? "💡 요청" : kind === "bug" ? "🐞 오류" : "";
-        const issueUrl = `https://github.com/${REPO}/issues/new?` + new URLSearchParams({
-          title: `[${label.replace(/^\S+\s/, "")}] ${t}`,
-          body: issueBody,
-          ...(라벨 ? { labels: `${라벨},🆕 접수` } : {}),
-        });
-        await log(`💬 의견 접수: ${t}`);
-        return json({ ok: true, url: issueUrl, saved });
-      }
-
-      /* 보낸 의견이 지금 어디까지 왔나 — 게시판을 프로그램 안에서 보여 준다.
-         ★사용자 지시(2026-08-28): "가라사대 업로더 의견에도 보이나?"
-           여태는 깃허브로 나가는 링크뿐이라, 내가 보낸 것이 어떻게 됐는지 알 수 없었다.
-         ★로그인 없이 읽는다(공개 저장소). 대신 IP 당 시간 60회 제한이 있어 **5분 동안 재사용**한다. */
-      if (p === "/api/feedback/list") {
-        const 이제 = Date.now();
-        if (의견목록 && 이제 - 의견본때 < 5 * 60_000) return json({ ok: true, items: 의견목록 });
-        try {
-          const c = new AbortController();
-          const t = setTimeout(() => c.abort(), 8000);
-          const r = await fetch(
-            `https://api.github.com/repos/${REPO}/issues?state=all&per_page=30&sort=created&direction=desc`,
-            // ★User-Agent 는 ASCII 여야 한다 — APP_NAME("가라사대업로더")을 넣으면 헤더를
-            //   못 만들고 통째로 실패한다 (실측 2026-08-28). 깃허브는 UA 를 요구한다.
-            { headers: { "Accept": "application/vnd.github+json", "User-Agent": "garasadae-uploader" }, signal: c.signal });
-          clearTimeout(t);
-          if (!r.ok) {
-            await r.body?.cancel();
-            return json({ error: `게시판을 읽지 못했습니다 (${r.status}).` }, 502);
-          }
-          const 날것 = await r.json();
-          의견목록 = (Array.isArray(날것) ? 날것 : [])
-            .filter((x: Record<string, unknown>) => !x.pull_request)   // PR 은 의견이 아니다
-            .map((x: Record<string, unknown>) => ({
-              number: x.number,
-              title: x.title,
-              closed: x.state === "closed",
-              at: x.created_at,
-              url: x.html_url,
-              labels: ((x.labels ?? []) as { name: string }[]).map((l) => l.name),
-            }));
-          의견본때 = 이제;
-          return json({ ok: true, items: 의견목록 });
-        } catch (e) {
-          return json({ error: `게시판에 연결하지 못했습니다 — ${e instanceof Error ? e.message : e}` }, 502);
-        }
-      }
-
-      if (p === "/api/openself" && req.method === "POST") {
-        const cfg = await loadConfig(true);
-        const 밑 = `http://127.0.0.1:${cfg.port}`;
-        // 쓰던 탭이 있으면 그 자리에서 다시 부른다 — 탭이 늘어나지 않게 (2026-08-21)
-        if (!await 쓰던탭에다시(밑, 밑, cfg.browser)) await openUrl(밑, cfg.browser);
-        return json({ ok: true });
-      }
-
-      if (p === "/api/broadcast/send" && req.method === "POST") {
-        const { names, channels } = await req.json();
-        const list: string[] = Array.isArray(names) ? names : [];
-        if (!list.length) return json({ error: "보낼 영상을 골라 주세요." }, 400);
-        const ids: string[] = Array.isArray(channels) ? channels : [];
-        const r = await engine.sendBroadcast(list, ids);
-        if (!r.sent.length) return json({ error: "보내지 못했습니다. 채널을 골랐는지 확인해 주세요." }, 400);
-        return json({ ok: true, ...r });
-      }
-
-      if (p === "/api/broadcast/hold" && req.method === "POST") {
-        const { names } = await req.json();
-        await engine.holdBroadcast(Array.isArray(names) ? names : []);
-        return json({ ok: true });
-      }
-
-      if (p === "/api/openbroadcast" && req.method === "POST") {
-        const dir = engine.broadcastDir();
-        if (!dir || !engine.useBroadcast()) {
-          return json({ error: "채널이 둘 이상일 때 쓸 수 있습니다." }, 400);
-        }
-        try { await Deno.mkdir(dir, { recursive: true }); } catch { /* 무시 */ }
-        await openPath(dir);
-        return json({ ok: true });
-      }
-
-      if (p === "/api/openfeedback" && req.method === "POST") {
-        const f = join(await desktopDir(), "가라사대_피드백.txt");
-        try { await Deno.stat(f); } catch {
-          return json({ error: "아직 보낸 의견이 없습니다." }, 404);
-        }
-        await openPath(f);
-        return json({ ok: true });
-      }
-
-      /* ---------------- 음악 팝업 ---------------- */
-      if (p === "/api/ask/answer" && req.method === "POST") {
-        const { open, remember, channelId } = await req.json();
-        const target = engine.ask;
-        engine.ask = null;
-        // open: "shop" 이면 쇼핑 태그(세부정보), 그 밖의 참값은 음악(편집기)
-        if (open && target) {
-          await openUrl(open === "shop" ? studioDetailsUrl(target.id) : studioEditorUrl(target.id),
-            engine.cfg.browser);
-        }
-        if (remember === "always" || remember === "shop" || remember === "never") {
-          const cfg = await loadConfig(true);
-          const ch = cfg.channels.find((c) => c.id === channelId) ??
-            cfg.channels.find((c) => c.name === target?.channelName);
-          if (ch) ch.studioAfter = remember;
-          else for (const c of cfg.channels) c.studioAfter = remember;
-          await saveConfig(cfg);
-          await engine.reloadConfig();
-        }
-        return json({ ok: true });
-      }
-
-      /* ---------------- 업데이트 ---------------- */
-      if (p === "/api/update/check" && req.method === "POST") return json(await checkUpdate(true));
-
-      if (p === "/api/update/decline" && req.method === "POST") {
-        const info = await checkUpdate(false);
-        if (!info.version) return json({ ok: true });
-        const cfg = await loadConfig(true);
-        const n = (cfg.updateDeclines[info.version] ?? 0) + 1;
-        cfg.updateDeclines = { [info.version]: n };
-        await saveConfig(cfg);
-        await engine.reloadConfig();
-        await log(`🔕 업데이트 ${info.version} 거절 (${n}번째)${n >= 2 ? " — 이 버전은 다시 묻지 않습니다" : ""}`);
-        return json({ ok: true, times: n });
-      }
-
-      if (p === "/api/update/install" && req.method === "POST") {
-        if (upState.running) return json({ error: "이미 업데이트를 진행 중입니다." }, 409);
-        const info: UpdateInfo = await checkUpdate(true);
-        if (!info.available) return json({ error: "이미 최신 버전입니다." }, 400);
-        if (!info.canInstall) return json({ error: info.reason || "이 상태에서는 자동 설치할 수 없습니다.", page: info.page }, 400);
-        if (engine.uploadingKey) return json({ error: "업로드가 진행 중입니다. 끝난 뒤에 다시 눌러 주세요." }, 409);
-
-        upState = { running: true, pct: 0, text: "준비 중…", error: "" };
-        installUpdate(info, (pct, text) => { upState.pct = pct; upState.text = text; })
-          .catch(async (e) => {
-            upState = { running: false, pct: 0, text: "", error: e instanceof Error ? e.message : String(e) };
-            await log(`⚠️  업데이트 실패: ${upState.error}`);
-          });
-        return json({ ok: true });
-      }
-
-      /* ---------------- 기타 ---------------- */
-      if (p === "/api/autostart" && req.method === "POST") {
-        const { on, asked } = await req.json();
-        let m = "";
-        try {
-          m = await setAutoStart(!!on);
-        } catch (e) {
-          // 왜 안 됐는지 그대로 보여 준다. 조용히 넘어가면 껐다고 답하고 다시 켜진다.
-          return json({ error: e instanceof Error ? e.message : String(e) }, 500);
-        }
-        const cfg = await loadConfig(true);
-        cfg.autoStart = !!on;
-        if (asked) cfg.autoStartAsked = true;
-        await saveConfig(cfg);
-        await engine.reloadConfig();
-        return json({ ok: true, message: m });
-      }
-
-      if (p === "/api/pause" && req.method === "POST") {
-        const { on } = await req.json();
-        engine.paused = !!on;
-        await log(engine.paused ? "⏸  감시 일시정지" : "▶️  감시 재개");
-        return json({ ok: true, paused: engine.paused });
-      }
-
-      return json({ error: "not found" }, 404);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      await log(`⚠️  요청 처리 오류 ${p}: ${msg}`);
-      return json({ error: msg }, 500);
-    }
-  });
-}
-
-async function fileExists(p: string) {
-  try { await Deno.stat(p); return true; } catch { return false; }
-}
-const pathExists = fileExists;
-
-/** 두 경로가 같은 곳을 가리키는지. 끝의 구분자와 대소문자는 무시한다. */
-function samePath(a: string, b: string): boolean {
-  const norm = (p: string) => p.replace(/[\\/]+$/, "").replace(/\\/g, "/").toLowerCase();
-  return norm(a) === norm(b);
-}
-
-/** 그 폴더가 상위 폴더 안에 들어 있는지 (상위 폴더 자신도 안에 있는 것으로 본다) */
-function underBase(folder: string, base: string): boolean {
-  if (!base) return true;                       // 상위 폴더가 없으면 따질 것이 없다
-  const norm = (p: string) => p.replace(/[\\/]+$/, "").replace(/\\/g, "/").toLowerCase();
-  const f = norm(folder), b = norm(base);
-  return f === b || f.startsWith(b + "/");
-}

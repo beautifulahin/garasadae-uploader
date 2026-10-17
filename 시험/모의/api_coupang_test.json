@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "message": "검색 1회로 확인했습니다 — 정상입니다",
+  "sample": {
+    "name": "예시 상품",
+    "price": 12900
+  },
+  "usage": {
+    "used": 1,
+    "limit": 10,
+    "resetMin": 55
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "ok": true,
+  "items": [
+    {
+      "number": 12,
+      "title": "업로드가 끝나면 알림이 왔으면 좋겠어요",
+      "url": "https://github.com/beautifulahin/garasadae-uploader/issues/12",
+      "labels": [
+        "✅ 완료"
+      ],
+      "closed": true,
+      "at": "2026-10-01T09:00:00Z"
+    },
+    {
+      "number": 15,
+      "title": "채널 카드 순서를 바꾸고 싶어요",
+      "url": "https://github.com/beautifulahin/garasadae-uploader/issues/15",
+      "labels": [
+        "🔍 살펴보는 중",
+        "💡 요청"
+      ],
+      "closed": false,
+      "at": "2026-10-10T09:00:00Z"
+    },
+    {
+      "number": 16,
+      "title": "새 라벨 시험",
+      "url": "https://github.com/beautifulahin/garasadae-uploader/issues/16",
+      "labels": [
+        "모르는 표"
+      ],
+      "closed": false,
+      "at": "2026-10-12T09:00:00Z"
+    },
+    {
+      "number": 17,
+      "title": "표 없는 의견",
+      "url": "https://github.com/beautifulahin/garasadae-uploader/issues/17",
+      "labels": [],
+      "closed": false,
+      "at": "2026-10-13T09:00:00Z"
+    }
+  ]
+}

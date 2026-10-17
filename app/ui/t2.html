@@ -1,0 +1,129 @@
+<!-- ============ 기록 ============ -->
+<style>
+/* 기록 탭 — 옛 .hrow 줄을 위아래로 늘려 쓰고, 오른쪽에 날짜별 요약 판을 둔다. 새 색·새 글꼴은 없다(옛 변수만). */
+.t2-bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.t2-bar .tb{padding:6px 12px;font-size:11px}
+.t2-bar .tb:disabled{opacity:.5;cursor:default}
+.t2-note{font-size:10.5px;color:var(--t3)}
+.t2-note.t2-w{color:var(--gold)}
+.t2-warnline{color:var(--gold)}
+.t2-res{margin:0 0 12px;padding:10px 12px;background:var(--bg1);border:1px solid var(--bdr);border-radius:var(--r)}
+.t2-res-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px}
+.t2-res-h .sp{flex:1}
+.t2-res .logmini{max-height:190px}
+.t2-cnt{display:inline-block;padding:1px 8px;border-radius:20px;font-size:10px;font-weight:700;border:1px solid var(--bdr);color:var(--t2);background:var(--bg2)}
+.t2-cnt.ok{color:var(--cyan);border-color:rgba(45,212,168,.4);background:var(--cyanG)}
+.t2-cnt.t2-w{color:var(--gold);border-color:rgba(240,180,41,.4)}
+
+.t2-wrap{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:14px;align-items:start}
+@media(max-width:900px){.t2-wrap{grid-template-columns:1fr}}
+.t2-main{min-width:0}
+
+/* 영상 한 줄 */
+.t2-row{align-items:flex-start;gap:12px;padding:12px}
+.t2-row .hrow-th{width:120px;min-width:120px;display:block}
+.t2-row .hrow-t a{color:inherit;text-decoration:none}
+.t2-row .hrow-t a:hover{color:var(--cyan)}
+.t2-row .hrow-m{margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.t2-row .pv{margin-top:2px}
+.pv.t2-sched{background:rgba(240,180,41,.14);color:var(--gold)}
+.t2-tm{display:flex;gap:7px;flex-wrap:wrap;margin-top:6px}
+.t2-t{display:inline-flex;align-items:center;gap:5px;padding:2px 8px 2px 3px;border-radius:6px;background:var(--bg1);border:1px solid var(--bdr);font-size:10.5px;color:var(--t2)}
+.t2-t i{font-style:normal;font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px;background:var(--bg4);color:var(--t2)}
+.t2-t b{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:11px;color:var(--t1)}
+.t2-t em{font-style:normal;font-size:10px;color:var(--t3)}
+.t2-t.on{border-color:rgba(45,212,168,.4)}
+.t2-t.on i{background:var(--cyan);color:var(--bg)}
+.t2-t.soon{border-color:rgba(240,180,41,.36)}
+.t2-t.soon i{background:var(--gold);color:var(--bg)}
+.t2-met{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.t2-m{display:inline-flex;align-items:baseline;gap:5px;padding:2px 8px;border-radius:6px;background:var(--bg1);border:1px solid var(--bdr)}
+.t2-m i{font-style:normal;font-size:9.5px;color:var(--t3)}
+.t2-m b{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--t1)}
+.t2-m.v{border-color:rgba(45,212,168,.4);background:var(--cyanG)}
+.t2-m.v b{color:var(--cyan)}
+.t2-met.none{display:block;font-size:10.5px;color:var(--t3)}
+.t2-met.none em{font-style:normal;margin-left:6px;color:var(--t3);opacity:.8}
+/* 쿠팡 파트너스 링크 칩 · 문안 출처 알약 */
+.pill.t2-src{font-weight:600}
+.t2-lkrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}
+.t2-lkrow:empty{display:none}
+.tb.t2-lkchip{padding:2px 9px}
+.t2-lkw{font-size:10px;color:var(--gold);line-height:1.5}
+.t2-lkn{font-size:10px;color:var(--t3)}
+.t2-lks{margin-top:6px;padding:8px 10px;border:1px solid var(--bdr);border-radius:var(--rs);background:var(--bg1)}
+.t2-lks-h{font-size:10.5px;font-weight:700;color:var(--t2);margin-bottom:6px}
+.t2-lks-h span{font-weight:400;color:var(--t3);margin-left:6px}
+.t2-lk{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:center;padding:3px 0;font-size:11px;color:var(--t2)}
+.t2-lk .n{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--t3);text-align:right}
+.t2-lk .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t1)}
+.t2-lk a{color:var(--cyan);text-decoration:none;font-size:10.5px;white-space:nowrap}
+.t2-lk a:hover{text-decoration:underline}
+.t2-acts{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.t2-acts a.tb{text-decoration:none;display:inline-block}
+.tb.t2-hide{border-color:rgba(255,68,102,.35);color:var(--accent)}
+.tb.t2-hide:hover{background:var(--accentG);border-color:var(--accent);color:var(--accent)}
+.tb.t2-hide:disabled{opacity:.5;cursor:default}
+@media(max-width:700px){.t2-row{flex-wrap:wrap}.t2-row .hrow-th{width:96px;min-width:96px}}
+
+/* 오른쪽 요약 판 — 목록을 넘겨도 안 바뀐다 */
+.t2-side{position:sticky;top:110px}
+@media(max-width:900px){.t2-side{position:static}}
+.t2-dh,.t2-dr{display:grid;grid-template-columns:42px 1fr 24px 24px;gap:5px;align-items:center}
+.t2-dh{font-size:9.5px;color:var(--t3);padding-bottom:5px;border-bottom:1px solid var(--bdr);margin-bottom:3px}
+.t2-dh span:nth-child(3),.t2-dh span:nth-child(4){text-align:right}
+.t2-days{max-height:300px;overflow-y:auto;padding-right:2px}
+.t2-dr{padding:4px 3px;font-size:11px;border-radius:5px;cursor:pointer;transition:.15s}
+.t2-dr:hover{background:rgba(255,255,255,.04)}
+.t2-dr.on{background:var(--blueG);outline:1px solid var(--blue)}
+.t2-dr .d{font-family:'JetBrains Mono',monospace;color:var(--t2)}
+.t2-dr .bar{height:7px;border-radius:4px;background:var(--bg3);overflow:hidden}
+.t2-dr .bar i{display:block;height:100%;background:var(--cyan);opacity:.65;border-radius:4px}
+.t2-dr .n{text-align:right;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--t1)}
+.t2-dr .o{text-align:right;font-family:'JetBrains Mono',monospace;color:var(--cyan)}
+.t2-foot{margin-top:8px;padding-top:7px;border-top:1px solid var(--bdr);font-size:10.5px;color:var(--t3)}
+.t2-wk-h,.t2-wk-r{display:grid;grid-template-columns:64px repeat(7,1fr);gap:3px;align-items:center}
+.t2-wk-h{font-size:9px;color:var(--t3);padding-bottom:4px;border-bottom:1px solid var(--bdr);margin-bottom:3px}
+.t2-wk-h span:not(:first-child){text-align:center}
+.t2-wk-r{padding:3px 0;font-size:11px}
+.t2-wk-r .c{color:var(--t2);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t2-wk-r .x{text-align:center;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:10.5px;color:var(--blue);background:var(--blueG);border-radius:4px;padding:2px 0}
+.t2-wk-r .x.zero{color:var(--t3);background:none;font-weight:400}
+.t2-wk-r .tot{grid-column:1/-1;text-align:right;font-size:9.5px;color:var(--t3)}
+.t2-none{font-size:10.5px;color:var(--t3);padding:6px 0}
+</style>
+
+<div class="tp solo" id="t2">
+  <div class="stit">📋 업로드 기록</div>
+  <div class="ssub">이 컴퓨터에서 올린 영상입니다. 그림이나 제목을 누르면 유튜브에서 열리고, <b>🎵 음악·스튜디오</b> 를 누르면 스튜디오 편집기가 열려 나중에라도 음악을 넣을 수 있습니다.</div>
+
+  <div class="t2-bar">
+    <button class="tb" id="t2BtnSync" onclick="t2Sync()" title="유튜브에 지금 올라가 있는 상태로 올린 기록을 바로잡습니다 (채널마다 한 번씩 물어봅니다)">🔄 유튜브와 맞추기</button>
+    <button class="tb" id="t2BtnCheck" onclick="t2Review(false)" title="심사 대기 중인 영상을 확인만 합니다 — 아무것도 공개하지 않습니다">🩺 지금 확인(심사)</button>
+    <button class="tb on" id="t2BtnPub" onclick="t2Review(true)" title="확인한 뒤 이상 없는 영상을 실제로 공개합니다">심사 확인하고 공개</button>
+    <span class="t2-note" id="t2ReviewN"></span>
+    <span class="t2-note t2-w hide" id="t2Lock">🔒 잠금이 켜져 있어 공개되지 않습니다</span>
+  </div>
+  <div class="hide" id="t2Res"></div>
+
+  <div class="chsel" id="t2Filter"></div>
+
+  <div class="t2-wrap">
+    <div class="t2-main">
+      <div class="sechead" style="margin-top:6px"><span id="t2Head">전체</span><span class="sechead-r" id="t2HeadR"></span></div>
+      <div id="t2List"></div>
+      <div id="t2More"></div>
+    </div>
+    <aside class="panel t2-side">
+      <div class="panel-h">📅 날짜별 올린 편수</div>
+      <div class="t2-dh"><span>날짜</span><span></span><span>편</span><span>공개</span></div>
+      <div class="t2-days" id="t2Days"></div>
+      <div class="t2-foot" id="t2DaysFoot"></div>
+      <div class="panel-h" style="margin-top:16px" id="t2WkH">📺 채널별 최근 7일</div>
+      <div id="t2Wk"></div>
+    </aside>
+  </div>
+
+  <div class="stit" style="margin-top:26px">📜 로그</div>
+  <pre id="logBox" style="background:var(--bg1);border:1px solid var(--bdr);border-radius:var(--r);padding:14px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--t2);line-height:1.7;max-height:340px;overflow:auto;white-space:pre-wrap"></pre>
+</div>

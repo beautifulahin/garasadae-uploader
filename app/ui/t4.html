@@ -1,0 +1,226 @@
+<!-- ============ 설정 (t4) ============ -->
+<style>
+/* 설정 전용 부품 — 접두사 t4- (색·글꼴은 ui.html 의 변수만 쓴다) */
+.t4-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.t4-chip{display:inline-block;padding:2px 9px;border-radius:10px;font-size:10px;font-weight:700;vertical-align:middle;margin-left:6px;background:var(--bg4);color:var(--t2)}
+.t4-chip.ok{background:var(--cyanG);color:var(--cyan)}
+.t4-chip.no{background:var(--accentG);color:var(--accent)}
+.t4-keybtn{display:block;width:100%;margin:10px 0 4px;padding:13px 14px;border-radius:var(--r);border:none;background:linear-gradient(135deg,var(--accent),#ff8844);color:#fff;font-size:14px;font-weight:700;transition:.2s}
+.t4-keybtn:hover{filter:brightness(1.1)}
+.t4-keybtn.done{background:var(--bg3);border:1px solid var(--cyan);color:var(--cyan)}
+.t4-ok{color:var(--cyan)}
+.t4-bad{color:var(--accent)}
+.t4-need{max-width:820px;margin-bottom:14px}
+.t4-save{max-width:820px;margin:4px 0 16px}
+.t4-save .hintline{text-align:center}
+.t4-warnbox{margin-top:10px;padding:9px 11px;border-radius:var(--rs);background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.28);font-size:11.5px;color:var(--t2);line-height:1.7}
+.t4-warnbox b{color:var(--gold)}
+.t4-out{max-height:260px}
+</style>
+
+<div class="tp solo" id="t4">
+  <div class="stit">⚙️ 설정</div>
+  <div class="ssub">모든 채널에 공통으로 적용되는 설정입니다. 채널별 설정은 <b>채널</b> 탭에 있습니다.</div>
+
+  <!-- AI 열쇠가 없는데 켜져 있을 때 (ST.ai.needsKey) -->
+  <div class="card warn t4-need hide" id="t4AiNeed">
+    <h3>🤖 AI 열쇠를 넣으면 제목·설명·해시태그를 자동으로 지어 줍니다</h3>
+    <div class="p13">지금은 열쇠가 없어서 문안이 없는 영상은 파일 이름이 제목으로 올라갑니다. 이 컴퓨터에 이미 있는 열쇠를 찾아 드리고, 없으면 구글 AI 스튜디오에서 <b>무료 열쇠</b>를 받아 넣으면 됩니다.</div>
+    <button type="button" class="tb on" style="margin-top:10px" onclick="openAi()">✨ AI 연결 열기</button>
+  </div>
+
+  <div id="t4Main">
+    <div class="card">
+      <h3>📂 새 채널의 영상 폴더가 들어갈 상위 폴더</h3>
+      <label class="flabel" for="t4Base">상위 폴더</label>
+      <input class="fin" id="t4Base" placeholder="예: /Users/이름/업로드영상" autocomplete="off" spellcheck="false"/>
+      <div class="hintline">바탕화면을 지켜보는 폴더가 아닙니다. <b>새 채널을 만들면 그 채널의 영상 폴더가 이 안에 채널 이름으로 생깁니다.</b>
+      이미 만든 채널의 폴더는 바뀌지 않습니다.</div>
+      <div class="t4-row">
+        <button type="button" class="tb on" onclick="t4PickDir('t4Base','새 채널의 영상 폴더가 들어갈 상위 폴더')">📁 폴더 선택…</button>
+        <button type="button" class="tb hide" id="t4BaseDef" onclick="t4DefaultBase()">기본 폴더로</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>🔧 동작</h3>
+      <div style="padding:8px 0">
+        <label class="flabel" for="t4Browser">화면을 띄울 브라우저</label>
+        <select class="fin" id="t4Browser"></select>
+        <div class="hintline">구글 로그인 창 같은 것을 띄울 브라우저입니다. 기본값으로 두면 이 컴퓨터의 기본 브라우저로 열립니다.
+        편집기 같은 프로그램이 기본으로 잡혀 있어 창이 이상하게 열린다면 여기서 브라우저를 골라 주세요.</div>
+      </div>
+      <div class="sw" role="switch" tabindex="0" aria-checked="false" onclick="t4Sw(this)" onkeydown="t4SwKey(event,this)"><span>업로드 완료·오류 시 컴퓨터 알림 표시</span><div class="tgl" id="t4Notify"></div></div>
+      <div class="sw" role="switch" tabindex="0" aria-checked="false" onclick="t4AutoToggle(this)" onkeydown="t4SwKey(event,this)">
+        <span>컴퓨터 켤 때 자동 실행
+          <small style="color:var(--t3)" id="t4AutoHint">— 켜면 10분마다 올릴 시각과 심사 결과를 확인하는 작업도 함께 켭니다</small></span>
+        <div class="tgl" id="t4Auto"></div>
+      </div>
+      <div class="hintline" style="margin-top:0">두 가지가 함께 켜집니다 — ① 컴퓨터를 켤 때 이 프로그램을 실행 ② <b>10분마다</b> 올릴 시각·심사 결과를 확인하는 작업.
+      맥에서는 로그인 항목 두 개로, 윈도우에서는 시작 프로그램과 예약 작업으로 등록됩니다. 끄면 둘 다 지웁니다. <span id="t4AutoDetail" style="color:var(--t3)"></span></div>
+      <div class="hintline" id="t4TickLine"></div>
+
+      <div class="subhead">🔔 텔레그램 알림 <span class="must">선택</span></div>
+      <div class="p13">막힌 소식(로그인이 풀림·올리기 실패 같은 것)을 폰으로 받고 싶을 때만 쓰세요. 잘 올라간 소식은 보내지 않습니다.
+      봇 토큰은 <b>이 컴퓨터에만</b> 저장되고, 저장한 뒤에는 화면에 다시 보이지 않습니다.</div>
+      <div class="hintline" id="t4TgState"></div>
+      <div class="grid2" style="margin-top:8px">
+        <div><label class="flabel" for="t4TgToken">봇 토큰</label>
+          <input class="fin" id="t4TgToken" type="password" autocomplete="off" spellcheck="false" placeholder="숫자:글자 꼴 (123456789:AA…)"/></div>
+        <div><label class="flabel" for="t4TgChat">받는 사람 번호 (여럿이면 쉼표로)</label>
+          <input class="fin" id="t4TgChat" autocomplete="off" spellcheck="false" placeholder="예: 123456789"/></div>
+      </div>
+      <div class="hintline">봇 토큰은 텔레그램에서 <b>@BotFather</b> 로 봇을 만들면 받습니다. 받는 사람 번호는 숫자(채팅 번호)입니다.
+      받는 사람만 바꿀 때도 토큰을 다시 넣어 주세요.</div>
+      <div class="t4-row">
+        <button type="button" class="tb on" onclick="t4TgSave()">💾 텔레그램 저장</button>
+        <button type="button" class="tb" onclick="t4TgTest()">🔔 시험 보내기</button>
+        <button type="button" class="tb" id="t4TgClear" onclick="t4TgClear()">🗑 설정 지우기</button>
+      </div>
+      <div class="sw" role="switch" tabindex="0" aria-checked="false" style="margin-top:8px" onclick="t4Sw(this)" onkeydown="t4SwKey(event,this)">
+        <span>막힌 소식을 텔레그램으로도 보내기 <small style="color:var(--t3)">— 아래 「설정 저장」을 눌러야 적용됩니다</small></span>
+        <div class="tgl" id="t4TgAlert"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>🛡 운영 원칙</h3>
+      <div class="p13">영상마다 정하는 값이 아니라 <b>채널 운영 방침</b>입니다. 올리는 모든 영상에 똑같이 적용됩니다.</div>
+      <div class="sw" role="switch" tabindex="0" aria-checked="false" onclick="t4Sw(this)" onkeydown="t4SwKey(event,this)">
+        <span>아동용 콘텐츠로 표시
+          <small style="color:var(--t3)">— 법적으로 신고해야 하는 항목입니다. 보통은 꺼 둡니다(아동용 콘텐츠 아님). 채널 하나만 다르게 하려면 채널 탭에서 정하세요.</small></span>
+        <div class="tgl" id="t4Kids"></div>
+      </div>
+      <div class="sw" role="switch" tabindex="0" aria-checked="false" onclick="t4Sw(this)" onkeydown="t4SwKey(event,this)">
+        <span>AI 로 만든(합성) 영상으로 표시
+          <small style="color:var(--t3)">— 영상이 AI 합성물이면 켜세요. 유튜브가 요구하는 공개 항목입니다.</small></span>
+        <div class="tgl" id="t4Synth"></div>
+      </div>
+      <label class="flabel" for="t4Cat" style="margin-top:10px">기본 카테고리</label>
+      <select class="fin" id="t4Cat"></select>
+    </div>
+
+    <div class="card">
+      <h3>🗂 경로 <span class="must">선택</span></h3>
+      <div class="p13">비워 두면 알아서 정합니다. 꼭 필요할 때만 바꾸세요.</div>
+      <div class="grid2" style="margin-top:8px">
+        <div><label class="flabel" for="t4PBackup">백업 대상</label>
+          <div style="display:flex;gap:4px"><input class="fin" id="t4PBackup" autocomplete="off" spellcheck="false" placeholder="비우면 자동"/>
+          <button type="button" class="tb" onclick="t4PickDir('t4PBackup','백업을 받을 폴더')">📁</button></div></div>
+        <div><label class="flabel" for="t4PExt">외장 뿌리 (영상이 사는 드라이브)</label>
+          <div style="display:flex;gap:4px"><input class="fin" id="t4PExt" autocomplete="off" spellcheck="false" placeholder="비우면 자동"/>
+          <button type="button" class="tb" onclick="t4PickDir('t4PExt','영상이 사는 드라이브의 뿌리 폴더')">📁</button></div></div>
+        <div><label class="flabel" for="t4PRoot">영상 뿌리 (올릴 사본을 두는 곳)</label>
+          <div style="display:flex;gap:4px"><input class="fin" id="t4PRoot" autocomplete="off" spellcheck="false" placeholder="비우면 자동"/>
+          <button type="button" class="tb" onclick="t4PickDir('t4PRoot','올릴 사본을 두는 폴더')">📁</button></div></div>
+        <div><label class="flabel" for="t4PFfmpeg">ffmpeg</label>
+          <input class="fin" id="t4PFfmpeg" autocomplete="off" spellcheck="false" placeholder="비우면 자동으로 찾음"/></div>
+        <div><label class="flabel" for="t4PFfprobe">ffprobe</label>
+          <input class="fin" id="t4PFfprobe" autocomplete="off" spellcheck="false" placeholder="비우면 자동으로 찾음"/></div>
+      </div>
+      <div class="hintline" id="t4ToolLine">ffprobe 가 없어도 괜찮습니다 — 영상의 길이와 화면 비율은 파일에서 직접 읽습니다.</div>
+    </div>
+
+    <div class="t4-save">
+      <button type="button" class="go" id="t4SaveBtn" onclick="t4Save()">💾 설정 저장</button>
+      <div class="hintline" id="t4SaveHint">위 카드(폴더·동작·운영 원칙·경로)를 저장합니다. 아래 AI·쿠팡 카드는 카드마다 따로 저장합니다.</div>
+    </div>
+  </div>
+
+  <!-- 🤖 제목·설명 자동으로 짓기 — 열쇠 연결은 AI·쿠팡 공통 창(openAi), 켜기·끄기는 누르는 즉시, 모델은 이 카드에서 -->
+  <div class="card" id="t4AiCard">
+    <h3>🤖 제목·설명 자동으로 짓기 <span class="t4-chip" id="t4AiChip">-</span></h3>
+    <div class="p13">쪽지·직접 쓴 문안이 없는 영상은 올리기 직전에 <b>영상 내용과 이 채널의 말투</b>를 보고 <b>제목·설명·해시태그</b>를 지어 넣습니다.
+    파일 이름 그대로 올라가지 않습니다. 영상 하나에 <b>20~30초</b>쯤 더 걸립니다. 쇼츠는 짧게, 롱폼은 길게 형식이 다르게 지어집니다.</div>
+    <button type="button" class="t4-keybtn" id="t4AiBtn" onclick="openAi()">✨ AI 연결</button>
+    <div class="hintline" id="t4AiKeyLine">열쇠는 <b>본인 것</b>(구글 AI 스튜디오, 무료)을 씁니다. 열쇠 값은 화면에 보이지 않습니다(저장됨 여부만 표시).</div>
+    <div class="sw" role="switch" tabindex="0" aria-checked="false" style="margin-top:6px" onclick="t4AiToggle(this)" onkeydown="t4SwKey(event,this)">
+      <span>영상 보고 제목·설명 짓기 <small style="color:var(--t3)">— 기본 켜짐 · 바로 적용됩니다</small></span><div class="tgl" id="t4AiOn"></div>
+    </div>
+    <div class="hintline" style="margin-top:2px">우선순위: <b>사람이 화면에서 고친 것 &gt; 쪽지 &gt; 자동 생성 &gt; 파일 이름</b>. 제목·설명·태그 칸마다 따로 정해집니다.</div>
+    <label class="flabel" for="t4AiModel" style="margin-top:10px">모델 <span style="font-weight:400;color:var(--t3)">(비우면 기본)</span></label>
+    <input class="fin" id="t4AiModel" autocomplete="off" spellcheck="false" placeholder="비우면 기본 모델을 씁니다"/>
+    <div class="t4-row">
+      <button type="button" class="tb on" onclick="t4AiSave()">💾 모델 저장</button>
+      <button type="button" class="tb" id="t4AiTestBtn" onclick="t4AiTest()">🧪 연결 시험</button>
+      <button type="button" class="tb" onclick="ext('https://aistudio.google.com/apikey')">🔗 열쇠 받으러 가기</button>
+      <button type="button" class="tb hide" id="t4AiClear" onclick="t4AiClear()">🗑 AI 연결 해제</button>
+    </div>
+    <div class="hintline" id="t4AiHint"></div>
+    <div class="danger" style="margin-top:10px">
+      켜면 올리기 직전에 <b>영상이 구글로 한 번 올라갔다가 곧바로 지워집니다 — 제목을 지으려면 구글이 영상을 봐야 하기 때문입니다.</b><br>
+      끄면 아무것도 올라가지 않습니다. <b>직접 쓴 문안·쪽지가 늘 먼저입니다.</b>
+    </div>
+  </div>
+
+  <!-- 🛒 쿠팡 파트너스 -->
+  <div class="card" id="t4CpCard">
+    <h3>🛒 쿠팡 파트너스 <span class="t4-chip" id="t4CpChip">-</span></h3>
+    <div class="p13">영상마다 <b>소재에 맞는 상품 링크</b>를 설명 끝에 자동으로 붙입니다. <b>내 파트너스 열쇠</b>를 넣으면 수수료가 내 계정으로 들어갑니다.
+    관련 상품이 없으면(정치·뉴스 등) 억지로 붙이지 않고, 링크를 못 붙여도 업로드는 그대로 진행됩니다.</div>
+    <button type="button" class="t4-keybtn" id="t4CpBtn" onclick="openCoupang()">🛒 쿠팡 파트너스 연결</button>
+    <div class="hintline" id="t4CpKeyLine">열쇠 값은 화면에 보이지 않습니다(저장됨 여부만 표시).</div>
+
+    <div class="sw" role="switch" tabindex="0" aria-checked="false" style="margin-top:6px" onclick="t4CpToggle(this)" onkeydown="t4SwKey(event,this)">
+      <span>쿠팡 자동 링크 켜기 <small style="color:var(--t3)">— 바로 적용됩니다 · 채널마다 따로 끄려면 채널 탭에서</small></span><div class="tgl" id="t4CpOn"></div>
+    </div>
+    <div class="grid2" style="margin-top:8px">
+      <div><label class="flabel" for="t4CpMode">상품 고르는 방식</label>
+        <select class="fin" id="t4CpMode">
+          <option value="auto">자동 — AI 열쇠가 있으면 AI, 없으면 규칙</option>
+          <option value="rule">규칙만</option>
+        </select>
+        <div class="hintline" id="t4CpAiLine"></div></div>
+      <div><label class="flabel" for="t4CpMax">영상마다 최대 링크 수</label>
+        <select class="fin" id="t4CpMax"><option value="1">1개</option><option value="2">2개</option><option value="3">3개</option></select></div>
+      <div><label class="flabel" for="t4CpPer">시간당 검색 호출 한도</label>
+        <input class="fin" id="t4CpPer" type="number" min="1" max="100" step="1" placeholder="10"/>
+        <div class="hintline">쿠팡 파트너스 검색 API 는 시간당 호출 횟수가 제한되어 있어(기본 10회), 이 한도를 넘기면 그 시간에는 링크를 붙이지 않고 업로드만 진행합니다.</div></div>
+      <div><label class="flabel" for="t4CpSub">기본 sub ID <span style="font-weight:400;color:var(--t3)">(영문·숫자)</span></label>
+        <input class="fin" id="t4CpSub" maxlength="40" autocomplete="off" spellcheck="false" placeholder="예: ch1"/>
+        <div class="hintline">수수료 집계에서 채널을 구분하는 코드입니다. 채널마다 다르게 하려면 채널 탭에서 따로 정하세요.</div></div>
+    </div>
+    <label class="flabel" for="t4CpDisc" style="margin-top:10px">고지문</label>
+    <textarea class="fin" id="t4CpDisc" rows="2" placeholder="이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다."></textarea>
+    <div class="t4-warnbox"><b>⚠️ 고지문은 바꾸지 마세요.</b> 쿠팡 파트너스 활동 고지문입니다. 바꾸거나 지우면 정책 위반이 될 수 있으니 그대로 두세요.</div>
+    <div class="t4-row">
+      <button type="button" class="tb on" onclick="t4CpSave()">💾 쿠팡 설정 저장</button>
+      <button type="button" class="tb" id="t4CpTest" onclick="t4CpTest()">🔍 연결 시험</button>
+      <button type="button" class="tb" onclick="ext('https://partners.coupang.com/')">🔗 쿠팡 파트너스 열기</button>
+    </div>
+    <div class="hintline" id="t4CpUsage"></div>
+    <div class="hintline" id="t4CpTestLine"></div>
+    <div class="t4-warnbox hide" id="t4CpWarn"></div>
+  </div>
+
+  <div class="card">
+    <h3>🧰 점검·보관</h3>
+    <div class="t4-row" style="margin-top:0">
+      <button type="button" class="tb on" data-run="env" onclick="t4Run('env',this)">🩺 환경 점검</button>
+      <button type="button" class="tb" data-run="self" onclick="t4Run('self',this)">🔍 점검 (놀 때 유튜브 호출 0건)</button>
+      <button type="button" class="tb" data-run="keep" onclick="t4Run('keep',this)">🗄 오늘치 보관</button>
+      <button type="button" class="tb" data-run="mirror" onclick="t4Run('mirror',this)">💾 외장 백업</button>
+    </div>
+    <div class="hintline"><b>환경 점검</b>은 이 컴퓨터의 환경(ffmpeg·필요한 파일 등)을 읽기만 합니다. <b>점검</b>은 사람이 시키지 않았는데 유튜브를 부르는 일이 없는지 확인합니다.
+    <b>오늘치 보관</b>은 놓치면 되살릴 수 없는 기록(조회수·구독자 기록 등)을 날짜별로 따로 남겨 둡니다.
+    <b>외장 백업</b>은 이 컴퓨터를 원본으로 외장하드에 사본을 만듭니다(외장하드가 없으면 건너뜁니다).</div>
+    <pre class="logmini t4-out hide" id="t4Out"></pre>
+  </div>
+
+  <div class="card">
+    <h3>🧭 운영 방식</h3>
+    <div class="kv"><span>지금</span><b id="t4ModeNow">-</b></div>
+    <div class="hintline"><b>대행 관리자</b> — 채널 주인이 저마다 다른 여러 고객사를 대신 올려 줍니다. 올리기 전에 폴더와 채널 짝을 매번 확인합니다.<br>
+    <b>채널 소유주</b> — 채널이 모두 내 구글 계정 안에 있습니다. 짝 확인 단계를 건너뛰고 성적을 합쳐서 봅니다.</div>
+    <button type="button" class="tb" style="margin-top:10px" onclick="t4ModeClear()">🧭 다시 고르기</button>
+  </div>
+
+  <div class="card">
+    <h3>ℹ️ 프로그램 정보</h3>
+    <div class="kv"><span>버전</span><b id="t4Ver">-</b></div>
+    <div class="kv"><span>실행 파일 위치</span><b id="t4Exe">-</b></div>
+    <div class="kv"><span>설정 저장 위치</span><b id="t4Data">-</b></div>
+    <div class="kv"><span>새 버전</span><b id="t4UpNow" style="font-family:inherit">-</b></div>
+    <button type="button" class="tb" style="margin-top:10px" onclick="checkUp()">🔄 새 버전 확인</button>
+  </div>
+</div>

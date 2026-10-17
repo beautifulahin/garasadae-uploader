@@ -1,10 +1,17 @@
 #!/bin/bash
 # 가라사대 업로더 — 배포용 빌드 (맥에서 윈도우용까지 만든다)
+#
+#   ./build.sh          맥(애플 실리콘·인텔) + 윈도우 + 압축 3개  (릴리스용)
+#   ./build.sh --맥     이 컴퓨터용 맥 실행 파일 하나만 (빠른 확인용 — 압축·릴리스 파일은 안 만든다)
+#
+# 빌드만 한다. 올리기·릴리스·푸시는 하지 않는다 (릴리스는 릴리스.sh 를 따로, 배포 지시를 받았을 때만).
 set -e
 cd "$(dirname "$0")"
 OUT=dist
+ONLY_MAC=0
+case "${1:-}" in --맥|--mac) ONLY_MAC=1 ;; "") ;; *) echo "모르는 인자: $1  (쓸 수 있는 것: --맥)"; exit 2 ;; esac
 PERM="--allow-net --allow-read --allow-write --allow-env --allow-run --allow-sys"
-INC="--include app/ui.html"
+INC="--include app/ui.html --include app/ui"
 VER=$(grep -o 'APP_VERSION = "[^"]*"' app/paths.ts | head -1 | sed 's/.*"\(.*\)"/\1/')
 
 # ── 어느 가지에서 굽는지 못 박는다 ────────────────────────────
@@ -27,8 +34,31 @@ if ! ./점검.sh; then
 fi
 echo
 
-rm -rf "$OUT"; mkdir -p "$OUT"
+# 이전 빌드 결과는 지우지 않고 옆으로 치운다 (dist.이전_날짜시각 — .gitignore 에 올라 있다)
+if [ -d "$OUT" ]; then mv "$OUT" "$OUT.이전_$(date +%Y%m%d_%H%M%S)"; fi
+mkdir -p "$OUT"
 echo "버전: $VER"
+
+# ── 이 앱에 묶는 구글 로그인 열쇠 (사장님 지시: 「껍데기만 빼고 전부 동일」) ───────────────────
+#   · 열쇠 파일은 만든 사람의 것이다. 소스·git·문서·로그 어디에도 값을 두지 않는다 — 굽는 동안만 build/.client/ 에 복사해
+#     deno compile --include 로 실행 파일 안에 묶고, 굽고 나면(성공이든 실패든) 바로 지운다. (build/.client/ 는 .gitignore)
+#   · 열쇠가 든 폴더의 자리는 환경변수 GARASADAE_CLIENT_DIR 또는 배포/.클라이언트경로(한 줄짜리 파일 · .gitignore) 로만 알려 준다.
+#     값은 이 스크립트가 출력하지 않는다 — 「있음/없음」만 말한다.
+#   · 열쇠가 없으면 열쇠 없이 구워진다(사용자가 자기 열쇠 파일을 넣어야 로그인된다). 채널 전용 열쇠(채널마다 따로 쓰는 열쇠)는 묶지 않는다.
+CLIENT_SRC="${GARASADAE_CLIENT_DIR:-}"
+if [ -z "$CLIENT_SRC" ] && [ -f "배포/.클라이언트경로" ]; then CLIENT_SRC="$(head -1 배포/.클라이언트경로)"; fi
+rm -rf build/.client
+trap 'rm -rf build/.client' EXIT
+mkdir -p build/.client
+BAKED=""
+for f in client_secret.json device_secret.json; do
+  if [ -n "$CLIENT_SRC" ] && [ -f "$CLIENT_SRC/$f" ]; then
+    cp "$CLIENT_SRC/$f" "build/.client/$f"; chmod 600 "build/.client/$f"; BAKED="$BAKED $f"
+  fi
+done
+if [ -n "$BAKED" ]; then echo "  ↳ 내장 로그인 열쇠를 묶습니다:$BAKED (값은 출력하지 않습니다 · 굽고 나면 지웁니다)"
+else echo "  ↳ ⚠️ 내장 로그인 열쇠 없이 굽습니다 — 이 판은 사용자가 열쇠 파일을 넣어야 로그인됩니다"; fi
+INC="$INC --include build/.client"
 
 compile () {  # $1=타깃 $2=출력경로
   echo "▶ $1"
@@ -61,6 +91,19 @@ PL
   codesign --verify --strict "$2/$APP.app" 2>/dev/null \
     && echo "  ↳ 코드서명 확인" || echo "  ↳ ⚠️ 코드서명 검증 실패"
 }
+
+# ---------- 맥 전용(--맥): 이 컴퓨터의 칩에 맞는 하나만 ----------
+if [ "$ONLY_MAC" = "1" ]; then
+  if [ "$(uname -m)" = "arm64" ]; then T=aarch64-apple-darwin; D="맥-애플실리콘"; else T=x86_64-apple-darwin; D="맥-인텔"; fi
+  mkdir -p "$OUT/$D"
+  compile "$T" "$OUT/_tmp_native"
+  make_app "$OUT/_tmp_native" "$OUT/$D"
+  echo
+  echo "✅ 맥 실행 파일만 구웠습니다 (--맥) — $OUT/$D/ · 압축·릴리스 파일은 만들지 않았습니다."
+  { echo "가지: $BRANCH"; echo "커밋: $(git rev-parse --short HEAD 2>/dev/null)"
+    echo "버전: $VER"; echo "구운때: $(date -Iseconds)"; echo "범위: 맥만 (--맥)"; } > "$OUT/_BUILT_FROM.txt"
+  exit 0
+fi
 
 # ---------- 맥 (애플 실리콘) ----------
 mkdir -p "$OUT/맥-애플실리콘"

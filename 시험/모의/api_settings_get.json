@@ -1,0 +1,55 @@
+{
+  "ok": true,
+  "settings": {
+    "osNotify": true,
+    "telegram": {
+      "configured": false,
+      "recipients": 0,
+      "source": "",
+      "alerts": false,
+      "bot": ""
+    },
+    "ai": {
+      "on": false,
+      "hasKey": false,
+      "model": "gemini-3.5-flash-lite"
+    },
+    "policy": {
+      "made_for_kids": false,
+      "contains_synthetic_media": false,
+      "default_category": 22
+    },
+    "paths": {
+      "백업대상": "",
+      "외장뿌리": "",
+      "영상뿌리": "",
+      "ffmpeg": "",
+      "ffprobe": ""
+    },
+    "autoStart": {
+      "on": false,
+      "supported": true
+    },
+    "browser": "",
+    "dataDir": "/tmp/예시/데이터",
+    "exePath": "/tmp/예시/GarasadaeUploader",
+    "version": "2.0.0",
+    "tools": {
+      "ffprobe": "native"
+    },
+    "recall": {},
+    "quota": {},
+    "baseDir": "/tmp/예시/영상",
+    "defaultBaseDir": "/tmp/예시/가라사대업로더영상",
+    "browsers": [
+      {
+        "id": "Google Chrome",
+        "name": "구글 크롬"
+      },
+      {
+        "id": "Safari",
+        "name": "사파리"
+      }
+    ]
+  }
+}

@@ -1,0 +1,289 @@
+{
+  "ok": true,
+  "version": "2.0.0",
+  "now": "2026-10-17T12:34:56",
+  "owner": "",
+  "mode": "agency",
+  "words": {},
+  "features": {
+    "verify_binding": true
+  },
+  "locked": false,
+  "night": {
+    "ban": true
+  },
+  "paused": false,
+  "tick": {
+    "last": "2026-10-17T12:30:00",
+    "every": 10,
+    "residentOn": true
+  },
+  "quota": {
+    "units": 520,
+    "unitsLeft": 9480,
+    "uploads": 2,
+    "uploadsLeft": 98,
+    "reset": "16:10",
+    "readsCap": 6000,
+    "projects": [
+      {
+        "name": "내장",
+        "units": 520
+      }
+    ]
+  },
+  "channels": [
+    {
+      "name": "채널A",
+      "channelId": "UCxxxxxxxxxxxxxxxxxxxxxx",
+      "title": "채널A 유튜브",
+      "authed": true,
+      "how": "browser",
+      "canPublish": true,
+      "keyFrom": "내장",
+      "secretFile": "",
+      "folder": "/tmp/예시/채널A",
+      "folderOk": true,
+      "bound": true,
+      "counts": {
+        "대기": 4,
+        "완료": 12,
+        "검토필요": 0
+      },
+      "queued": 2,
+      "reviewing": 1,
+      "todayUploaded": 2,
+      "policy": null,
+      "conf": {
+        "folder": "/tmp/예시/채널A",
+        "publish": "schedule",
+        "daily_rule": "views",
+        "times": [
+          "09:15",
+          "15:15"
+        ],
+        "pick": "order"
+      },
+      "avatar": "/art?f=a",
+      "banner": "/art?f=b",
+      "handle": "@채널A",
+      "subs": 1234,
+      "subsExact": null,
+      "isLong": false,
+      "lastError": ""
+    },
+    {
+      "name": "채널B",
+      "channelId": "UCyyyyyyyyyyyyyyyyyyyyyy",
+      "title": "채널B 유튜브",
+      "authed": false,
+      "how": "",
+      "canPublish": true,
+      "keyFrom": "",
+      "secretFile": "",
+      "folder": "/tmp/예시/채널B",
+      "folderOk": true,
+      "bound": true,
+      "counts": {
+        "대기": 4,
+        "완료": 12,
+        "검토필요": 0
+      },
+      "queued": 2,
+      "reviewing": 1,
+      "todayUploaded": 2,
+      "policy": "하루 2편 · 롱폼만 · 공개 예약만 제한",
+      "conf": {
+        "folder": "/tmp/예시/채널B",
+        "publish": "schedule",
+        "daily_rule": "views",
+        "times": [
+          "09:15",
+          "15:15"
+        ],
+        "pick": "order"
+      },
+      "avatar": "/art?f=a",
+      "banner": "/art?f=b",
+      "handle": "@채널B",
+      "subs": 1234,
+      "subsExact": null,
+      "isLong": true,
+      "lastError": ""
+    }
+  ],
+  "queue": [
+    {
+      "file": "/tmp/예시/채널A/영상1.mp4",
+      "name": "영상1.mp4",
+      "channel": "채널A",
+      "alias": "채널A",
+      "kind": "쇼츠",
+      "title": "영상 1",
+      "fireAt": "2026-10-18T09:00:00",
+      "publishAt": "2026-10-19 09:00",
+      "minutesLeft": 1225,
+      "late": false,
+      "approvedBy": "사람 승인 (2026-10-17 12:00)",
+      "thumb": false,
+      "meta": {
+        "title": "영상 1",
+        "desc": "예시 설명",
+        "tags": [
+          "태그1"
+        ],
+        "source": {
+          "title": "사람",
+          "desc": "자동",
+          "tags": "자동"
+        },
+        "status": "자동"
+      },
+      "links": [
+        {
+          "name": "예시 상품 A",
+          "url": "https://link.coupang.com/a/exampleA"
+        }
+      ],
+      "linkStatus": "붙임"
+    },
+    {
+      "file": "/tmp/예시/채널A/영상2.mp4",
+      "name": "영상2.mp4",
+      "channel": "채널A",
+      "alias": "채널A",
+      "kind": "롱폼",
+      "title": "영상 2 (롱폼)",
+      "fireAt": "2026-10-17T12:00:00",
+      "publishAt": "2026-10-17 18:00",
+      "minutesLeft": -34,
+      "late": true,
+      "approvedBy": "사람 승인 (2026-10-17 10:00)",
+      "thumb": true,
+      "links": [],
+      "linkStatus": "아직"
+    }
+  ],
+  "review": [
+    {
+      "id": "abc123",
+      "ch": "채널A",
+      "t": "심사 중인 영상",
+      "n": 0,
+      "human": false,
+      "next": "2026-10-17T13:00:00",
+      "gap": "",
+      "publishAt": null,
+      "kind": "쇼츠"
+    }
+  ],
+  "today": [
+    {
+      "id": "d1",
+      "ch": "채널A",
+      "t": "오늘 공개된 영상",
+      "reserve": "",
+      "visibility": "public",
+      "kind": "쇼츠"
+    },
+    {
+      "id": "d2",
+      "ch": "채널A",
+      "t": "예약된 영상",
+      "reserve": "18:00",
+      "visibility": "예약",
+      "kind": "롱폼"
+    }
+  ],
+  "todayStats": {
+    "올림": 2,
+    "공개": 1,
+    "대기": 4,
+    "누적": 241,
+    "채널별": {
+      "채널A": 2
+    }
+  },
+  "recent": [
+    {
+      "id": "r1",
+      "ch": "채널A",
+      "t": "최근 올린 영상 1",
+      "at": "2026-10-17T09:00:00",
+      "kind": "쇼츠",
+      "thumbUrl": "/thumb?p=x"
+    },
+    {
+      "id": "r2",
+      "ch": "채널A",
+      "t": "최근 올린 영상 2",
+      "at": "2026-10-16T09:00:00",
+      "kind": "롱폼",
+      "thumbUrl": "/thumb?p=y"
+    }
+  ],
+  "issues": {
+    "level": "yellow",
+    "counts": {
+      "red": 0,
+      "yellow": 1,
+      "green": 5
+    },
+    "ackedToday": false
+  },
+  "brief": [
+    {
+      "level": "yellow",
+      "text": "채널B 가 아직 구글에 연결되지 않았습니다",
+      "channel": "채널B",
+      "at": "2026-10-17T12:00:00",
+      "key": "auth-b"
+    }
+  ],
+  "upload": {
+    "running": false,
+    "n": 0,
+    "done": 0,
+    "stopped": false
+  },
+  "update": {
+    "available": false,
+    "version": "",
+    "notes": [],
+    "running": false,
+    "pct": 0
+  },
+  "ask": null,
+  "subscribers": {
+    "채널A": {
+      "subs": 1234,
+      "exact": null,
+      "at": "2026-10-17T12:00:00"
+    }
+  },
+  "welcome": {
+    "channels": 2,
+    "authed": 1,
+    "ready": {
+      "browser": true,
+      "device": true
+    }
+  },
+  "coupang": {
+    "connected": false,
+    "enabled": false,
+    "needsPrompt": false,
+    "usage": {
+      "used": 0,
+      "limit": 10,
+      "resetMin": 0
+    },
+    "warn": ""
+  },
+  "ai": {
+    "enabled": true,
+    "hasKey": false,
+    "model": "",
+    "needsKey": true
+  }
+}

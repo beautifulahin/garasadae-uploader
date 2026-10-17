@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "received": [
+    "채널A"
+  ],
+  "failed": [
+    "채널B"
+  ],
+  "recent": false
+}

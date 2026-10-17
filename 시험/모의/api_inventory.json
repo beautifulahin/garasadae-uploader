@@ -1,0 +1,249 @@
+{
+  "ok": true,
+  "ch": "채널A",
+  "total": 8,
+  "offset": 0,
+  "items": [
+    {
+      "file": "/tmp/예시/채널A/영상1.mp4",
+      "name": "영상1.mp4",
+      "size": 12000000,
+      "sec": 31,
+      "w": 1080,
+      "h": 1920,
+      "kind": "쇼츠",
+      "kindOk": true,
+      "title": "영상 1",
+      "desc": "설명 예시",
+      "tags": [
+        "태그1",
+        "태그2"
+      ],
+      "source": "영상1.txt",
+      "thumb": null,
+      "dup": "",
+      "why": "",
+      "mtime": "2026-10-16T22:00:00",
+      "inQueue": false,
+      "linkStatus": "아직"
+    },
+    {
+      "file": "/tmp/예시/채널A/영상2.mp4",
+      "name": "영상2.mp4",
+      "size": 24000000,
+      "sec": 32,
+      "w": 1080,
+      "h": 1920,
+      "kind": "쇼츠",
+      "kindOk": true,
+      "title": "영상 2",
+      "desc": "설명 예시",
+      "tags": [
+        "태그1",
+        "태그2"
+      ],
+      "source": "영상2.txt",
+      "thumb": null,
+      "dup": "",
+      "why": "",
+      "mtime": "2026-10-16T22:00:00",
+      "inQueue": false,
+      "meta": {
+        "title": "영상 2",
+        "desc": "제목만 사람이 정하고 설명은 자동으로 지었습니다.",
+        "tags": [
+          "자동",
+          "태그"
+        ],
+        "source": {
+          "title": "사람",
+          "desc": "자동",
+          "tags": "자동"
+        },
+        "status": "자동"
+      },
+      "links": [],
+      "linkStatus": "없음"
+    },
+    {
+      "file": "/tmp/예시/채널A/영상3.mp4",
+      "name": "영상3.mp4",
+      "size": 36000000,
+      "sec": 33,
+      "w": 1080,
+      "h": 1920,
+      "kind": "쇼츠",
+      "kindOk": true,
+      "title": "영상 3",
+      "desc": "설명 예시",
+      "tags": [
+        "태그1",
+        "태그2"
+      ],
+      "source": null,
+      "thumb": null,
+      "dup": "",
+      "why": "",
+      "mtime": "2026-10-16T22:00:00",
+      "inQueue": false,
+      "meta": {
+        "title": "자동으로 지은 제목 3",
+        "desc": "AI 가 영상 내용을 보고 지은 설명입니다.",
+        "tags": [
+          "자동",
+          "예시"
+        ],
+        "source": {
+          "title": "자동",
+          "desc": "자동",
+          "tags": "자동"
+        },
+        "status": "자동"
+      },
+      "links": [
+        {
+          "name": "예시 상품 A",
+          "url": "https://link.coupang.com/a/exampleA"
+        },
+        {
+          "name": "예시 상품 B",
+          "url": "https://link.coupang.com/a/exampleB"
+        }
+      ],
+      "linkStatus": "붙임"
+    },
+    {
+      "file": "/tmp/예시/채널A/영상4.mp4",
+      "name": "영상4.mp4",
+      "size": 48000000,
+      "sec": 1200,
+      "w": 1920,
+      "h": 1080,
+      "kind": "롱폼",
+      "kindOk": true,
+      "title": "영상 4",
+      "desc": "설명 예시",
+      "tags": [
+        "태그1",
+        "태그2"
+      ],
+      "source": "영상4.txt",
+      "thumb": {
+        "has": true,
+        "name": "영상4.jpg",
+        "bytes": 400000,
+        "w": 1280,
+        "h": 720,
+        "over": false
+      },
+      "dup": "",
+      "why": "",
+      "mtime": "2026-10-16T22:00:00",
+      "inQueue": false,
+      "links": [
+        {
+          "name": "예시 상품 A",
+          "url": "https://link.coupang.com/a/exampleA"
+        }
+      ],
+      "linkStatus": "사람이넣음"
+    },
+    {
+      "file": "/tmp/예시/채널A/영상5.mp4",
+      "name": "영상5.mp4",
+      "size": 60000000,
+      "sec": 35,
+      "w": 1080,
+      "h": 1920,
+      "kind": "쇼츠",
+      "kindOk": true,
+      "title": "영상 5",
+      "desc": "설명 예시",
+      "tags": [
+        "태그1",
+        "태그2"
+      ],
+      "source": "영상5.txt",
+      "thumb": null,
+      "dup": "같은 제목이 이미 올라갔다 — https://youtu.be/xxxx",
+      "why": "",
+      "mtime": "2026-10-16T22:00:00",
+      "inQueue": false,
+      "linkStatus": "건너뜀"
+    },
+    {
+      "file": "/tmp/예시/채널A/영상6.mp4",
+      "name": "영상6.mp4",
+      "size": 72000000,
+      "sec": 36,
+      "w": 1080,
+      "h": 1920,
+      "kind": "쇼츠",
+      "kindOk": true,
+      "title": "영상 6",
+      "desc": "설명 예시",
+      "tags": [
+        "태그1",
+        "태그2"
+      ],
+      "source": null,
+      "thumb": null,
+      "dup": "",
+      "why": "",
+      "mtime": "2026-10-16T22:00:00",
+      "inQueue": false
+    },
+    {
+      "file": "/tmp/예시/채널A/영상7.mp4",
+      "name": "영상7.mp4",
+      "size": 84000000,
+      "sec": 37,
+      "w": 1080,
+      "h": 1920,
+      "kind": "쇼츠",
+      "kindOk": true,
+      "title": "영상 7",
+      "desc": "설명 예시",
+      "tags": [
+        "태그1",
+        "태그2"
+      ],
+      "source": "영상7.txt",
+      "thumb": null,
+      "dup": "",
+      "why": "",
+      "mtime": "2026-10-16T22:00:00",
+      "inQueue": false
+    },
+    {
+      "file": "/tmp/예시/채널A/영상8.mp4",
+      "name": "영상8.mp4",
+      "size": 96000000,
+      "sec": 1200,
+      "w": 1920,
+      "h": 1080,
+      "kind": "롱폼",
+      "kindOk": true,
+      "title": "영상 8",
+      "desc": "설명 예시",
+      "tags": [
+        "태그1",
+        "태그2"
+      ],
+      "source": "영상8.txt",
+      "thumb": {
+        "has": true,
+        "name": "영상8.jpg",
+        "bytes": 400000,
+        "w": 1280,
+        "h": 720,
+        "over": false
+      },
+      "dup": "",
+      "why": "",
+      "mtime": "2026-10-16T22:00:00",
+      "inQueue": false
+    }
+  ],
+  "dupGroups": []
+}

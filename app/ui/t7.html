@@ -1,0 +1,193 @@
+<!-- ============ 성적 ============ -->
+<style>
+/* 성적 탭 — 채널 성적 카드 · 48시간 지표 · 끌어올림. 옛 변수(--bg --blue --cyan --gold --accent …)만 쓴다. */
+.t7-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.t7-top .chsel{margin:0}
+.t7-top .tb{padding:6px 12px;font-size:11px}
+.t7-top .tb:disabled{opacity:.5;cursor:default}
+.t7-at{font-size:10px;color:var(--t3)}
+.t7-quota{display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center;font-size:10.5px;color:var(--t3);margin-bottom:10px}
+.t7-quota b{font-family:'JetBrains Mono',monospace;color:var(--t1);font-weight:600}
+.t7-res{margin:0 0 10px;padding:8px 12px;border:1px solid var(--bdr);border-radius:var(--rs);background:var(--bg1);font-size:11px;color:var(--t2);line-height:1.7;display:flex;gap:10px;align-items:flex-start}
+.t7-res>span{flex:1;min-width:0;word-break:break-all}
+.t7-seg{max-width:620px}
+.t7-seg button{padding:8px 6px}
+
+/* 채널 성적 카드 */
+.t7-grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(400px,1fr))}
+@media(max-width:520px){.t7-grid{grid-template-columns:1fr}}
+.t7-card{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:16px;min-width:0}
+.t7-card.hot{border-color:rgba(240,180,41,.5)}
+.t7-spk{display:flex;gap:6px 12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding:8px 10px;border-radius:var(--rs);background:rgba(240,180,41,.1);border:1px solid rgba(240,180,41,.35);font-size:11px;color:var(--t1)}
+.t7-spk .t{font-size:10px;font-weight:800;color:var(--bg);background:var(--gold);padding:2px 8px;border-radius:10px}
+.t7-spk b{color:var(--gold)}
+.t7-spk i{font-style:normal;color:var(--t3);font-size:10px;margin-left:6px}
+.t7-ch{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.t7-ch>b{font-size:14px;font-weight:700}
+.t7-ch .sp{flex:1}
+.t7-daily{font-size:10px;color:var(--t3)}
+.t7-ch .tb{padding:3px 9px}
+.t7-hb{font-size:10px;padding:2px 8px;border-radius:9px;font-weight:700;border:1px solid var(--bdr);background:var(--bg3);color:var(--t2);cursor:pointer}
+.t7-hb:hover{filter:brightness(1.15)}
+.t7-hb.g-ok{background:var(--cyanG);color:var(--cyan);border-color:rgba(45,212,168,.4)}
+.t7-hb.g-warn{background:rgba(240,180,41,.14);color:var(--gold);border-color:rgba(240,180,41,.4)}
+.t7-hb.g-bad{background:var(--accentG);color:var(--accent);border-color:rgba(255,68,102,.4)}
+.t7-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.t7-nums .c{display:grid;gap:2px;min-width:0;align-content:start}
+.t7-nums em{font-style:normal;font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:700;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t7-nums .c.big em{color:var(--cyan)}
+.t7-nums em.geo{font-family:inherit;font-size:12px;font-weight:700;white-space:normal;line-height:1.5}
+.t7-nums i{font-style:normal;font-size:10px;color:var(--t3);line-height:1.5}
+.t7-nums i b.up{color:var(--cyan)}
+.t7-nums i b.dn{color:var(--accent)}
+.t7-nums i b.flat{color:var(--t2)}
+.t7-nums i .wait{color:var(--t3)}
+.t7-tabs{margin-bottom:8px;align-items:center}
+.t7-tabs select{max-width:150px}
+
+.t7-chart{position:relative;height:140px;margin:6px 0 4px}
+.t7-chart svg{display:block;width:100%;height:120px;overflow:visible}
+.t7-chart .ymax,.t7-chart .yavg,.t7-chart .xfrom,.t7-chart .xto{position:absolute;font-size:9.5px;font-family:'JetBrains Mono',monospace;color:var(--t3);pointer-events:none}
+.t7-chart .ymax{top:-4px;right:0}
+.t7-chart .yavg{right:0;color:var(--gold)}
+.t7-chart .xfrom,.t7-chart .xto{top:123px}
+.t7-chart .xfrom{left:0}
+.t7-chart .xto{right:0}
+.t7-chart .cumv{position:absolute;left:0;top:-6px;font-size:10.5px;font-weight:700;color:var(--cyan);background:var(--cyanG);padding:2px 7px;border-radius:6px;font-family:'JetBrains Mono',monospace;pointer-events:none}
+.t7-chart .grid{stroke:var(--bdr);stroke-width:1;vector-effect:non-scaling-stroke}
+.t7-chart .tick{stroke:var(--bg3);stroke-width:1;vector-effect:non-scaling-stroke}
+.t7-chart .line{fill:none;stroke:var(--blue);stroke-width:2;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.t7-chart .line.cum{stroke:var(--cyan)}
+.t7-chart .avg{stroke:var(--gold);stroke-width:1;stroke-dasharray:4 4;opacity:.6;vector-effect:non-scaling-stroke}
+.t7-chart .bar{fill:var(--blue);opacity:.6}
+.t7-chart .bar.best{opacity:1}
+.t7-chart .slot{fill:var(--bg3);fill-opacity:.5;stroke:var(--bdr);stroke-width:1;stroke-dasharray:2 3;vector-effect:non-scaling-stroke}
+.t7-chart .t7-dot{fill:none;stroke:var(--blue);stroke-width:6;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.t7-chart .t7-dot.best{stroke:var(--gold)}
+.t7-nowin{height:120px;display:grid;place-items:center;text-align:center;font-size:12px;color:var(--t3);border:1px dashed var(--bdr);border-radius:var(--rs);padding:0 16px;line-height:1.7;margin:6px 0 4px}
+.t7-xnote{font-size:10px;color:var(--t3);line-height:1.6;margin:2px 0 10px}
+.t7-best{font-size:11px;color:var(--t2);margin-bottom:10px}
+.t7-best b{color:var(--t1)}
+.t7-best span{font-family:'JetBrains Mono',monospace;color:var(--cyan);font-weight:700}
+
+/* 수확 막대 — 쇼츠 조회와 롱폼 시청시간을 따로 */
+.t7-hv{margin:10px 0;padding:10px 12px;border:1px solid var(--bdr);border-radius:var(--rs);background:var(--bg1)}
+.t7-hv-h{display:flex;align-items:center;gap:8px;font-size:11px}
+.t7-hv-h>b{font-weight:800;color:var(--t2);white-space:nowrap}
+.t7-hv-h>b.ok{color:var(--cyan);font-size:12px}
+.t7-hv-h .pc{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--t2)}
+.t7-bar{flex:1;height:6px;border-radius:99px;background:var(--bg3);overflow:hidden;min-width:40px}
+.t7-bar i{display:block;height:100%;border-radius:99px;background:var(--gold)}
+.t7-bar.full i{background:var(--cyan)}
+.t7-hp{display:grid;grid-template-columns:minmax(0,1fr);gap:9px;margin-top:10px}
+.t7-hpr .h{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px;font-size:10.5px;margin-bottom:3px}
+.t7-hpr .k{flex:1;min-width:0;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t7-hpr .k.mine{color:var(--t1);font-weight:700}
+.t7-hpr .v{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--t2);white-space:nowrap}
+.t7-hpr .q{font-family:'JetBrains Mono',monospace;font-size:10.5px;min-width:34px;text-align:right;color:var(--t2)}
+.t7-hpr .t7-bar{display:block;flex:none;width:100%}
+.t7-hv-n{font-size:9.5px;color:var(--t3);line-height:1.6;margin-top:6px}
+
+/* 영상 하나하나 표 */
+.t7-list{margin-top:10px}
+.t7-list summary{cursor:pointer;font-size:11px;color:var(--t2);padding:6px 0;user-select:none}
+.t7-list summary:hover{color:var(--t1)}
+.t7-list .sel{display:flex;align-items:center;gap:8px;margin:4px 0 8px;font-size:10.5px;color:var(--t3)}
+.t7-tblw{overflow-x:auto}
+.t7-tbl{width:100%;border-collapse:collapse;font-size:11px;min-width:380px}
+.t7-tbl th{color:var(--t3);font-size:9.5px;text-align:left;padding:5px 6px;font-weight:600;white-space:nowrap}
+.t7-tbl th.r,.t7-tbl td.r{text-align:right}
+.t7-tbl td{padding:5px 6px;border-top:1px solid var(--bdr);color:var(--t2);vertical-align:middle}
+.t7-tbl td.r{font-family:'JetBrains Mono',monospace;white-space:nowrap}
+.t7-tbl td.rk{color:var(--t3);font-size:10px;text-align:right;width:20px}
+.t7-tbl .ti{display:flex;align-items:center;gap:6px;min-width:0;max-width:210px}
+.t7-tbl .ti img{width:44px;height:25px;object-fit:cover;border-radius:3px;flex-shrink:0;background:var(--bg3)}
+.t7-tbl .ti a{color:var(--t1);text-decoration:none;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t7-tbl .ti a:hover{color:var(--cyan)}
+.t7-tbl td.at{color:var(--t3);font-size:10px;white-space:nowrap}
+.t7-foot{margin-top:10px;padding-top:8px;border-top:1px solid var(--bdr);font-size:10.5px;color:var(--t3)}
+
+/* 48시간 지표 */
+.t7-rgrid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.t7-rcard{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:16px 16px 12px;min-width:0}
+.t7-rbig{display:flex;align-items:baseline;gap:8px;margin-bottom:8px;font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:800;color:var(--cyan);line-height:1}
+.t7-rbig i{font-style:normal;font-family:inherit;font-size:11px;font-weight:700;color:var(--t2)}
+.t7-rsub{display:flex;gap:6px 12px;flex-wrap:wrap;margin-bottom:10px;font-size:11px;color:var(--t2)}
+.t7-rsub b{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--t1);font-weight:700}
+.t7-rsub .n{font-style:normal;font-size:9px;color:var(--t3);margin-left:4px;padding:1px 4px;border-radius:4px;background:var(--bg3)}
+.t7-rtot{font-family:'JetBrains Mono',monospace;color:var(--cyan);font-size:15px;font-weight:800}
+
+/* 끌어올림 */
+.t7-lfnote{max-width:880px;margin-bottom:14px;padding:10px 14px;border:1px solid var(--bdr);border-radius:var(--rs);background:var(--bg1);font-size:11.5px;color:var(--t2);line-height:1.8}
+.t7-lfnote .w{display:block;margin-top:4px;color:var(--gold)}
+.t7-lfnote .k{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px}
+.t7-lfnote .k.pull{background:var(--accent)}
+.t7-lfnote .k.ride{background:var(--cyan);opacity:.7}
+.t7-lfwrap{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(420px,1fr))}
+@media(max-width:520px){.t7-lfwrap{grid-template-columns:1fr}}
+.t7-lfcard{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:16px;min-width:0}
+.t7-lfcard .t7-ch{margin-bottom:6px}
+.t7-lf-n{font-size:10.5px;color:var(--t3)}
+.t7-lf-wait{padding:14px 0 4px;font-size:12px;color:var(--t2);line-height:1.8}
+.t7-lf-wait i{display:block;font-style:normal;font-size:10.5px;color:var(--t3)}
+.t7-lf-ev{border-top:1px solid var(--bdr);padding:10px 0 6px}
+.t7-lf-d{font-size:12px;font-weight:700;color:var(--t1);margin-bottom:6px}
+.t7-lf-d span{font-weight:400;font-size:10.5px;color:var(--t3);margin-left:8px}
+.t7-lf-row{display:grid;grid-template-columns:minmax(0,160px) minmax(0,1fr) auto;gap:8px;align-items:center;font-size:11px;padding:2px 0}
+.t7-lf-row .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t2)}
+.t7-lf-row.pull .t{color:var(--t1);font-weight:700}
+.t7-lf-row .b{height:7px;border-radius:4px;background:var(--bg3);overflow:hidden}
+.t7-lf-row .b i{display:block;height:100%;border-radius:4px}
+.t7-lf-row.pull .b i{background:var(--accent)}
+.t7-lf-row.ride .b i{background:var(--cyan);opacity:.7}
+.t7-lf-row .v{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--t1);white-space:nowrap}
+.t7-lf-row .v em{font-style:normal;font-weight:400;color:var(--t3);margin-left:5px;font-size:10px}
+.t7-lf-more{font-size:10px;color:var(--t3);padding:2px 0 0 2px}
+
+/* 건강 팝업 */
+.t7-hbox{width:460px;text-align:left}
+.t7-hbox h3,.t7-hbox .modal-emoji{text-align:center}
+.t7-hgrade{text-align:center;margin-bottom:14px}
+.t7-hrows{display:grid;gap:6px;margin-bottom:18px;max-height:340px;overflow-y:auto}
+.t7-hr{display:grid;grid-template-columns:20px 64px minmax(0,1fr);gap:8px;align-items:start;padding:8px 10px;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rs);font-size:12px;line-height:1.6}
+.t7-hr .k{font-weight:700;color:var(--t1)}
+.t7-hr .v{color:var(--t2);word-break:break-all}
+.t7-hr.g-bad{border-color:rgba(255,68,102,.4)}
+.t7-hr.g-warn{border-color:rgba(240,180,41,.4)}
+</style>
+
+<div class="tp solo" id="t7">
+  <div class="stit">📊 올린 뒤 성적</div>
+  <div class="ssub">
+    올린 영상의 조회수·좋아요·댓글을 모아 보여 줍니다. 숫자는 <b>저장해 둔 값</b> 이라 이 화면을 열거나 탭을 바꿔도 유튜브를 부르지 않습니다 —
+    새로 읽으려면 <b>🔄 지금 다시 재기</b> 를 누르세요. 그림 위에 마우스를 올리면 그날의 값이 보입니다.
+  </div>
+
+  <div class="t7-top">
+    <div class="chsel" id="t7Filter"></div>
+    <span style="flex:1"></span>
+    <span class="t7-at" id="t7At"></span>
+    <button class="tb" id="t7BtnRefresh" onclick="t7Refresh('')" title="유튜브에서 조회수·좋아요·댓글을 다시 읽습니다 (채널당 약 3유닛)">🔄 지금 다시 재기</button>
+    <button class="tb" id="t7BtnAn" onclick="t7Analytics()" title="유튜브 분석(스튜디오와 같은 값)을 받아 옵니다 — 30분 안에 다시 누르면 새로 받지 않습니다">📥 분석 받기</button>
+  </div>
+  <div class="t7-quota" id="t7Quota"></div>
+  <div class="hide" id="t7Res"></div>
+
+  <div class="seg t7-seg" id="t7Seg">
+    <button class="on" data-s="ch" onclick="t7Sec('ch')">📊 채널 성적</button>
+    <button data-s="rv" onclick="t7Sec('rv')">⏱ 48시간 지표</button>
+    <button data-s="lf" onclick="t7Sec('lf')">🚀 끌어올림</button>
+  </div>
+
+  <div id="t7Body"></div>
+</div>
+
+<div class="modal" id="t7Health">
+  <div class="modal-box t7-hbox" role="dialog" aria-modal="true" aria-labelledby="t7HTitle">
+    <div class="modal-emoji" id="t7HEmoji">🩺</div>
+    <h3 id="t7HTitle">건강</h3>
+    <div class="t7-hgrade" id="t7HGrade"></div>
+    <div class="t7-hrows" id="t7HRows"></div>
+    <div class="modal-btns"><button class="mbtn ghost" onclick="t7HealthClose()">닫기</button></div>
+  </div>
+</div>

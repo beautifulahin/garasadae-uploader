@@ -1,5 +1,6 @@
 # 빌드 결과물 — 릴리스로 배포하므로 저장소에는 넣지 않는다
 dist/
+dist.이전_*/
 
 # 로컬 부산물
 .DS_Store
@@ -10,3 +11,23 @@ state.json
 config.json
 __pycache__/
 *.pyc
+
+# 구글 로그인 열쇠 — 값은 소스·git 에 절대 두지 않는다.
+#  · build.sh 가 굽는 동안만 build/.client/ 에 복사해서 실행 파일 안에만 묶고, 굽고 나면 지운다.
+#  · 열쇠가 든 폴더의 자리는 배포/.클라이언트경로(한 줄) 또는 GARASADAE_CLIENT_DIR 로 알려 준다 — 그 파일도 올리지 않는다.
+build/.client/
+배포/.클라이언트경로
+client_secret*.json
+device_secret.json
+*_secret*.json
+.ledger.lock
+.pending.lock
+.발사.lock
+
+# 이 컴퓨터의 데이터 폴더를 저장소 안으로 돌려 개발할 때 따라 들어올 수 있는 파일들 — 열쇠·로그인 정보가 든다
+쿠팡파트너스.json
+앱설정.json
+인증상태.json
+이행기록.json
+이행보류.json
+백업/

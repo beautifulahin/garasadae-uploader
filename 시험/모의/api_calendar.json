@@ -1,0 +1,75 @@
+{
+  "ok": true,
+  "days": [
+    {
+      "date": "2026-10-18",
+      "items": [
+        {
+          "file": "/tmp/예시/채널A/영상1.mp4",
+          "name": "영상1.mp4",
+          "channel": "채널A",
+          "alias": "채널A",
+          "kind": "쇼츠",
+          "title": "영상 1",
+          "fireAt": "2026-10-18T09:00:00",
+          "publishAt": "",
+          "minutesLeft": 1225,
+          "late": false,
+          "approvedBy": "사람 승인 (2026-10-17 12:00)",
+          "thumb": false
+        },
+        {
+          "file": "/tmp/예시/채널A/영상2.mp4",
+          "name": "영상2.mp4",
+          "channel": "채널A",
+          "alias": "채널A",
+          "kind": "쇼츠",
+          "title": "영상 2",
+          "fireAt": "2026-10-18T11:00:00",
+          "publishAt": "",
+          "minutesLeft": 1345,
+          "late": false,
+          "approvedBy": "사람 승인 (2026-10-17 12:00)",
+          "thumb": false
+        },
+        {
+          "file": "/tmp/예시/채널B/영상4.mp4",
+          "name": "영상4.mp4",
+          "channel": "채널B",
+          "alias": "채널B",
+          "kind": "롱폼",
+          "title": "영상 4 (롱폼)",
+          "fireAt": "2026-10-18T18:00:00",
+          "publishAt": "2026-10-19 18:00",
+          "minutesLeft": 1885,
+          "late": false,
+          "approvedBy": "사람 승인 (2026-10-17 12:00)",
+          "thumb": true
+        }
+      ]
+    },
+    {
+      "date": "2026-10-19",
+      "items": [
+        {
+          "file": "/tmp/예시/채널A/영상3.mp4",
+          "name": "영상3.mp4",
+          "channel": "채널A",
+          "alias": "채널A",
+          "kind": "쇼츠",
+          "title": "영상 3",
+          "fireAt": "2026-10-19T09:00:00",
+          "publishAt": "",
+          "minutesLeft": 2665,
+          "late": false,
+          "approvedBy": "사람 승인 (2026-10-17 12:00)",
+          "thumb": false
+        }
+      ]
+    }
+  ],
+  "byChannel": {
+    "채널A": 3,
+    "채널B": 1
+  }
+}

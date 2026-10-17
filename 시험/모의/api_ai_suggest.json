@@ -1,0 +1,30 @@
+{
+  "ok": true,
+  "title": "자동으로 지은 제목 예시 #shorts",
+  "desc": "자동으로 지은 설명 예시입니다.\n영상 내용과 채널 말투를 보고 지었습니다.",
+  "tags": [
+    "예시",
+    "자동",
+    "shorts"
+  ],
+  "source": {
+    "title": "자동",
+    "desc": "자동",
+    "tags": "자동"
+  },
+  "status": "자동",
+  "why": "",
+  "cached": false,
+  "kind": "쇼츠",
+  "checks": {
+    "ok": true,
+    "problems": []
+  },
+  "links": [
+    {
+      "name": "예시 상품 A",
+      "url": "https://link.coupang.com/a/exampleA"
+    }
+  ],
+  "linkStatus": "붙임"
+}

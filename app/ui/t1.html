@@ -1,0 +1,580 @@
+<!-- ============ 감시 중 (t1) ============
+  옛 화면의 「감시 폴더 자동 업로드」 자리를 현재 업로더의 「현황」 방식으로 다시 지었다.
+  사람이 영상 벽에서 고르고 → 장바구니에 담고 → [올리기] → 표를 받아 → 확인 창에서 승인하면 → 올린다.
+  바탕화면 감시는 없다. 새 부품은 .t1- 접두사, 나머지는 ui.html 의 옛 부품을 그대로 쓴다. -->
+<style>
+/* ── 감시 중 전용 (옛 색 변수만 쓴다) ─────────────────────────────── */
+#t1 .dash-main{min-width:0}
+#t1 .dash-side{padding-bottom:20px}
+/* 껍데기가 html{zoom:1.25} 라 vh 도 1.25 배로 그려진다(실측: 100vh = 화면의 125%) — 그래서 vh 를 쓰는 곳은 / 1.25 로 맞춘다.
+   오른쪽 판이 7개로 길어, 화면에 고정된 채 판 안에서 스크롤되게 한다(좁은 화면에서는 그냥 아래로 흐른다) */
+@media(min-width:1001px){#t1 .dash-side{max-height:calc(100vh / 1.25 - 126px);overflow-y:auto;padding-right:3px}}
+#t1 .tb:disabled,.t1-m .tb:disabled,#t1 .go:disabled{opacity:.4;cursor:default}
+.t1-sub{font-weight:400;color:var(--t3);font-size:10px;margin-left:4px}
+.t1-secbtns{display:flex;gap:4px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
+.t1-sec{flex-wrap:wrap;gap:6px}
+.t1-note{margin:0 0 10px;padding:9px 12px;border-radius:var(--rs);border:1px solid rgba(240,180,41,.35);background:rgba(240,180,41,.07);font-size:11.5px;color:var(--t2);line-height:1.7}
+.t1-note b{color:var(--gold)}
+.t1-note.err{border-color:rgba(255,68,102,.4);background:var(--accentG)}
+.t1-note.err b{color:var(--accent)}
+.t1-note.ok{border-color:rgba(45,212,168,.35);background:var(--cyanG)}
+.t1-note.ok b{color:var(--cyan)}
+.t1-note .tb{margin-top:6px}
+.t1-droptools{display:flex;gap:6px;align-items:center;margin:-6px 0 10px;flex-wrap:wrap}
+.t1-droptools .hintline{margin:0}
+.t1-dropprog{display:none;max-width:460px;margin:12px auto 0;text-align:left}
+.t1-dropprog.on{display:block}
+.t1-chlbl{font-size:10px;color:var(--t3);align-self:center;margin-right:2px}
+.chsel button .t1-n{font-size:10px;opacity:.75;margin-left:4px;font-family:'JetBrains Mono',monospace}
+.chsel button .pill{margin-left:4px;padding:0 6px;font-size:9px}
+.chsel button.t1-dragon{border-color:var(--accent);box-shadow:0 0 10px var(--accentG)}
+
+/* 오늘 올릴 것 고르기 */
+.t1-pick{margin-bottom:10px}
+.t1-pickrow{display:grid;grid-template-columns:auto minmax(150px,1fr) auto 90px auto;gap:8px;align-items:center}
+.t1-pickrow .fin{padding:6px 8px;font-size:11px}
+.t1-pickrow .flabel{margin:0}
+@media(max-width:700px){.t1-pickrow{grid-template-columns:1fr 1fr}}
+
+/* 영상 벽 */
+.t1-wall{display:grid;grid-template-columns:repeat(auto-fill,minmax(172px,1fr));gap:10px;margin-bottom:10px}
+.t1-vd{background:var(--bg2);border:2px solid var(--bdr);border-radius:var(--r);overflow:hidden;transition:.15s;display:flex;flex-direction:column;min-width:0}
+.t1-vd:hover{border-color:var(--blue)}
+.t1-vd.picked{border-color:var(--cyan);box-shadow:0 0 10px var(--cyanG)}
+.t1-vd.inq{opacity:.62}
+.t1-vd.bad{border-color:var(--accent)}
+.t1-vd.fresh{animation:fu .4s ease both;border-color:var(--cyan)}
+.t1-media{position:relative;aspect-ratio:3/4;background:var(--bg3);cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:30px}
+.t1-media video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:transparent}
+.t1-media .t1-ph{opacity:.35}
+.t1-k{position:absolute;top:6px;left:6px;z-index:1}
+.t1-qm{position:absolute;top:6px;right:6px;z-index:1;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--blueG);color:var(--blue);border:1px solid rgba(76,141,255,.4)}
+.t1-dupm{position:absolute;bottom:6px;left:6px;z-index:1}
+.t1-body{padding:9px 10px 10px;display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}
+.t1-ttl{font-size:12px;font-weight:700;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all}
+.t1-meta{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:10px;color:var(--t3);font-family:'JetBrains Mono',monospace}
+.t1-warn{font-size:10.5px;line-height:1.55;padding:6px 8px;border-radius:var(--rs);background:rgba(240,180,41,.08);color:var(--gold);border:1px solid rgba(240,180,41,.28);word-break:break-all}
+.t1-warn.err{background:var(--accentG);color:var(--accent);border-color:rgba(255,68,102,.4)}
+.t1-btns{display:flex;gap:4px;flex-wrap:wrap;margin-top:auto;padding-top:4px}
+.t1-btns .tb{padding:4px 8px}
+.t1-add{flex:1 0 100%;padding:7px;border-radius:var(--rs);border:1px solid var(--blue);background:none;color:var(--blue);font-size:11px;font-weight:700;transition:.15s}
+.t1-add:hover{background:var(--blueG)}
+.t1-vd.picked .t1-add{background:var(--cyanG);border-color:var(--cyan);color:var(--cyan)}
+.t1-add:disabled{opacity:.45;cursor:default;background:none}
+.t1-chip{font-family:inherit;cursor:pointer}
+.t1-pager{display:flex;align-items:center;justify-content:center;gap:10px;margin:6px 0 10px;font-size:11px;color:var(--t3);flex-wrap:wrap}
+.t1-pager .hintline{margin:0}
+
+/* 장바구니 */
+.t1-cart{margin-bottom:6px}
+.t1-clist{max-height:470px;overflow:auto;margin-bottom:10px}
+.t1-cgrp{margin-bottom:8px}
+.t1-cgh{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--t2);padding:6px 2px}
+.t1-cgh i{font-style:normal;font-size:10px;color:var(--t3);font-family:'JetBrains Mono',monospace;font-weight:400}
+.t1-crow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:8px 10px;background:var(--bg1);border:1px solid var(--bdr);border-radius:var(--rs);margin-bottom:5px}
+.t1-crow.bad{border-color:var(--accent)}
+.t1-ct{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.t1-ct span.t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.t1-cm{display:flex;flex-wrap:wrap;gap:5px;align-items:center;font-size:10px;color:var(--t3);margin-top:3px;font-family:'JetBrains Mono',monospace}
+.t1-cat{display:flex;flex-direction:column;gap:3px}
+.t1-cat label{font-size:9.5px;color:var(--t3)}
+.t1-cat .row{display:flex;gap:4px;align-items:center}
+.t1-cat input{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rs);padding:5px 7px;color:var(--t1);font-size:11px;font-family:'JetBrains Mono',monospace}
+.t1-cat input:focus{outline:none;border-color:var(--blue)}
+.t1-cat input.bad{border-color:var(--accent);color:var(--accent)}
+.t1-cbtns{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:900px){.t1-crow{grid-template-columns:1fr}.t1-cbtns{justify-content:flex-start}}
+.t1-cartbar{border-top:1px solid var(--bdr);padding-top:10px;display:flex;flex-direction:column;gap:8px}
+.t1-spread{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--t2)}
+.t1-spread input{background:var(--bg1);border:1px solid var(--bdr);border-radius:var(--rs);padding:5px 7px;color:var(--t1);font-size:11px;font-family:'JetBrains Mono',monospace}
+.t1-spread input[type=number]{width:60px}
+.t1-spread input:focus{outline:none;border-color:var(--blue)}
+.t1-cartact{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.t1-go{width:auto;padding:11px 24px}
+.t1-actnote{font-size:11px;line-height:1.7;color:var(--t3);text-align:right}
+.t1-actnote.err{color:var(--accent)}
+.t1-actnote.warn{color:var(--gold)}
+.t1-cempty{text-align:center;padding:26px 10px;font-size:12px;color:var(--t3);line-height:1.8}
+
+/* 레인(할 일의 흐름) */
+.t1-lanes{display:grid;grid-template-columns:repeat(auto-fit,minmax(224px,1fr));gap:10px;margin-bottom:16px}
+.t1-lane{background:var(--bg2);border:1px solid var(--bdr);border-top:3px solid var(--lc,var(--bdr));border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.t1-lane-h{display:flex;align-items:center;gap:6px;padding:9px 11px;font-size:12px;font-weight:700}
+.t1-lane-h .n{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--lc,var(--t3))}
+.t1-lane-h .t1-cal{font-size:10px;font-weight:400;color:var(--t3);cursor:pointer;background:none;border:none;text-decoration:underline}
+.t1-lane-b{display:flex;flex-direction:column}
+.t1-it{display:flex;gap:8px;align-items:flex-start;padding:8px 11px;border-top:1px solid var(--bdr);font-size:11px;text-decoration:none;color:inherit;min-width:0}
+a.t1-it:hover{background:var(--bg3)}
+.t1-it.fold{display:none}
+.t1-lane.open .t1-it.fold{display:flex}
+.t1-it-b{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.t1-it-b b{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t1-it-m{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.t1-it-s{font-size:10px;color:var(--t3);font-family:'JetBrains Mono',monospace}
+.t1-it-late{font-size:10px;color:var(--gold)}
+.t1-it-btn{display:flex;gap:3px;flex-direction:column;flex-shrink:0}
+.t1-it-btn .tb{padding:3px 7px;font-size:10px}
+.t1-tmr{font-style:normal;font-size:10px;color:var(--cyan);font-family:'JetBrains Mono',monospace}
+.t1-tmr.warn{color:var(--gold)}
+.t1-tmr.hot{color:var(--accent);font-weight:700}
+.t1-lane-f{padding:8px 11px;border-top:1px solid var(--bdr);font-size:10px;color:var(--t3);text-align:center}
+.t1-lane-f button{background:none;border:none;color:var(--blue);font-size:10px;text-decoration:underline}
+.t1-lempty{padding:18px 11px;text-align:center;font-size:11px;color:var(--t3);line-height:1.7}
+.t1-lane .pill{padding:0 6px;font-size:9px}
+
+/* 오른쪽 판 */
+.t1-qrow{display:flex;justify-content:space-between;font-size:10px;color:var(--t3);font-family:'JetBrains Mono',monospace;margin-bottom:4px}
+.t1-policy{font-size:10px;color:var(--t3);margin-top:6px;line-height:1.5}
+.t1-sidebtns{display:flex;gap:6px}
+.t1-sidebtns .go2{margin-top:0}
+.t1-say{display:flex;gap:6px}
+.t1-say .fin{flex:1;min-width:0}
+.t1-say .tb{flex-shrink:0}
+.t1-logmini{max-height:230px}
+
+/* 모달들 */
+.t1-m .modal-box,.modal-box.t1-wide{max-height:100%;overflow-y:auto}
+.modal-box.t1-wide{width:min(980px,100%);text-align:left}
+.modal-box.t1-mid{width:min(640px,100%);text-align:left}
+.t1-wide .modal-emoji,.t1-wide>h3,.t1-wide>.modal-title,.t1-mid .modal-emoji,.t1-mid>h3,.t1-mid>.modal-title{text-align:center}
+.t1-tblwrap{max-height:340px;overflow:auto;border:1px solid var(--bdr);border-radius:var(--rs);margin-bottom:12px}
+.t1-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.t1-tbl th{position:sticky;top:0;background:var(--bg2);color:var(--t3);font-size:10px;text-align:left;padding:7px 9px;border-bottom:1px solid var(--bdr);white-space:nowrap}
+.t1-tbl td{padding:7px 9px;border-bottom:1px solid var(--bdr);vertical-align:top;line-height:1.55}
+.t1-tbl tr:last-child td{border-bottom:none}
+.t1-tbl td.mono{font-family:'JetBrains Mono',monospace;font-size:10px;white-space:nowrap}
+.t1-tbl .iss{display:block;color:var(--gold)}
+.t1-tbl .iss.err{color:var(--accent)}
+.t1-tbl .ok{color:var(--cyan)}
+.t1-checkrow{display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--t1);line-height:1.6;cursor:pointer}
+.t1-checkrow input{margin-top:4px}
+.t1-bigwrap{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(240px,1fr);gap:16px;align-items:start}
+@media(max-width:800px){.t1-bigwrap{grid-template-columns:1fr}}
+.t1-bigv{background:#000;border-radius:var(--rs);overflow:hidden;display:flex;justify-content:center}
+.t1-bigv video{width:100%;max-height:calc(64vh / 1.25);background:#000;display:block}
+.t1-bigside{display:flex;flex-direction:column;gap:6px;min-width:0}
+.t1-bigside h3{text-align:left;font-size:15px;margin-bottom:2px;word-break:break-all}
+.t1-bigch{font-size:11px;color:var(--cyan);font-weight:600}
+.t1-bigmeta{display:flex;flex-wrap:wrap;gap:5px;align-items:center;font-size:10px;color:var(--t3);font-family:'JetBrains Mono',monospace}
+.t1-bigdesc{font-size:11.5px;color:var(--t2);line-height:1.7;white-space:pre-wrap;word-break:break-all;max-height:130px;overflow:auto;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rs);padding:8px 10px}
+.t1-bignav{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:var(--t3);margin-top:6px}
+.t1-pglog{max-height:240px;background:var(--bg);border:1px solid var(--bdr);border-radius:var(--rs);padding:10px}
+.t1-pgmeta{display:flex;justify-content:space-between;font-size:10px;color:var(--t3);font-family:'JetBrains Mono',monospace;margin:-4px 0 10px}
+.t1-schwrap{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;align-items:flex-start}
+.t1-schcol{flex:0 0 218px;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rs);padding:8px;min-width:0}
+.t1-schcol.today{border-color:var(--cyan)}
+.t1-schh{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;margin-bottom:6px}
+.t1-schh i{font-style:normal;font-size:10px;color:var(--t3);font-weight:400}
+.t1-schh .x,.t1-schit .x{margin-left:auto;background:none;border:none;color:var(--t3);font-size:13px}
+.t1-schh .x:hover,.t1-schit .x:hover{color:var(--accent)}
+.t1-schch{font-size:10px;color:var(--cyan);font-weight:700;margin:8px 0 3px;display:flex;gap:6px;align-items:center}
+.t1-schch i{font-style:normal;color:var(--t3);font-weight:400}
+.t1-schit{display:flex;gap:6px;align-items:center;font-size:11px;padding:4px 0;border-top:1px solid var(--bdr)}
+.t1-schit b{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--blue);flex-shrink:0}
+.t1-schit .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t1-schit .ed{background:none;border:none;color:var(--t3);font-size:11px}
+.t1-schit .ed:hover{color:var(--blue)}
+.t1-caltools{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+.t1-caltools .tb.d:hover{border-color:var(--accent);color:var(--accent)}
+.t1-sayrow{display:flex;gap:8px;padding:5px 0;font-size:12px;border-bottom:1px solid var(--bdr)}
+.t1-sayrow span:first-child{flex:0 0 78px;color:var(--t3)}
+.t1-sayrow span:last-child{flex:1;min-width:0;word-break:break-all}
+.t1-sayfiles{max-height:150px;overflow:auto;font-size:11px;color:var(--t2);line-height:1.8;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rs);padding:8px 10px;margin:8px 0}
+.t1-rvrow{margin-bottom:10px}
+.t1-rvrow .hintline{margin-top:4px}
+.t1-thumbimg{display:block;max-width:100%;max-height:calc(50vh / 1.25);margin:0 auto 10px;border-radius:var(--rs);background:var(--bg3)}
+.t1-pvch{font-size:12px;font-weight:700;margin:12px 0 6px;color:var(--cyan)}
+
+/* 문안 출처 알약 · 쿠팡 링크 (API 명세 §9·§10) */
+.pill.t1-auto{color:var(--gold);border-color:rgba(240,180,41,.4);background:rgba(240,180,41,.08)}
+.t1-info{display:flex;flex-direction:column;gap:4px;min-width:0}
+.t1-src{font-size:10px;color:var(--t3);display:flex;flex-wrap:wrap;gap:3px 4px;align-items:center;line-height:1.6}
+.t1-src .pill,.t1-fsrc .pill,.t1-tkline .pill{padding:0 6px;font-size:9px}
+.t1-lkl{display:flex;flex-wrap:wrap;gap:3px 6px;align-items:center}
+.t1-lkst{font-size:10px;color:var(--t3);line-height:1.5}
+.t1-lk{grid-column:1/-1;display:flex;flex-direction:column;gap:3px;margin-top:4px;padding:7px 9px;background:var(--bg1);border:1px solid var(--bdr);border-radius:var(--rs);min-width:0}
+.t1-lkr{display:flex;gap:6px;align-items:center;font-size:10.5px;min-width:0}
+.t1-lkr .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t2)}
+.t1-lkr .tb{padding:2px 7px;font-size:10px;flex-shrink:0}
+.t1-tr2 td{padding-top:0;background:rgba(255,255,255,.015)}
+.t1-tkline{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font-size:10.5px;color:var(--t2);line-height:1.6}
+.t1-tkline .tb{padding:2px 8px;font-size:10px}
+.t1-tkline .d{color:var(--t3)}
+.t1-tbl tr.t1-tr1 td{border-bottom:none}
+
+/* 문안 고치기 창 — 칸마다 출처 알약 · 자동 문안 · 관련 상품 */
+.t1-fl{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.t1-fl .flabel{margin:0}
+.t1-aibox,.t1-cpn{margin:12px 0 4px;padding:10px 12px;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rs);text-align:left}
+.t1-aibtns,.t1-cpnbtns{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.t1-ainote{margin-top:8px;font-size:11.5px;color:var(--t2);line-height:1.7}
+.t1-ainote b{color:var(--t1)}
+.t1-ainote .tb{margin-top:6px}
+.t1-cpnh{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;margin-bottom:6px;flex-wrap:wrap}
+.t1-cpn .t1-lk{grid-column:auto;margin-top:6px}
+.t1-cpn details{margin-top:6px;font-size:11px;color:var(--t3)}
+.t1-cpn details pre{margin-top:6px;white-space:pre-wrap;word-break:break-all;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--t2);background:var(--bg);border:1px solid var(--bdr);border-radius:var(--rs);padding:8px 10px;max-height:140px;overflow:auto}
+.t1-q{font-size:10px;color:var(--t3);margin-top:6px;line-height:1.6}
+</style>
+
+<div class="tp solo on" id="t1">
+  <div id="notReady"></div>
+
+  <div class="dash">
+    <div class="dash-main">
+
+      <!-- 끌어다 놓기 : 고른 채널의 폴더로 들어간다. 올리는 일은 아래에서 사람이 누른다 -->
+      <div class="drop" id="drop">
+        <div class="drop-i">📥</div>
+        <div class="drop-t">여기에 영상을 끌어다 놓으세요</div>
+        <div class="drop-d" id="dropDesc">아래에서 고른 채널의 폴더로 들어갑니다</div>
+        <div class="t1-dropprog" id="t1DropProg">
+          <div class="gauge"><div class="gauge-f" id="t1DropFill"></div></div>
+          <div class="gauge-l"><span id="t1DropTxt"></span><span id="t1DropPct">0%</span></div>
+        </div>
+        <input type="file" id="vfile" accept="video/*" multiple hidden/>
+      </div>
+      <div class="t1-droptools">
+        <button class="tb on" onclick="t1Receive()" title="승인한 영상을 채널 폴더로 복사하고 곧바로 발사 대기에 담습니다">📥 영상 넘기기</button>
+        <span class="hintline">끌어다 놓은 영상은 폴더에 들어가 아래 영상 벽에 나타납니다. 올리는 것은 늘 사람이 누릅니다.</span>
+      </div>
+
+      <!-- 채널 탭 줄 -->
+      <div class="chsel" id="t1Chips"></div>
+
+      <!-- 영상 벽 -->
+      <div class="sechead t1-sec">
+        <span>🎞 <b id="t1WallCh">영상 벽</b><span class="t1-sub" id="t1WallSub"></span></span>
+        <span class="t1-secbtns">
+          <button class="tb" id="t1RefreshBtn" onclick="t1Refresh(true)" title="폴더를 다시 읽습니다">🔄 새로고침</button>
+          <button class="tb" id="t1PickBtn" onclick="t1TogglePick()">🎯 오늘 올릴 것 고르기</button>
+        </span>
+      </div>
+      <div id="t1Stale" class="t1-note" style="display:none">📂 이 채널 폴더의 영상 수가 바뀐 것 같습니다. <button class="tb on" onclick="t1Refresh(true)">🔄 새로고침</button></div>
+      <div id="t1AiNote"></div>
+      <div class="bcpanel t1-pick" id="t1PickPanel" style="display:none">
+        <div class="t1-pickrow">
+          <label class="flabel" for="t1PickMode">고르는 방식</label>
+          <select class="fin" id="t1PickMode">
+            <option value="order">파일 이름 순서대로</option>
+            <option value="oldest">폴더에 오래 있던 것부터</option>
+            <option value="suggest">앱이 추천 (근거를 함께 보여 드립니다)</option>
+            <option value="manual">내가 직접 고름 (장바구니에 담은 것만)</option>
+          </select>
+          <label class="flabel" for="t1PickN">개수</label>
+          <input class="fin" id="t1PickN" type="number" min="1" max="200" value="3">
+          <button class="tb on" id="t1PickGo" onclick="t1RunPick()">고르기</button>
+        </div>
+        <div class="hintline" id="t1PickHint">고른 영상은 장바구니에 담깁니다. 올리기 전에 빼거나 더할 수 있습니다.</div>
+        <pre class="logmini t1-logmini" id="t1PickReport" style="display:none;margin-top:8px"></pre>
+      </div>
+      <div id="t1Dups"></div>
+      <div class="t1-pager" id="t1PagerTop"></div>
+      <div class="t1-wall" id="t1Wall"></div>
+      <div class="t1-pager" id="t1PagerBot"></div>
+
+      <!-- 장바구니 -->
+      <div class="sechead t1-sec">
+        <span>🛒 장바구니<span class="t1-sub" id="t1CartSub">올릴 영상을 영상 벽에서 담아 주세요</span></span>
+        <span class="t1-secbtns"><button class="tb" onclick="t1CartClear()" id="t1CartClearTop">모두 빼기</button></span>
+      </div>
+      <div class="panel t1-cart" id="t1Cart">
+        <div class="t1-clist" id="t1CartList"></div>
+        <div class="t1-cartbar">
+          <div class="t1-spread">
+            <label for="t1SpStart">시작</label>
+            <input type="datetime-local" step="60" id="t1SpStart" onchange="t1SpSave()">
+            <label for="t1SpGap">간격</label>
+            <input type="number" id="t1SpGap" min="0.5" max="72" step="0.5" value="2" onchange="t1SpSave()">
+            <span>시간</span>
+            <button class="tb on" onclick="t1Spread()" title="채널마다 쇼츠·롱폼을 따로 시작 시각부터 이 간격으로 줄 세웁니다">간격 자동 배정</button>
+            <button class="tb" onclick="t1ClearAt()" title="모든 영상을 지금 바로 올리는 것으로 돌립니다">시각 모두 비우기</button>
+          </div>
+          <div class="hintline" style="margin-top:0">올리기 시각을 비워 두면 지금 바로 올립니다. 시각을 쓰면 그 시각까지 이 컴퓨터가 붙들고 있다가 때가 되면 올립니다(발사 대기). 간격 자동 배정은 채널마다, 쇼츠와 롱폼을 따로 같은 꼴끼리 줄 세웁니다.</div>
+          <div class="t1-cartact" id="t1CartAct"></div>
+        </div>
+      </div>
+
+      <!-- 레인 -->
+      <div class="sechead t1-sec">
+        <span>🧭 할 일의 흐름<span class="t1-sub">— 담은 것 → 발사 대기 → 심사 대기 → 공개 → 문제</span></span>
+        <span class="t1-secbtns"><button class="tb" onclick="t1OpenCal()">📅 달력</button></span>
+      </div>
+      <div class="t1-lanes" id="t1Lanes"></div>
+
+      <!-- 최근 올린 영상 -->
+      <div class="sechead">
+        <span>🕐 최근 올린 영상 <span class="t1-sub">— 누르면 유튜브 스튜디오 편집기가 열립니다</span></span>
+        <span class="t1-secbtns">
+          <button class="tb" id="t1StudioLink" onclick="t1Studio()" style="display:none" title="스튜디오가 다른 채널을 보고 있으면 「오류가 발생했습니다」 가 뜹니다. 한 번 눌러 이 채널로 바꾸면 그 뒤로는 계속 열립니다.">🔀 스튜디오를 이 채널로</button>
+          <button class="tb" onclick="swTab('t2')">전체 보기</button>
+        </span>
+      </div>
+      <div class="thumbs" id="t1Recent"></div>
+    </div>
+
+    <aside class="dash-side">
+      <div class="panel">
+        <div class="panel-h">📺 채널별 현황</div>
+        <div id="t1ChCards"></div>
+        <button class="go2" onclick="swTab('t3')">＋ 채널 추가 · 관리</button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h">📊 오늘 전체</div>
+        <div class="mini">
+          <div><b id="t1mToday">0</b><span>올린 영상</span></div>
+          <div><b id="t1mWait">0</b><span>대기 중</span></div>
+          <div><b id="t1mTotal">0</b><span>누적</span></div>
+        </div>
+        <div class="hintline" id="t1mHint"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h">🎟 오늘 할당량</div>
+        <div id="t1Quota"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h">📜 최근 기록 <button class="mlink" onclick="t1LoadLog(true)" title="다시 읽기">다시 읽기</button></div>
+        <pre class="logmini" id="t1Log">불러오는 중…</pre>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h">🧰 한눈에 보기</div>
+        <div class="t1-sidebtns">
+          <button class="go2" onclick="t1OpenCal()">📅 달력</button>
+          <button class="go2" onclick="t1OpenPreview()">🔎 올리기 전 확인</button>
+        </div>
+        <div class="hintline">달력은 발사 대기를 날짜별로 보여 줍니다. 올리기 전 확인은 오늘 무엇이 올라갈지 미리 보여 줍니다(올리지는 않습니다).</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h">🗣 말로 시키기</div>
+        <div class="t1-say">
+          <input class="fin" id="t1SayBox" placeholder="예: 채널A 에 오래된 영상 2개 담아" aria-label="말로 시키기" onkeydown="if(event.key==='Enter')t1Say()">
+          <button class="tb on" id="t1SayGo" onclick="t1Say()">보내기</button>
+        </div>
+        <div class="hintline">알아들은 내용을 먼저 보여 드립니다. 올리는 것은 장바구니에서 사람이 누릅니다.</div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- ───────────── 모달들 (감시 중 전용) ───────────── -->
+
+<!-- 크게 보기 -->
+<div class="modal t1-m" id="t1MBig">
+  <div class="modal-box t1-wide">
+    <div class="t1-bigwrap">
+      <div class="t1-bigv"><video id="t1BigVid" controls playsinline loop preload="metadata"></video></div>
+      <div class="t1-bigside">
+        <div class="t1-bigch" id="t1BigCh"></div>
+        <h3 id="t1BigT"></h3>
+        <div class="t1-bigmeta" id="t1BigMeta"></div>
+        <div class="t1-src" id="t1BigSrc"></div>
+        <div class="flabel" style="margin-top:6px">설명</div>
+        <div class="t1-bigdesc" id="t1BigD"></div>
+        <div class="flabel" style="margin-top:4px">해시태그</div>
+        <div class="t1-bigdesc" id="t1BigG" style="max-height:60px"></div>
+        <div id="t1BigLk" class="t1-info"></div>
+        <div class="t1-bignav">
+          <button class="tb" onclick="t1BigNav(-1)">‹ 이전</button>
+          <span id="t1BigN"></span>
+          <button class="tb" onclick="t1BigNav(1)">다음 ›</button>
+        </div>
+        <div class="modal-btns" style="margin-top:10px">
+          <button class="mbtn ghost" id="t1BigTextBtn" onclick="t1BigEdit()">✏️ 문안 고치기</button>
+          <button class="mbtn primary" id="t1BigAdd" onclick="t1BigToggle()">담기</button>
+        </div>
+        <div style="text-align:center;margin-top:8px"><button class="mlink" onclick="t1CloseBig()">닫기 (Esc)</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 올리기 확인 창 -->
+<div class="modal t1-m" id="t1MTicket">
+  <div class="modal-box t1-wide">
+    <div class="modal-emoji">📤</div>
+    <h3>이대로 올릴까요?</h3>
+    <div class="modal-title" id="t1TkSub"></div>
+    <div class="t1-tblwrap" id="t1TkTbl"></div>
+    <div class="modal-note" style="text-align:left">올라간 영상은 먼저 <b>비공개</b>로 들어가고, 심사를 통과한 것만 공개됩니다. 한 번 누르면 바로 시작하니, 목록을 눈으로 확인해 주세요.</div>
+    <div class="modal-note" id="t1TkManyBox" style="display:none;text-align:left">
+      <label class="t1-checkrow"><input type="checkbox" id="t1TkMany" onchange="t1TkManyChg()"> <span id="t1TkManyTxt"></span></label>
+    </div>
+    <div class="modal-btns">
+      <button class="mbtn ghost" onclick="t1CloseTicket()">취소</button>
+      <button class="mbtn primary" id="t1TkGo" onclick="t1TkGo()">📤 올리기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 올리는 중 -->
+<div class="modal t1-m" id="t1MProg">
+  <div class="modal-box t1-mid">
+    <div class="modal-emoji" id="t1PgEmoji">⏫</div>
+    <h3 id="t1PgTitle">올리는 중</h3>
+    <div class="modal-title" id="t1PgSub"></div>
+    <div class="gauge"><div class="gauge-f" id="t1PgFill"></div></div>
+    <div class="gauge-l"><span id="t1PgFile">…</span><span id="t1PgPct">0%</span></div>
+    <div class="t1-pgmeta"><span id="t1PgEl">경과 0초</span><span id="t1PgCnt"></span></div>
+    <pre class="logmini t1-pglog" id="t1PgLog">시작하는 중…</pre>
+    <div class="modal-btns" style="margin-top:14px">
+      <button class="mbtn ghost" id="t1PgClose" onclick="t1CloseProg()">창 숨기기</button>
+      <button class="mbtn primary" id="t1PgStop" style="background:var(--accent)" onclick="t1UpStop()">🛑 긴급중단</button>
+    </div>
+    <div class="hintline" id="t1PgHint" style="text-align:center">창을 숨겨도 올리기는 계속됩니다. 다시 보려면 장바구니 아래의 「진행 보기」를 누르세요.</div>
+  </div>
+</div>
+
+<!-- 예약 달력 -->
+<div class="modal t1-m" id="t1MCal">
+  <div class="modal-box t1-wide">
+    <div class="modal-emoji">📅</div>
+    <h3>예약 달력</h3>
+    <div class="modal-title" id="t1CalSub"></div>
+    <div class="t1-caltools" id="t1CalTools"></div>
+    <div class="t1-schwrap" id="t1CalBody"></div>
+    <div class="modal-btns" style="margin-top:12px">
+      <button class="mbtn ghost" onclick="t1CloseCal()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 올리기 전 확인 -->
+<div class="modal t1-m" id="t1MPrev">
+  <div class="modal-box t1-wide">
+    <div class="modal-emoji">🔎</div>
+    <h3>올리기 전 확인</h3>
+    <div class="modal-title">지금 규칙대로라면 오늘 이렇게 올라갑니다 — 미리 보기일 뿐, 아무것도 올리지 않습니다</div>
+    <div id="t1PvBody"></div>
+    <div class="modal-btns" style="margin-top:12px">
+      <button class="mbtn ghost" onclick="t1ClosePv()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 말로 시키기 : 알아들은 내용 -->
+<div class="modal t1-m" id="t1MSay">
+  <div class="modal-box t1-mid">
+    <div class="modal-emoji">🗣</div>
+    <h3>이렇게 알아들었습니다</h3>
+    <div class="modal-title" id="t1SayQ"></div>
+    <div id="t1SayBody"></div>
+    <div class="modal-btns" style="margin-top:14px">
+      <button class="mbtn ghost" onclick="t1CloseSay()">닫기</button>
+      <button class="mbtn primary" id="t1SayAdd" onclick="t1SayCart()">이대로 담기</button>
+    </div>
+    <div class="hintline" style="text-align:center">담기만 합니다. 올리려면 장바구니의 [올리기]를 눌러 확인 창을 거칩니다.</div>
+  </div>
+</div>
+
+<!-- 영상 넘기기 -->
+<div class="modal t1-m" id="t1MRecv">
+  <div class="modal-box t1-mid">
+    <div class="modal-emoji">📥</div>
+    <h3>영상 넘기기</h3>
+    <div class="modal-title">승인한 영상을 채널 폴더로 복사하고 곧바로 발사 대기에 담습니다. 원본은 그대로 둡니다.</div>
+    <div id="t1RvForm">
+      <div class="t1-rvrow">
+        <span class="flabel">영상</span>
+        <div class="dirbox" id="t1RvFile" style="margin-top:0"></div>
+        <button class="mlink" onclick="t1Receive()">다른 영상 고르기</button>
+      </div>
+      <div class="t1-rvrow">
+        <label class="flabel" for="t1RvCh">어느 채널로?</label>
+        <select class="fin" id="t1RvCh"></select>
+      </div>
+      <div class="t1-rvrow">
+        <label class="flabel" for="t1RvTitle">제목 (선택)</label>
+        <input class="fin" id="t1RvTitle" maxlength="100" placeholder="비우면 영상 옆 쪽지나 파일 이름을 씁니다">
+      </div>
+      <div class="t1-rvrow">
+        <label class="flabel" for="t1RvAt">공개 시각 (선택)</label>
+        <input class="fin" id="t1RvAt" type="datetime-local" step="60">
+        <div class="hintline">비우면 그 채널의 마지막 예약 + 2시간으로 정합니다. 올리기는 공개 24시간 전(늦어도 지금)에 이 컴퓨터가 합니다.</div>
+      </div>
+      <div class="t1-rvrow">
+        <label class="flabel" for="t1RvSlots">롱폼 하루 공개 시각 (선택)</label>
+        <input class="fin" id="t1RvSlots" placeholder="예: 09:15, 15:15 (비우면 채널 설정을 따릅니다)">
+      </div>
+      <div class="t1-rvrow">
+        <label class="flabel" for="t1RvWho">승인한 사람 (선택)</label>
+        <input class="fin" id="t1RvWho" maxlength="40" placeholder="기록에 남길 이름">
+      </div>
+      <label class="t1-checkrow" style="margin-bottom:6px"><input type="checkbox" id="t1RvNow"> <span>바로 올립니다 <small style="color:var(--t3)">(공개 예약 시각은 그대로 둡니다)</small></span></label>
+    </div>
+    <div id="t1RvResult" style="display:none"></div>
+    <div class="modal-btns" style="margin-top:14px">
+      <button class="mbtn ghost" onclick="t1CloseRecv()" id="t1RvCancel">취소</button>
+      <button class="mbtn primary" id="t1RvGo" onclick="t1RecvGo()">발사 대기에 담기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 문안 고치기 : 칸마다 출처 알약 · 자동 문안(AI) · 관련 상품(쿠팡)
+     확인 창·진행 창 같은 것 위로 떠야 하므로 DOM 순서상 뒤쪽에 둔다 -->
+<div class="modal t1-m" id="t1MText">
+  <div class="modal-box t1-mid">
+    <div class="modal-emoji">✏️</div>
+    <h3>문안 고치기</h3>
+    <div class="modal-title" id="t1TxName"></div>
+    <div id="t1TxBad" class="modal-note" style="display:none;text-align:left"></div>
+    <div id="t1TxProb" class="t1-note err" style="display:none"></div>
+    <div>
+      <div class="t1-fl"><label class="flabel" for="t1TxTitle">제목</label><span class="t1-fsrc" id="t1TxSrcT"></span></div>
+      <input class="fin" id="t1TxTitle" maxlength="100" oninput="t1TxDirty()">
+      <div class="t1-fl" style="margin-top:10px"><label class="flabel" for="t1TxDesc">설명</label><span class="t1-fsrc" id="t1TxSrcD"></span></div>
+      <textarea class="fin" id="t1TxDesc" rows="8" maxlength="5000" oninput="t1TxDirty()" placeholder="올라갈 설명입니다"></textarea>
+      <div class="t1-fl" style="margin-top:10px"><label class="flabel" for="t1TxTags">해시태그</label><span class="t1-fsrc" id="t1TxSrcG"></span></div>
+      <input class="fin" id="t1TxTags" placeholder="쉼표나 빈칸으로 나눕니다" oninput="t1TxDirty()">
+      <div class="hintline" id="t1TxSay">고치면 영상 옆 문안 파일(.txt)에 저장됩니다. 저장한 칸은 「사람」이 되어 자동으로 바뀌지 않습니다.</div>
+    </div>
+    <div class="t1-aibox">
+      <div class="t1-aibtns">
+        <button class="tb on" id="t1TxAiBtn" onclick="t1TxAi(false)" title="영상 내용과 이 채널의 말투를 보고 제목·설명·해시태그를 지어 봅니다. 사람이 정한 칸(문안 파일·쪽지)은 그대로 둡니다.">✨ 자동으로 지어 보기</button>
+        <button class="tb" id="t1TxAiAgain" onclick="t1TxAi(true)" style="display:none" title="자동으로 지은 칸만 새로 짓습니다">🔄 다시 짓기</button>
+        <button class="tb" id="t1TxAiClear" onclick="t1TxAiClear()" style="display:none" title="자동으로 지어 둔 기록을 지워, 올릴 때 다시 짓게 합니다">자동 기록 지우기</button>
+      </div>
+      <div class="t1-ainote" id="t1TxAiNote">지어 보기만 한다고 올라가지는 않습니다. 마음에 들지 않는 칸은 위에서 직접 고쳐 저장하세요.</div>
+    </div>
+    <div class="t1-cpn" id="t1CpnBox"></div>
+    <div class="modal-btns" style="margin-top:16px;flex-wrap:wrap">
+      <button class="mbtn ghost" onclick="t1TxRevert()">되돌리기</button>
+      <button class="mbtn ghost" onclick="t1CloseText()">닫기</button>
+      <button class="mbtn primary" id="t1TxSaveBtn" onclick="t1TxSave()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 썸네일 확인 -->
+<div class="modal t1-m" id="t1MThumb">
+  <div class="modal-box t1-mid">
+    <div class="modal-emoji">🖼</div>
+    <h3>올라갈 썸네일</h3>
+    <div class="modal-title" id="t1ThName"></div>
+    <div id="t1ThBody"></div>
+    <div class="modal-btns" style="margin-top:12px">
+      <button class="mbtn ghost" onclick="t1CloseThumb()">닫기</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- 한 줄 입력 창 (시각 고치기·검토필요로 치우기) -->
+<div class="modal t1-m" id="t1MAsk">
+  <div class="modal-box" style="text-align:left">
+    <div class="modal-emoji" id="t1AkEmoji" style="text-align:center">✏️</div>
+    <h3 id="t1AkTitle" style="text-align:center"></h3>
+    <div class="modal-desc" id="t1AkBody" style="margin-bottom:12px"></div>
+    <label class="flabel" for="t1AkIn" id="t1AkLbl"></label>
+    <input class="fin" id="t1AkIn" onkeydown="if(event.key==='Enter')t1AskDone(true)">
+    <div class="hintline" id="t1AkHint"></div>
+    <div class="modal-btns" style="margin-top:16px">
+      <button class="mbtn ghost" onclick="t1AskDone(false)">취소</button>
+      <button class="mbtn primary" id="t1AkOk" onclick="t1AskDone(true)">확인</button>
+    </div>
+  </div>
+</div>

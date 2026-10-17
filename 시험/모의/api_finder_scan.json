@@ -1,0 +1,29 @@
+{
+  "ok": true,
+  "ai": [
+    {
+      "id": "f1",
+      "masked": "AIza…AbCd",
+      "where": [
+        "환경변수 GEMINI_API_KEY"
+      ],
+      "test": {
+        "ok": true,
+        "message": "연결됐습니다"
+      }
+    },
+    {
+      "id": "f2",
+      "masked": "AIza…Zz90",
+      "where": [
+        "~/.zshrc (GOOGLE_API_KEY)"
+      ],
+      "test": {
+        "ok": false,
+        "message": "열쇠가 거절됐습니다"
+      }
+    }
+  ],
+  "coupang": [],
+  "tookMs": 420
+}
