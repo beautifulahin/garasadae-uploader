@@ -1,0 +1,37 @@
+# 가라사대 업로더 — 인스타그램·스레드 로그인 중계 (Cloudflare Worker)
+# 이 파일에는 비밀 값이 없다. 자리표시자(<...>)만 있고, 비밀은 `wrangler secret put` 으로만 넣는다 (README.md 의 순서 참고).
+# 배포(`wrangler deploy`)는 소유자가 메타 앱을 만든 뒤에 한다 — 이 저장소 작업은 배포하지 않는다.
+
+name = "garasadae-meta-auth"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+# 공개돼도 되는 값 (앱 번호 · R2 위치 · 이 중계의 바깥 주소)
+[vars]
+IG_APP_ID = "<인스타그램 앱 번호>"
+TH_APP_ID = "<스레드 앱 번호>"
+R2_ACCOUNT_ID = "<클라우드플레어 계정 번호>"
+R2_BUCKET = "garasadae-meta-stage"
+# 이 중계의 바깥 주소. 비워 두면 들어온 요청의 주소를 쓴다. 메타 앱의 「리디렉션 URI」와 글자까지 같아야 하므로 정해 두는 편이 안전하다.
+PUBLIC_URL = "<https://garasadae-meta-auth.내계정.workers.dev>"
+
+# 로그인 직후 5분간 토큰을 두는 곳
+[[kv_namespaces]]
+binding = "META_KV"
+id = "<wrangler kv namespace create META_KV 가 알려준 번호>"
+
+# 릴스 영상 임시 보관함 (1시간 이하 · 공개 버킷으로 만들지 않는다 — 중계가 서명한 읽기 주소로만 내보낸다)
+[[r2_buckets]]
+binding = "STAGE"
+bucket_name = "garasadae-meta-stage"
+
+# 임시 영상 청소 — 10분마다 1시간 지난 것을 지운다
+[triggers]
+crons = ["*/10 * * * *"]
+
+# 비밀 5개는 여기 쓰지 않는다. 아래 명령으로 하나씩 넣는다.
+#   wrangler secret put IG_APP_SECRET
+#   wrangler secret put TH_APP_SECRET
+#   wrangler secret put SIGN_KEY               (아무 긴 글 — 예: openssl rand -base64 48)
+#   wrangler secret put R2_ACCESS_KEY_ID       (R2 API 토큰의 액세스 키)
+#   wrangler secret put R2_SECRET_ACCESS_KEY   (R2 API 토큰의 비밀 키)

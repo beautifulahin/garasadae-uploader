@@ -19,6 +19,8 @@ import { insertVideo, thumbnailsSet, type UploadHandle } from "./youtube.ts";
 import { addPending } from "./review.ts";
 import { policyForChannel, uploadSlot } from "./daily.ts";
 import { findThumb, recordFailure } from "./thumbs.ts";
+import { notePath, readNote } from "./sidecar.ts";
+import * as MP from "./metapost.ts";
 
 type Obj = Record<string, any>;
 /** 올릴 일감 한 건 (발사대기에 담기는 그 모양). file · channel 은 꼭 있어야 한다. */
@@ -276,10 +278,35 @@ async function uploadOneInner(job: Job, o: UploadOpts): Promise<string | null> {
     }
   }
   await recordLine("올리기.log", `업로드  [${이름}] ${baseName(path)}  ${vid}`);
+  // 인스타그램·스레드 — 이 채널에 계정이 걸려 있거나 영상 쪽지가 켠 영상만 장부에 담는다. 실패해도 유튜브 쪽은 이미 끝났다(아래는 절대 던지지 않는다).
+  await 메타담기(job, 이름, vid, path, { title: meta.title, desc: meta.desc, tags: meta.tags }, info, chk.kind, say);
   if (쿠팡결과 && 쿠팡) { try { await 쿠팡.attachVideoId(path, vid); } catch { /* 기록일 뿐이다 */ } }
   return vid;
 }
 
+
+/**
+ * 올린 영상을 인스타·스레드 올리기 장부에 담는다(공개되는 때에 review.ts 가 올릴 때로 바꾼다).
+ * 켜고 끄는 값은 「일감(받기에서 쪽지를 읽어 실어 둔 것) > 영상 옆 쪽지(json) > 채널 설정」 순이다. 어떤 오류도 업로드를 막지 않는다.
+ * 문안은 쿠팡 링크가 붙기 전의 글(meta)을 쓴다 — 유튜브 설명의 제휴 링크가 인스타·스레드에 가면 안 된다.
+ */
+async function 메타담기(
+  job: Job, 채널: string, vid: string, path: string, 글: { title: string; desc: string; tags: string[] },
+  info: Parameters<typeof MP.enqueue>[0]["info"], kind: string, say: (s: string) => void,
+): Promise<void> {
+  try {
+    let flags: { instagram?: boolean; threads?: boolean } | undefined = job.메타올림 && typeof job.메타올림 === "object" ? job.메타올림 : undefined;
+    if (!flags) {
+      const n = await readNote(notePath(path)).catch(() => null);
+      if (n && (n.instagram !== undefined || n.threads !== undefined)) flags = { instagram: n.instagram, threads: n.threads };
+    }
+    const r = await MP.enqueue({ videoId: vid, channel: 채널, file: path, title: 글.title, desc: 글.desc, tags: 글.tags, info, kind, flags });
+    if (r.queued) say(`    인스타그램·스레드: ${r.why === "대기" ? "유튜브 공개 뒤 올립니다" : "올리지 않습니다 — 화면에서 까닭을 볼 수 있습니다"}`);
+  } catch (e) {
+    say(`    인스타그램·스레드 준비는 건너뜁니다 — ${cut(e instanceof Error ? e.message : String(e), 100)}`);
+    await recordLine("올리기.log", `인스타그램·스레드 준비 실패  [${채널}] ${baseName(path)}  ${cut(e instanceof Error ? e.message : String(e), 100)}`);
+  }
+}
 
 /** 쿠팡 모듈 — 없거나 불러오다 실패해도 업로드는 간다(fail-open) */
 async function 쿠팡모듈(): Promise<typeof import("./coupang.ts") | null> {

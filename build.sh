@@ -51,7 +51,8 @@ rm -rf build/.client
 trap 'rm -rf build/.client' EXIT
 mkdir -p build/.client
 BAKED=""
-for f in client_secret.json device_secret.json; do
+# meta.json = 인스타그램·스레드 연결 정보(중계 서버 주소·메타 앱 번호). 앱 비밀은 중계 서버에만 있고 여기에는 없다. 없으면 그 기능만 화면에서 숨는다.
+for f in client_secret.json device_secret.json meta.json; do
   if [ -n "$CLIENT_SRC" ] && [ -f "$CLIENT_SRC/$f" ]; then
     cp "$CLIENT_SRC/$f" "build/.client/$f"; chmod 600 "build/.client/$f"; BAKED="$BAKED $f"
   fi

@@ -289,6 +289,9 @@ export interface Note {
   thumbnail?: string;
   categoryId?: string;
   language?: string;
+  /** 이 영상만 인스타그램·스레드에 올릴지 — true/false. 안 적으면 채널 설정을 따른다(채널에 계정이 걸린 곳만 올린다). */
+  instagram?: boolean;
+  threads?: boolean;
 }
 
 /** 쪽지 json 을 읽는다. 모르는 칸은 버린다 — 남이 만든 json 이 들어와도 업로드가 깨지지 않아야 한다. */
@@ -307,6 +310,14 @@ export async function readNote(path: string): Promise<Note | null> {
   n.thumbnail = 글(d.thumbnail, 1024);
   if (typeof d.categoryId === "string" || typeof d.categoryId === "number") n.categoryId = String(d.categoryId);
   n.language = 글(d.language, 10);
+  // 켜고 끄는 칸 — true/false 만 받는다(글자 "true"/"false"·"on"/"off" 도 받는다). 그 밖의 값은 안 적은 것으로 본다.
+  const 참거짓 = (v: unknown): boolean | undefined => {
+    if (typeof v === "boolean") return v;
+    if (typeof v === "string") { const t = v.trim().toLowerCase(); if (["true", "on", "yes"].includes(t)) return true; if (["false", "off", "no"].includes(t)) return false; }
+    return undefined;
+  };
+  n.instagram = 참거짓(d.instagram);
+  n.threads = 참거짓(d.threads);
   return Object.values(n).some((x) => x !== undefined) ? n : null;
 }
 

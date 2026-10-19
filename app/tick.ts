@@ -1,7 +1,7 @@
 // 심사확인 — 10분마다 한 번 도는 점검. (파이썬: 심사확인.sh)
 //
 // 순서가 정해져 있다 — 쏠 시각이 된 것을 먼저 올리고, 그 다음에 검토한다. 순서가 반대면 방금 올린 것을 그 자리에서 검토하려 들어 헛돈다.
-//   ① 쏘기(발사대기) → ② 검토·공개 → ③ 썸네일 재시도 → ④ 저성과 회수(켠 채널만) → ⑤ 구독·영상 지표 찍기 → ⑥ 보관(+외장 백업) → ⑦ 밤 10시 뒤 하루 요약 → ⑧ 기록 자르기
+//   ① 쏘기(발사대기) → ② 검토·공개 → ③ 썸네일 재시도 → ④ 저성과 회수(켠 채널만) → ⑤ 구독·영상 지표 찍기 → ⑥ 보관(+외장 백업) → ⑦ 밤 10시 뒤 하루 요약 → ⑧ 기록 자르기 → ⑨ 인스타·스레드 올리기(맨 끝)
 //
 // 누가 돌리나: 화면 서버가 켜져 있는 동안은 서버가 10분마다, 꺼져 있으면 예약 작업(맥 launchd · 윈도우 작업 스케줄러)이 `심사확인` 명령으로.
 //   둘이 겹쳐 돌지 않게 파일 잠금(.심사확인.lock)과 「마지막으로 돈 때」(기록/심사확인.last)로 막는다.
@@ -18,6 +18,8 @@ import * as AR from "./archive.ts";
 import * as NF from "./notify.ts";
 import { pathConfig } from "./tools.ts";
 import { holdReason } from "./hold.ts";
+import * as MT from "./meta.ts";
+import * as MP from "./metapost.ts";
 
 export interface TickOpts {
   say?: (line: string) => void;
@@ -129,6 +131,14 @@ export async function tick(o: TickOpts = {}): Promise<TickResult> {
     });
     // ⑧ 기록이 너무 커지지 않게 정리한다(심사확인만이 아니라 전부)
     await step("기록 정리", async () => { const r = await trimLogs(); return `${r.length}개`; });
+    // ⑨ 인스타그램·스레드 — 맨 끝이다(유튜브 일을 늦추지 않는다). 연결 정보가 없는 판이거나 올릴 것이 없으면 메타를 한 번도 부르지 않는다.
+    //    토큰 갱신은 만료가 가까운 계정만, 올리기는 공개가 확인된 것만. 실패해도 위 단계들과 무관하다.
+    await step("인스타·스레드", async () => {
+      if (!(await MT.available()).on) return "꺼짐";
+      const g = await MT.refreshDue();
+      const r = await MP.run({ say });
+      return r.busy ? "다른 곳에서 올리는 중" : `올림 ${r.posted} · 기다림 ${r.waiting} · 실패 ${r.failed} · 확인필요 ${r.unknown}${g.due ? ` · 토큰갱신 ${g.due}` : ""}`;
+    });
 
     for (const s of res.steps) await recordLine("심사확인.log", `${s.ok ? "·" : "✗"} ${s.name}  ${s.note}`);
     return true;

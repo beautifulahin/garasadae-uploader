@@ -16,6 +16,7 @@ import { patchLedger } from "./ledger.ts";
 import { manualPrivateHas, publishGate } from "./safety.ts";
 import { policyForChannel } from "./daily.ts";
 import { publishNotice } from "./notify.ts";
+import * as MP from "./metapost.ts";
 
 type Obj = Record<string, any>;
 
@@ -186,6 +187,14 @@ export interface RunOpts {
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e)).trim();
 
+/* 인스타그램·스레드 올리기 장부에 알린다 — 장부 쓰기뿐이고 네트워크를 쓰지 않는다. 어떤 오류도 유튜브 검토·공개를 막지 않는다. */
+async function metaPublic(vid: string, publishAt: string | null, now: Date) {
+  try { await MP.markPublic(vid, { publishAt, now }); } catch (e) { await recordLine("올리기.log", `인스타·스레드 공개 알림 실패  ${vid}  ${cut(errText(e), 80)}`); }
+}
+async function metaDropped(vid: string, why: string, now: Date) {
+  try { await MP.markDropped(vid, why, { now }); } catch (e) { await recordLine("올리기.log", `인스타·스레드 접기 실패  ${vid}  ${cut(errText(e), 80)}`); }
+}
+
 /**
  * 검토하고, 통과한 것을 공개로 바꾼다. (파이썬 run)
  *
@@ -267,6 +276,7 @@ export async function run(doPublish: boolean, 누가 = "", o: RunOpts = {}): Pro
       현재 = got[0] ?? null;
       if (!현재) {
         say(`  ${tag}  영상을 찾을 수 없습니다 (삭제됨?)`);
+        await metaDropped(vid, "유튜브에서 영상을 찾을 수 없습니다", now);
         blocked++;
         drop();
         continue;
@@ -275,6 +285,8 @@ export async function run(doPublish: boolean, 누가 = "", o: RunOpts = {}): Pro
       const 지금 = 현재.status?.privacyStatus;
       if (지금 === "public" || 지금 === "unlisted") {
         say(`  ${tag}  이미 ${지금 === "public" ? "공개" : "일부 공개"}입니다 — 목록에서 뺍니다`);
+        if (지금 === "public") await metaPublic(vid, null, now);
+        else await metaDropped(vid, "유튜브에서 일부 공개로 바뀌어 있습니다", now);
         opened++;
         drop();
         continue;
@@ -298,6 +310,7 @@ export async function run(doPublish: boolean, 누가 = "", o: RunOpts = {}): Pro
     if (verdict === "bad") {
       say(`  ${tag}  ⚠ 공개하지 않음 — ${why}`);
       say(`       https://studio.youtube.com/video/${vid}/edit`);
+      await metaDropped(vid, why, now);
       blocked++;
       drop();
       continue;
@@ -307,6 +320,7 @@ export async function run(doPublish: boolean, 누가 = "", o: RunOpts = {}): Pro
     try {
       if (manualPrivateHas(vid)) {
         say(`  ${tag}  사람이 내린 영상 — 자동 공개하지 않고 목록에서 뺍니다`);
+        await metaDropped(vid, "사람이 비공개로 내린 영상입니다", now);
         drop();
         continue;
       }
@@ -354,6 +368,8 @@ export async function run(doPublish: boolean, 누가 = "", o: RunOpts = {}): Pro
       if (예약) await stampPublished(vid, "", "예약");
       else await stampPublished(vid, minuteWall(wallNow(systemZone(), now)), "public");
       say(`  ${tag}  공개 전환 완료 — ${when}`);
+      // 인스타·스레드는 유튜브가 열리는 때에 맞춘다(즉시 공개면 지금, 예약이면 그 시각 뒤)
+      await metaPublic(vid, 예약, now);
       // 예약을 건 것은 아직 안 열렸다. **실제로 열린 것만** 알린다.
       if (!예약) {
         try { await publishNotice(it.channel ?? "", it.title ?? "", vid); }

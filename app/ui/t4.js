@@ -7,6 +7,8 @@
  *   POST /api/settings/save {바꿀 칸만 같은 모양}   POST /api/telegram/save {token,chatIds[]} · /test   POST /api/autostart {on}
  *   AI: 열쇠 연결·바꾸기는 공통 창(openAi → modals.js). 이 카드는 켜기·끄기와 모델: POST /api/ai/save {on?,model?} · /test {key?,model?} · /disconnect
  *   쿠팡: 연결·바꾸기는 공통 창(openCoupang). 이 카드는 상태와 설정: POST /api/coupang/get|save|test
+ *   인스타그램·스레드: POST /api/meta/get → {available:{on,instagram,threads}, accounts[], channels[{alias,instagram,threads}], jobs[], summary, signin}
+ *        POST /api/meta/signin/start|check|stop {provider} · /disconnect {key} · /bind {alias,provider,key} · /job/retry|check|resolve|cancel {id,provider,…}
  *   POST /api/env/check · /self/check · /archive/keep · /archive/mirror      POST /api/mode/clear
  *   (명세에 없음 · 메인에게 요청) POST /api/dir/pick {prompt,start} → {ok,path}  — 폴더 고르는 운영체제 창, 아무것도 바꾸지 않는다
  *
@@ -17,6 +19,8 @@
 (() => {
   let S = null;                  // 마지막 settings/get 의 settings
   let CP = null;                 // 마지막 coupang/get 응답
+  let MT = null;                 // 마지막 meta/get 응답 (인스타그램·스레드)
+  let mtLogin = false, mtUrl = '', mtAt = 0;
   let dirty = false;             // ①~④ 카드에 저장하지 않은 변경이 있다
   let aiDirty = false, cpDirty = false;
   let loading = false;
@@ -73,10 +77,12 @@
   async function load() {
     if (loading) return;
     loading = true;
-    const [r, c] = await Promise.all([call('/api/settings/get', {}), call('/api/coupang/get', {})]);
+    const [r, c, m] = await Promise.all([call('/api/settings/get', {}), call('/api/coupang/get', {}), call('/api/meta/get', {})]);
     loading = false;
     if (r.ok === false) msg(r.why || '설정을 불러오지 못했습니다', 'err'); else S = r.settings || {};
     if (c.ok !== false) CP = c;
+    if (m.ok !== false) MT = m;
+    mtAt = Date.now();
     fill();
   }
 
@@ -84,6 +90,7 @@
     if (S) { fillInfo(); fillTg(); fillAuto(); if (!dirty) fillMain(); }
     fillAi();
     fillCp();
+    fillMt();
   }
 
   function fillMain() {
@@ -344,6 +351,110 @@
     await load();
   };
 
+  /* ---------------- 📷 인스타그램·스레드 ---------------- */
+  const MT_NAME = { instagram: '인스타그램', threads: '스레드' };
+  const MT_ICON = { instagram: '📷', threads: '🧵' };
+  const MT_PHASE = { 영상대기: '유튜브 공개를 기다리는 중', 진행: '올리는 중', 끝: '' };
+  const cutS = (t, n) => { const a = Array.from(String(t || '')); return a.length > n ? a.slice(0, n).join('') + '…' : a.join(''); };
+  async function loadMt() {
+    const m = await call('/api/meta/get', {});
+    if (m.ok !== false) { MT = m; mtAt = Date.now(); }
+    fillMt();
+  }
+  function fillMt() {
+    const card = $('t4MtCard'); if (!card) return;
+    const av = MT && MT.available;
+    card.classList.toggle('hide', !(av && av.on));
+    if (!(av && av.on)) return;
+    hasHide('t4MtIgBtn', !av.instagram); hasHide('t4MtThBtn', !av.threads);
+    hasHide('t4MtStop', !mtLogin); hasHide('t4MtCopy', !(mtLogin && mtUrl));
+    const accts = MT.accounts || [];
+    const chip = $('t4MtChip');
+    chip.className = 't4-chip ' + (accts.length ? 'ok' : 'no');
+    chip.textContent = accts.length ? `연결 ${accts.length}개` : '연결 안 됨';
+    $('t4MtAccts').innerHTML = accts.map(a => {
+      const warn = a.error ? `<div class="hintline t4-bad" style="width:100%">⚠ ${esc(a.error)}</div>` : '';
+      const left = a.days_left != null ? `<span class="hintline" style="margin:0">로그인 만료까지 ${num(Math.max(0, a.days_left))}일 · 만료 전에 알아서 늘립니다</span>` : '';
+      return `<div class="t4-mtrow"><span class="nm">${MT_ICON[a.provider] || ''} ${esc(MT_NAME[a.provider] || a.provider)} · <b>@${esc(a.username)}</b></span>${left}` +
+        `<button type="button" class="tb" data-act="disc" data-key="${attr(a.key)}">연결 끊기</button>${warn}</div>`;
+    }).join('');
+    // 채널별 계정 고르기 — 고르는 중에는 다시 그리지 않는다
+    const bind = $('t4MtBind');
+    if (!(document.activeElement && bind.contains(document.activeElement))) {
+      const opt = (prov, cur) => '<option value="">끔 (올리지 않음)</option>' + accts.filter(a => a.provider === prov)
+        .map(a => `<option value="${attr(a.key)}"${a.key === cur ? ' selected' : ''}>@${esc(a.username)}</option>`).join('');
+      const chs = MT.channels || [];
+      bind.innerHTML = chs.length ? chs.map(c => {
+        const sel = prov => (av[prov] ? `<select class="fin" data-bind="${prov}" data-ch="${attr(c.alias)}" aria-label="${attr(c.alias)} ${MT_NAME[prov]}">${opt(prov, c[prov] || '')}</select>` : '');
+        return `<div class="t4-mtrow"><span class="nm">${esc(c.alias)}</span>${sel('instagram')}${sel('threads')}</div>`;
+      }).join('') : '<div class="hintline">채널이 없습니다.</div>';
+    }
+    // 최근 결과
+    const jobs = MT.jobs || [];
+    $('t4MtJobs').innerHTML = jobs.length ? jobs.map(j => {
+      const ph = MT_PHASE[j.phase] || '';
+      const when = j.phase !== '끝' && j.go_after ? ` · ${mdHm(j.go_after)} 이후` : '';
+      const rows = (j.targets || []).map(t => {
+        const cls = t.state === '올림' ? 't4-ok' : (t.state === '실패' || t.state === '결과불명') ? 't4-bad' : '';
+        const link = /^https:\/\//.test(t.url || '') ? ` <button type="button" class="tb" data-act="open" data-url="${attr(t.url)}">보기</button>` : '';
+        const acts = (t.actions || []).map(a => ({
+          retry: `<button type="button" class="tb on" data-act="retry" data-id="${attr(j.id)}" data-p="${attr(t.provider)}">다시 시도</button>`,
+          check: `<button type="button" class="tb" data-act="check" data-id="${attr(j.id)}" data-p="${attr(t.provider)}">올라갔는지 찾아보기</button>`,
+          resolve: `<button type="button" class="tb" data-act="yes" data-id="${attr(j.id)}" data-p="${attr(t.provider)}">올라갔음</button> ` +
+            `<button type="button" class="tb" data-act="no" data-id="${attr(j.id)}" data-p="${attr(t.provider)}">안 올라갔음 · 다시 올리기</button>`,
+        }[a] || '')).join(' ');
+        return `<div class="hintline">${MT_ICON[t.provider] || ''} ${esc(t.name)}${t.username ? ' @' + esc(t.username) : ''} — <b class="${cls}">${esc(t.state)}</b>${link}` +
+          `${t.why ? ' · ' + esc(t.why) : ''} ${acts}</div>`;
+      }).join('');
+      const cancel = j.cancelable ? ` <button type="button" class="tb" data-act="cancel" data-id="${attr(j.id)}">취소</button>` : '';
+      return `<div class="t4-mtjob"><div class="tt">[${esc(j.channel)}] ${esc(cutS(j.title, 36))} <span style="color:var(--t3)">${esc(ph)}${esc(when)}</span>${cancel}</div>${rows}</div>`;
+    }).join('') : '<div class="hintline">아직 없습니다.</div>';
+  }
+  window.t4MtLogin = async provider => {
+    if (mtLogin) return msg('이미 로그인 창이 열려 있습니다');
+    const r = await call('/api/meta/signin/start', { provider });
+    if (r.ok === false) return msg(r.why || '로그인을 시작하지 못했습니다', 'err');
+    mtLogin = true; mtUrl = r.url || '';
+    text('t4MtLine', '브라우저에서 로그인을 마쳐 주세요. 창이 열리지 않으면 「로그인 주소 복사」 뒤 브라우저에 붙여 넣으세요.');
+    fillMt();
+    for (let i = 0; i < 420 && mtLogin; i++) {
+      await new Promise(res => setTimeout(res, 1500));
+      const c = await call('/api/meta/signin/check', {});
+      if (c.ok === false) { text('t4MtLine', c.why || '연결하지 못했습니다'); msg(c.why || '연결하지 못했습니다', 'err'); break; }
+      if (c.state === 'done') { text('t4MtLine', `${MT_NAME[c.provider] || ''} @${c.username} 연결됐습니다.`); msg(`@${c.username} 연결됐습니다`, 'ok'); break; }
+    }
+    mtLogin = false; mtUrl = '';
+    await loadMt();
+  };
+  window.t4MtStop = async () => { await call('/api/meta/signin/stop', {}); mtLogin = false; mtUrl = ''; text('t4MtLine', '로그인을 그만뒀습니다.'); fillMt(); };
+  window.t4MtCopyUrl = () => { if (mtUrl) cpy(mtUrl, '로그인 주소를 복사했습니다'); };
+  async function mtDo(path, body, ok) {
+    const r = await call(path, body);
+    if (r.ok === false) msg(r.why || '처리하지 못했습니다', 'err'); else if (ok) msg(typeof ok === 'function' ? ok(r) : ok, 'ok');
+    await loadMt();
+  }
+  async function mtClick(e) {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const act = b.dataset.act, id = b.dataset.id, p = b.dataset.p;
+    if (act === 'open') { if (/^https:\/\//.test(b.dataset.url || '')) ext(b.dataset.url); return; }
+    if (act === 'disc') {
+      if (!confirm('이 컴퓨터에서 연결을 끊을까요? 채널에 걸어 둔 짝도 풀립니다. (메타 쪽 권한은 인스타그램·스레드 설정에서 직접 지울 수 있습니다)')) return;
+      return mtDo('/api/meta/disconnect', { key: b.dataset.key }, '연결을 끊었습니다');
+    }
+    if (act === 'retry') return mtDo('/api/meta/job/retry', { id, provider: p }, '다시 시도합니다 — 곧 올라갑니다');
+    if (act === 'check') return mtDo('/api/meta/job/check', { id, provider: p }, r => r.found ? '올라간 것을 찾았습니다' : (r.why || '찾지 못했습니다'));
+    if (act === 'yes') return mtDo('/api/meta/job/resolve', { id, provider: p, outcome: '올림' }, '올라간 것으로 기록했습니다');
+    if (act === 'no') {
+      if (!confirm('정말 올라가지 않았나요? 인스타그램·스레드에서 직접 확인한 뒤에만 누르세요. 다시 올리면 같은 영상이 두 번 올라갈 수 있습니다.')) return;
+      return mtDo('/api/meta/job/resolve', { id, provider: p, outcome: '안올라감' }, '다시 올립니다');
+    }
+    if (act === 'cancel') return mtDo('/api/meta/job/cancel', { id }, '올리기를 취소했습니다');
+  }
+  async function mtChange(e) {
+    const s = e.target.closest('select[data-bind]'); if (!s) return;
+    await mtDo('/api/meta/bind', { alias: s.dataset.ch, provider: s.dataset.bind, key: s.value }, s.value ? '이 채널은 그 계정에 올립니다' : '이 채널은 올리지 않습니다');
+  }
+
   /* ---------------- 🧰 점검·보관 ---------------- */
   const RUNS = {
     env: ['/api/env/check', '환경 점검'], self: ['/api/self/check', '점검'],
@@ -403,9 +514,12 @@
       $('t4AiCard').addEventListener('input', e => { if (e.target.id === 't4AiModel') aiDirty = true; });
       $('t4CpCard').addEventListener('input', e => { if (/^t4Cp(Mode|Max|Per|Sub|Disc)$/.test(e.target.id)) cpDirty = true; });
       $('t4CpCard').addEventListener('change', e => { if (/^t4Cp(Mode|Max)$/.test(e.target.id)) cpDirty = true; });
+      $('t4MtCard').addEventListener('click', mtClick);
+      $('t4MtCard').addEventListener('change', mtChange);
     },
     show() { load(); },
-    paint(s) { paintLive(s); fillAi(); fillCp(); if (!S && !loading) load(); },
+    // 인스타·스레드 결과는 15초에 한 번만 다시 읽는다 (이 컴퓨터의 장부를 읽을 뿐 메타를 부르지 않는다)
+    paint(s) { paintLive(s); fillAi(); fillCp(); if (!S && !loading) load(); else if (!loading && !mtLogin && Date.now() - mtAt > 15000) { mtAt = Date.now(); loadMt(); } },
   });
 
   /* ---------------- 🚀 시작하기(t5) — 정적 안내. 진행 칩과 초기화 시각만 채운다 ---------------- */

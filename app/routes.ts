@@ -48,6 +48,8 @@ import * as UP from "./upload.ts";
 import * as SG from "./settings.ts";
 import * as MG from "./migrate.ts";
 import * as TK from "./tick.ts";
+import * as MT from "./meta.ts";
+import * as MP from "./metapost.ts";
 import * as FD from "./finder.ts";
 import { holdReason } from "./hold.ts";
 import { receive } from "./receive.ts";
@@ -975,6 +977,69 @@ export function buildRoutes(S: AppState): { get: Record<string, Handler>; post: 
     throw new Bad(st.why || "로그인이 끝나지 않았습니다");
   };
   post["signin/stop"] = async () => { OA.signin.stop?.(); return {}; };
+
+  /* ── 인스타그램·스레드 (연결 정보가 실행 파일에 들어 있는 판에서만 화면에 나타난다) ──
+     토큰 값은 어떤 답에도 싣지 않는다. 호출하는 것은 중계 서버·메타뿐이다(구글 문과 같은 doFetch 한 문). */
+  const 메타쪽 = (v: unknown): MT.Provider => {
+    if (v === "instagram" || v === "threads") return v;
+    throw new Bad("인스타그램 또는 스레드를 골라 주세요");
+  };
+  post["meta/get"] = async () => {
+    const av = await MT.available();
+    if (!av.on) return { available: av, accounts: [], channels: [], jobs: [], summary: { waiting: 0, unknown: 0, failed: 0 }, signin: { running: false } };
+    const st = MT.signin.state;
+    return {
+      available: av,
+      accounts: MT.accountsView(),
+      channels: Object.entries(loadChannels()).map(([alias, cf]) => ({ alias, ...MT.bindingOf(cf) })),
+      jobs: MP.listJobs(20),
+      summary: MP.summary(),
+      signin: { running: st.running, provider: st.provider, why: st.why ?? "", done: st.done ? { username: st.done.username, provider: st.done.provider } : null },
+    };
+  };
+  post["meta/signin/start"] = async (c) => {
+    const provider = 메타쪽(c.body.provider);
+    let r;
+    try { r = await MT.startSignIn(provider); } catch (e) { throw new Bad(한줄(e)); }
+    await PLAT.openUrl(r.url, SG.appSettings().browser).catch(() => false);
+    return { url: r.url };
+  };
+  post["meta/signin/check"] = async () => {
+    const st = MT.signin.state;
+    if (st.running) return { state: "waiting" };
+    if (st.done) return { state: "done", username: st.done.username, provider: st.done.provider };
+    throw new Bad(st.why || "로그인이 끝나지 않았습니다");
+  };
+  post["meta/signin/stop"] = async () => { MT.signin.stop?.(); return {}; };
+  post["meta/disconnect"] = async (c) => {
+    const key = String(c.body.key ?? "");
+    if (!(await MT.disconnect(key))) throw new Bad("연결된 계정이 아닙니다");
+    return {};
+  };
+  post["meta/bind"] = async (c) => {
+    const key = String(c.body.key ?? "");
+    try { await MT.bindChannel(String(c.body.alias ?? ""), 메타쪽(c.body.provider), key || null); } catch (e) { if (e instanceof Bad) throw e; throw new Bad(한줄(e)); }
+    return {};
+  };
+  /** 올리는 일은 오래 걸릴 수 있어 기다리지 않고 뒤에서 돌린다 — 같은 영상을 두 번 올리지 않게 run 이 잠금으로 막는다 */
+  const 뒤에서올리기 = () => { MP.run({}).catch(() => {}); };
+  post["meta/job/retry"] = async (c) => {
+    try { await MP.retryTarget(String(c.body.id ?? ""), 메타쪽(c.body.provider)); } catch (e) { if (e instanceof Bad) throw e; throw new Bad(한줄(e)); }
+    뒤에서올리기();
+    return {};
+  };
+  post["meta/job/check"] = async (c) => await MP.checkUnknown(String(c.body.id ?? ""), 메타쪽(c.body.provider));
+  post["meta/job/resolve"] = async (c) => {
+    const outcome = c.body.outcome === "올림" ? "올림" : c.body.outcome === "안올라감" ? "안올라감" : null;
+    if (!outcome) throw new Bad("올라갔는지 안 올라갔는지 골라 주세요");
+    try { await MP.resolveTarget(String(c.body.id ?? ""), 메타쪽(c.body.provider), outcome, { url: c.body.url ? String(c.body.url) : undefined }); } catch (e) { if (e instanceof Bad) throw e; throw new Bad(한줄(e)); }
+    if (outcome === "안올라감") 뒤에서올리기();
+    return {};
+  };
+  post["meta/job/cancel"] = async (c) => {
+    if (!(await MP.cancelJob(String(c.body.id ?? "")))) throw new Bad("취소할 수 있는 올리기가 없습니다");
+    return {};
+  };
 
   /* ── 코드 인증 (TV·입력 제한 기기 방식) ── */
   post["code/start"] = async (c) => {

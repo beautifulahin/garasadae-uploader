@@ -56,12 +56,12 @@ if p.is_file():
     src_dirs.append(p.read_text(encoding='utf-8').splitlines()[0].strip())
 secrets = set()
 for d in src_dirs:
-    for n in ('client_secret.json', 'device_secret.json'):
+    for n in ('client_secret.json', 'device_secret.json', 'meta.json'):
         fp = pathlib.Path(d) / n
         if fp.is_file():
             try:
                 j = json.loads(fp.read_text(encoding='utf-8')); c = j.get('installed') or j.get('web') or j
-                for k in ('client_id', 'client_secret'):
+                for k in ('client_id', 'client_secret', 'ig_app_id', 'th_app_id', 'worker_url'):
                     v = str(c.get(k, ''))
                     if len(v) >= 8: secrets.add(v)
             except Exception: pass

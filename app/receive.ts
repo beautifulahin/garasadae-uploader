@@ -443,6 +443,8 @@ export async function receive(channel: string, video: string, o: ReceiveOpts = {
     _승인: `${o.who || "사람 승인"} (${minuteWall(지금)})`,
   };
   if (long) job.롱폼 = true;
+  // 영상 쪽지가 이 영상만 인스타·스레드를 켜거나 껐다면 올릴 때까지 일감에 실어 둔다(쪽지 json 은 채널 폴더로 복사되지 않는다)
+  if (g.note && (g.note.instagram !== undefined || g.note.threads !== undefined)) job.메타올림 = { instagram: g.note.instagram, threads: g.note.threads };
   await add(job, isoWall(쏠때), say);
   // 일일 한도로 조정된 실제 큐 시각을 표시하고, 미래 항목을 즉시 쏘지 않는다.
   const queued = queueList().find((row) => row.file === dst);

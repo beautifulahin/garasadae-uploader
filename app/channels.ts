@@ -59,6 +59,8 @@ export interface ChannelConf {
   fixed_tags?: string[];
   /** 말투 메모 — 비우면 이 채널의 지난 영상 제목·설명을 보고 AI 가 알아서 맞춘다 */
   tone?: string;
+  /** 인스타그램·스레드 자동 올리기 — 이 채널의 쇼츠를 올릴 연결 계정(메타토큰.json 의 키). 없으면 꺼짐(기본) */
+  meta?: { instagram?: string; threads?: string };
   [k: string]: unknown;
 }
 export type Channels = Record<string, ChannelConf>;

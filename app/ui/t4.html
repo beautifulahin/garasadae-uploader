@@ -16,6 +16,16 @@
 .t4-warnbox{margin-top:10px;padding:9px 11px;border-radius:var(--rs);background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.28);font-size:11.5px;color:var(--t2);line-height:1.7}
 .t4-warnbox b{color:var(--gold)}
 .t4-out{max-height:260px}
+.t4-sub{margin:14px 0 4px;font-size:12px;font-weight:700;color:var(--t2)}
+.t4-mtrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--bdr);font-size:12px}
+.t4-mtrow:last-child{border-bottom:none}
+.t4-mtrow .nm{flex:1;min-width:120px;color:var(--t1)}
+.t4-mtrow select{max-width:190px}
+.t4-mtjob{padding:8px 0;border-bottom:1px solid var(--bdr)}
+.t4-mtjob:last-child{border-bottom:none}
+.t4-mtjob .tt{font-size:12px;color:var(--t1)}
+.t4-mtjob .hintline{margin-top:3px}
+.t4-mtjob .tb{padding:3px 9px;font-size:11px}
 </style>
 
 <div class="tp solo" id="t4">
@@ -191,6 +201,29 @@
     <div class="hintline" id="t4CpUsage"></div>
     <div class="hintline" id="t4CpTestLine"></div>
     <div class="t4-warnbox hide" id="t4CpWarn"></div>
+  </div>
+
+  <!-- 📷 인스타그램·스레드 (연결 정보가 들어 있는 판에서만 보인다) -->
+  <div class="card hide" id="t4MtCard">
+    <h3>📷 인스타그램·스레드 <span class="t4-chip" id="t4MtChip">-</span></h3>
+    <div class="p13">유튜브에 올린 <b>쇼츠</b>가 공개되는 때에 맞춰 <b>인스타그램 릴스</b>와 <b>스레드</b>에도 같은 영상을 자동으로 올립니다.
+    롱폼·가로 영상은 올리지 않고, 올리다 실패해도 유튜브 쪽에는 아무 영향이 없습니다. 인스타그램은 <b>비즈니스 또는 크리에이터 계정</b>이어야 하고,
+    메타 앱 심사가 끝나기 전에는 앱에 초대된 테스터 계정만 올릴 수 있습니다.</div>
+    <div class="t4-row">
+      <button type="button" class="tb on" id="t4MtIgBtn" onclick="t4MtLogin('instagram')">📷 인스타그램 연결</button>
+      <button type="button" class="tb on" id="t4MtThBtn" onclick="t4MtLogin('threads')">🧵 스레드 연결</button>
+      <button type="button" class="tb hide" id="t4MtStop" onclick="t4MtStop()">로그인 그만두기</button>
+      <button type="button" class="tb hide" id="t4MtCopy" onclick="t4MtCopyUrl()">🔗 로그인 주소 복사</button>
+    </div>
+    <div class="hintline" id="t4MtLine">로그인만 하면 됩니다. 열쇠나 비밀번호를 이 앱에 입력하지 않습니다.</div>
+    <div id="t4MtAccts"></div>
+    <div class="t4-sub">채널마다 올릴 계정 <span style="font-weight:400;color:var(--t3)">(기본은 끔)</span></div>
+    <div id="t4MtBind"></div>
+    <div class="hintline">영상 하나만 켜거나 끄려면 영상 옆 쪽지(json)에 <b>"instagram": true</b> · <b>"threads": false</b> 처럼 적으세요. 쪽지가 채널 설정보다 먼저입니다.</div>
+    <div class="t4-sub">최근 결과</div>
+    <div id="t4MtJobs"><div class="hintline">아직 없습니다.</div></div>
+    <div class="t4-warnbox">올리는 중에 연결이 끊겨 <b>올라갔는지 알 수 없는 영상</b>은 같은 영상이 두 번 올라가지 않도록 <b>다시 보내지 않습니다.</b>
+    계정의 최근 게시물에서 찾아 보거나, 직접 확인하고 「올라갔음 / 안 올라갔음」을 눌러 주세요.</div>
   </div>
 
   <div class="card">
