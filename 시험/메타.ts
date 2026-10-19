@@ -791,6 +791,53 @@ async function 오류와기다림시험() {
     const d = await 완주(w, "a.mp4");
     같나("중계 서버가 일시적으로 안 되면 나중에 다시", [J(d.id).targets.instagram!.state, J(d.id).targets.instagram!.next_at !== undefined], ["대기", true]);
   });
+  구역("임시 보관 — 중계가 이번 달 R2 무료 한도로 닫았을 때 (과금이 생기지 않게 멈춘 것)");
+  await 모래상자(async (dir) => {
+    const w = await 세상만들기(dir);
+    const 열림 = new Date(Date.now() + 12 * 일);
+    열림.setUTCHours(0, 0, 0, 0);
+    const 날짜글 = `${열림.getMonth() + 1}월 ${열림.getDate()}일`;
+    w.meta.failNext(/relay\.example\.test\/stage\/ticket/, 503, { ok: false, code: "monthly_free_cap", resource: "class_a", reopens_at: 열림.toISOString(), why: "중계가 적은 말" }, 2);
+    const d = await 담기(w, "cap.mp4");
+    await MP.markPublic(d.id);
+    const t0 = new Date(Date.now() + 1000);
+    const r1 = await MP.run({ ...빠르게, now: t0 });
+    const ig = J(d.id).targets.instagram!, th = J(d.id).targets.threads!;
+    같나("인스타·스레드 모두 실패가 아니라 「대기」로 남고, 다시 열리는 시각까지 건드리지 않는다", [ig.state, th.state, ig.next_at, th.next_at, ig.tries, th.tries], ["대기", "대기", 열림.toISOString(), 열림.toISOString(), 0, 0]);
+    같나("화면에 보이는 까닭: 「이번 달 무료 한도 도달 — N월 N일에 다시 열림」", [ig.why, th.why], [`이번 달 무료 한도 도달 — ${날짜글}에 다시 열림`, `이번 달 무료 한도 도달 — ${날짜글}에 다시 열림`]);
+    const 보임 = MP.listJobs().find((x) => x.id === d.id)!.targets;
+    같나("화면 목록에도 그 문구 · 단추 없음(자동으로 기다림)", [보임.map((x) => x.state), 보임.every((x) => x.why.includes(`${날짜글}에 다시 열림`)), 보임.every((x) => x.actions.length === 0)], [["대기", "대기"], true, true]);
+    같나("메타(인스타·스레드)는 한 번도 부르지 않았다 · 올리기 결과는 대기 두 건", [w.meta.callsTo(/^(ig|th)\./).length, r1.waiting, r1.failed], [0, 2, 0]);
+    참인가("기록에 「보류」 한 줄씩", ((await 로그("올리기.log")).match(/보류/g) ?? []).length === 2);
+    참인가("유튜브 쪽 일감 구조는 그대로(영상 사본 보관 · 일감은 진행 중)", J(d.id).phase === "진행" && (await 있나(J(d.id).file)));
+
+    const 호출 = w.meta.callsTo(/stage\/ticket/).length;
+    await MP.run({ ...빠르게, now: new Date(t0.getTime() + 일) });
+    await MP.run({ ...빠르게, now: new Date(열림.getTime() - 분) });
+    같나("다시 열리는 시각 전에는 몇 번을 돌려도 중계를 다시 부르지 않는다", w.meta.callsTo(/stage\/ticket/).length, 호출);
+
+    await MP.run({ ...빠르게, now: new Date(열림.getTime() + 분) });
+    같나("다시 열린 뒤 처음 도는 때 올린다(이번엔 중계가 받아 준다)", [J(d.id).targets.instagram!.state, J(d.id).targets.threads!.state, 게시(w)], ["올림", "올림", 2]);
+    참인가("올린 뒤에는 보류 까닭이 지워진다", !J(d.id).targets.instagram!.why && !J(d.id).targets.threads!.why);
+  });
+  await 모래상자(async (dir) => {
+    const w = await 세상만들기(dir, { th: false });
+    w.meta.failNext(/relay\.example\.test\/stage\/ticket/, 429, { ok: false, code: "stage_full", retry_after: 1800, why: "가득" });
+    const d = await 담기(w, "full.mp4");
+    await MP.markPublic(d.id);
+    const t0 = new Date(Date.now() + 1000);
+    await MP.run({ ...빠르게, now: t0 });
+    const t = J(d.id).targets.instagram!;
+    같나("보관함이 가득 찬 것은 달 한도와 다르다: 30분 뒤 다시 · 시도 1번", [t.state, Date.parse(t.next_at!) - t0.getTime(), t.tries, t.why!.includes("가득")], ["대기", 30 * 분, 1, true]);
+    await MP.run({ ...빠르게, now: new Date(t0.getTime() + 31 * 분) });
+    같나("30분 뒤 다시 하면 올라간다", [J(d.id).targets.instagram!.state, 게시(w)], ["올림", 1]);
+  });
+  await 모래상자(async (dir) => {
+    const w = await 세상만들기(dir, { th: false });
+    w.meta.failNext(/relay\.example\.test\/stage\/ticket/, 503, { ok: false, code: "monthly_free_cap", reopens_at: "엉터리 시각" });
+    const d = await 완주(w, "bad.mp4");
+    같나("다시 열리는 시각이 엉터리면 한도 문구를 믿지 않고 일반 거절(5xx 라 나중에 다시)로 처리", [J(d.id).targets.instagram!.state, J(d.id).targets.instagram!.why!.includes("임시 보관 요청이 거절됐습니다 (503")], ["대기", true]);
+  });
   await 모래상자(async (dir) => {
     const w = await 세상만들기(dir, { th: false });
     const d = await 담기(w, "a.mp4");

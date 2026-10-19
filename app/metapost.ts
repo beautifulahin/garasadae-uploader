@@ -499,7 +499,16 @@ async function graphPost(p: Provider, path: string, token: string, params: Recor
 
 /* ─────────── 임시 보관 (중계 서버 R2) ─────────── */
 
-class StageError extends Error { constructor(m: string, public retry = true) { super(m); this.name = "StageError"; } }
+/**
+ * retry=false 는 다시 해도 소용없다는 뜻. 중계가 「이번 달 무료 한도」로 닫았으면(monthly_free_cap) capUntil 에 다시 열리는 시각이 들어 있고,
+ * 그때까지 자동으로 다시 하지 않는다. retryMin 은 일시적인 막힘(보관함이 가득 참)이 풀릴 만한 때까지의 분.
+ */
+class StageError extends Error {
+  constructor(m: string, public retry = true, public o: { capUntil?: string; retryMin?: number } = {}) { super(m); this.name = "StageError"; }
+}
+
+/** 「11월 1일」 — 이 컴퓨터의 날짜로 */
+const 월일 = (iso: string) => { const d = new Date(iso); return `${d.getMonth() + 1}월 ${d.getDate()}일`; };
 
 async function ensureStaged(id: string, p: Provider, token: string, now: Date): Promise<Staged> {
   const job = loadJobs().jobs[id];
@@ -517,6 +526,14 @@ async function ensureStaged(id: string, p: Provider, token: string, now: Date): 
   });
   const j = await r.json().catch(() => ({})) as Obj;
   if (!r.ok || !j.ok) {
+    // 중계가 R2 의 이번 달 무료 한도에 닿아 닫았다 — 과금이 생기지 않게 멈춘 것이다. 다음 구간이 열릴 때까지 다시 시도하지 않는다.
+    if (j.code === "monthly_free_cap" && Number.isFinite(Date.parse(String(j.reopens_at)))) {
+      throw new StageError(`이번 달 무료 한도 도달 — ${월일(String(j.reopens_at))}에 다시 열림`, false, { capUntil: new Date(String(j.reopens_at)).toISOString() });
+    }
+    // 동시에 보관할 수 있는 양이 찼다 — 곧(보관 중인 영상이 지워지면) 풀리는 일시적인 막힘
+    if (j.code === "stage_full") {
+      throw new StageError("임시 보관함이 가득 차 있어 잠시 뒤 다시 시도합니다", true, { retryMin: Math.min(60, Math.max(10, Math.ceil((Number(j.retry_after) || 600) / 60))) });
+    }
     throw new StageError(`임시 보관 요청이 거절됐습니다 (${r.status}${j.why ? " — " + String(j.why) : ""})`, r.status >= 500 || r.status === 429);
   }
   // 파일을 통째로 읽어 보낸다 — 조각 스트림으로 보내면 Content-Length 가 빠져 R2 가 받지 않는다 (300MB 상한)
@@ -568,13 +585,21 @@ type Outcome = { kind: "done" } | { kind: "wait" } | { kind: "stop" };
 /** 에러를 장부에 반영한다 — 일시 오류·한도는 나중에 다시, 그 밖은 실패 */
 async function onError(id: string, p: Provider, e: unknown, step: string, ctx: Required<Pick<RunCtx, "now">> & RunCtx): Promise<void> {
   const now = ctx.now;
+  // 이번 달 무료 한도로 닫힘 — 실패가 아니다. 대기 그대로 두고 다시 열리는 시각까지 건드리지 않는다(시도 횟수도 올리지 않는다).
+  if (e instanceof StageError && e.o.capUntil) {
+    const until = e.o.capUntil;
+    await patchTarget(id, p, (t) => { t.next_at = until; t.why = e.message; }, now);
+    const j = loadJobs().jobs[id];
+    await recordLine("올리기.log", `${이름[p]} 보류  [${j?.channel ?? ""}] ${cut(j?.title ?? "", 40)}  ${step} — ${e.message}`);
+    return;
+  }
   const retry = (e instanceof MetaApiError && (e.kind === "temp" || e.kind === "limit")) || (e instanceof StageError && e.retry);
   const why = e instanceof StageError ? e.message : e instanceof MetaAuthError ? e.message : explainMeta(e);
   let gave = false;
   await patchTarget(id, p, (t) => {
     t.tries++;
     if (retry && t.tries < 5) {
-      const gap = e instanceof MetaApiError && e.kind === "limit" ? 60 : 10;
+      const gap = e instanceof StageError && e.o.retryMin ? e.o.retryMin : e instanceof MetaApiError && e.kind === "limit" ? 60 : 10;
       t.next_at = iso(new Date(now.getTime() + gap * 분));
       t.why = `${step} 중 오류 — 나중에 다시 시도합니다 (${why})`;
     } else {

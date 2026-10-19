@@ -10,14 +10,20 @@
 //                                       브라우저는 http://127.0.0.1:<포트>/meta/done 으로 돌아간다 — ★주소에 토큰을 싣지 않는다.
 //   POST /pickup                        앱이 verifier 를 보여 주고 토큰을 한 번만 받아 간다 (받으면 바로 지운다 · PKCE 와 같은 꼴).
 //   POST /stage/ticket · /stage/delete  영상 임시 보관(R2): 일회용 업로드 주소·읽기 주소를 주고, 올린 뒤 지운다. 1시간 지난 것은 크론이 지운다.
-//   GET  /s/<id>.<mp4|mov>              메타 서버가 영상을 가져가는 서명된 읽기 주소 (1시간 · 이어받기 범위 지원)
+//                                       ★R2 무료 한도의 80%(기본)에 닿으면 새 보관을 거절한다(monthly_free_cap) — 장부는 ledger.ts.
+//   GET  /s/<id>.<mp4|mov>              메타 서버가 영상을 가져가는 서명된 읽기 주소 (1시간 · 이어받기 범위 지원 · 읽기 한도도 장부가 센다)
+//   GET  /usage                         이번 구간 R2 사용량 장부 (관리용 · SIGN_KEY 로 서명한 10분 토큰이 있어야 한다)
 //   POST /ig|th/deauthorize · /ig|th/delete   메타가 요구하는 연결 해제·데이터 삭제 알림 (signed_request 를 앱 비밀로 확인한다)
 //   GET  /deletion?code=                삭제 요청 처리 상태 쪽
 //
 // 저장하는 것: KV 에 로그인 직후 5분간의 토큰(받아 가면 즉시 삭제) · 하루 사용량 숫자 · 삭제 요청 번호. R2 에 1시간 이하의 영상 임시본.
+//             Durable Object 하나(LEDGER)에 이번 달 R2 호출 횟수·보관 용량 장부.
 // 영상·토큰·계정 정보를 이 중계가 오래 갖고 있지 않는다.
 //
 // 이 파일은 Cloudflare 전용 형식을 쓰지 않는 평범한 TypeScript 다(바깥 의존 없음) — 시험이 가짜 KV·R2·메타 서버로 그대로 부른다.
+
+import { type LedgerAsk, type LedgerEnv, type LedgerRes, type Refusal } from "./ledger.ts";
+export { R2Ledger } from "./ledger.ts"; // wrangler 가 Durable Object 클래스를 이 파일의 내보내기에서 찾는다
 
 /* ============================================================ 환경 꼴 */
 
@@ -31,11 +37,15 @@ export interface R2Bucket {
   get(key: string, opts?: { range?: { offset: number; length?: number } }): Promise<R2Object | null>;
   head(key: string): Promise<{ size: number; uploaded: Date } | null>;
   delete(keys: string | string[]): Promise<void>;
-  list(opts?: { prefix?: string; cursor?: string; limit?: number }): Promise<{ objects: { key: string; uploaded: Date }[]; truncated: boolean; cursor?: string }>;
+  list(opts?: { prefix?: string; cursor?: string; limit?: number }): Promise<{ objects: { key: string; uploaded: Date; size: number }[]; truncated: boolean; cursor?: string }>;
 }
-export interface Env {
+/** 장부 Durable Object 이름공간 — 이름 하나(「r2」)의 객체만 쓴다 */
+export interface LedgerNamespace { idFromName(name: string): unknown; get(id: unknown): { fetch(req: Request): Promise<Response> } }
+export interface Env extends LedgerEnv {
   META_KV: KV;
   STAGE: R2Bucket;
+  /** R2 무료 한도 장부 (Durable Object). 없으면 임시 보관을 열지 않는다 — 센 적 없는 R2 호출은 하지 않는다 */
+  LEDGER?: LedgerNamespace;
   /** 메타 앱 (인스타그램 로그인 · 스레드) — 앱 번호는 공개돼도 되지만 앱 비밀은 secret */
   IG_APP_ID: string; IG_APP_SECRET: string;
   TH_APP_ID: string; TH_APP_SECRET: string;
@@ -109,8 +119,8 @@ function safeEq(a: string, b: string): boolean {
   return d === 0;
 }
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
+const json = (body: unknown, status = 200, extra: Record<string, string> = {}) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...extra } });
 const 쪽 = (status: number, 제목: string, 본문: string) =>
   new Response(
     `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${제목}</title>` +
@@ -270,6 +280,34 @@ async function tokenOwner(deps: Deps, kind: Kind, token: string): Promise<string
   } catch { return null; }
 }
 
+/** 장부에 일 하나를 시킨다. 장부가 없거나 고장나면 null — 부르는 쪽이 「센 적 없는 R2 호출은 하지 않는다」로 처리한다. */
+async function askLedger(env: Env, deps: Deps, req: LedgerAsk): Promise<LedgerRes | null> {
+  if (!env.LEDGER) return null;
+  try {
+    const stub = env.LEDGER.get(env.LEDGER.idFromName("r2"));
+    const r = await stub.fetch(new Request("https://ledger.internal/op", { method: "POST", body: JSON.stringify({ ...req, now: deps.now() }) }));
+    return r.ok ? await r.json() as LedgerRes : null;
+  } catch { return null; }
+}
+
+const 월일 = (iso: string) => { const d = new Date(iso); return `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일(UTC 기준)`; };
+
+/** 장부가 거절한 일을 앱이 알아들을 답으로 바꾼다 — code 가 기계가 읽는 이유, why 가 사람이 읽는 말 */
+function 거절답(r: Refusal, now: number): Response {
+  if (r.code === "monthly_free_cap") {
+    const 무엇 = r.resource === "class_b" ? "읽기" : r.resource === "storage" ? "보관 용량" : "쓰기";
+    const wait = Math.max(60, Math.ceil((Date.parse(r.reopens_at ?? "") - now) / 1000) || 3600);
+    return json({
+      ok: false, code: "monthly_free_cap", resource: r.resource, reopens_at: r.reopens_at,
+      why: `이번 달 임시 보관 무료 한도(${무엇})에 닿아 멈췄습니다 — ${r.reopens_at ? 월일(r.reopens_at) : "다음 달"}에 다시 열립니다`,
+    }, 503, { "retry-after": String(wait) });
+  }
+  if (r.code === "stage_full") {
+    return json({ ok: false, code: "stage_full", retry_after: r.retry_after ?? 600, why: "임시 보관함이 가득 찼습니다 — 보관 중인 영상이 지워지면 다시 받습니다" }, 429, { "retry-after": String(r.retry_after ?? 600) });
+  }
+  return json({ ok: false, code: "bad_request", why: "요청 모양이 맞지 않습니다" }, 400);
+}
+
 async function stageTicket(env: Env, req: Request, url: URL, deps: Deps): Promise<Response> {
   let b: { provider?: unknown; token?: unknown; size?: unknown; ext?: unknown } = {};
   try { b = await req.json(); } catch { return json({ ok: false, why: "요청 모양이 맞지 않습니다" }, 400); }
@@ -286,7 +324,6 @@ async function stageTicket(env: Env, req: Request, url: URL, deps: Deps): Promis
   const rk = `rl:${kind}:${uid}:${day}`;
   const used = Number(await env.META_KV.get(rk)) || 0;
   if (used >= 하루한도) return json({ ok: false, why: "오늘 임시 보관 횟수를 넘었습니다" }, 429);
-  await env.META_KV.put(rk, String(used + 1), { expirationTtl: 90_000 });
 
   const id = hex(deps.random(16));
   const name = `${id}.${ext}`;
@@ -297,20 +334,29 @@ async function stageTicket(env: Env, req: Request, url: URL, deps: Deps): Promis
   });
   const exp = now + 읽기주소ms;
   const sig = b64u(await hmac(env.SIGN_KEY, `get:${name}:${exp}`));
+  const del = b64u(await hmac(env.SIGN_KEY, `del:${id}`));
+  // ★주소를 내주기 *전에* 무료 한도 장부에 먼저 잡아 둔다(예약). 한도를 넘길 보관이면 주소를 아예 만들어 주지 않는다.
+  const slot = await askLedger(env, deps, { op: "ticket", name, size });
+  if (!slot) return json({ ok: false, code: "ledger_unavailable", why: "무료 한도 장부를 확인하지 못해 임시 보관을 잠시 열지 않습니다" }, 503, { "retry-after": "300" });
+  if (!slot.ok) return 거절답(slot, now);
+  await env.META_KV.put(rk, String(used + 1), { expirationTtl: 90_000 });
   return json({
     ok: true, id, name, put_url: put, put_expires_in: 업로드주소초,
     get_url: `${baseUrl(env, url)}/s/${name}?e=${exp}&s=${sig}`, get_expires_at: new Date(exp).toISOString(),
-    delete_sig: b64u(await hmac(env.SIGN_KEY, `del:${id}`)),
+    delete_sig: del,
   });
 }
 
-async function stageDelete(env: Env, req: Request): Promise<Response> {
+async function stageDelete(env: Env, req: Request, deps: Deps): Promise<Response> {
   let b: { id?: unknown; sig?: unknown } = {};
   try { b = await req.json(); } catch { return json({ ok: false, why: "요청 모양이 맞지 않습니다" }, 400); }
   const id = String(b.id ?? "");
   if (!/^[0-9a-f]{32}$/.test(id)) return json({ ok: false, why: "번호 모양이 맞지 않습니다" }, 400);
   if (!safeEq(b64u(await hmac(env.SIGN_KEY, `del:${id}`)), String(b.sig ?? ""))) return json({ ok: false, why: "서명이 맞지 않습니다" }, 403);
-  await env.STAGE.delete([`stage/${id}.mp4`, `stage/${id}.mov`]);
+  // 한 개씩 지운다 — 요금 문서에서 무료라고 적힌 것은 DeleteObject(한 개)뿐이다. 지우기는 한도에 닿아도 멈추지 않는다.
+  await env.STAGE.delete(`stage/${id}.mp4`);
+  await env.STAGE.delete(`stage/${id}.mov`);
+  await askLedger(env, deps, { op: "release", id });
   return json({ ok: true });
 }
 
@@ -320,6 +366,10 @@ async function stageServe(env: Env, req: Request, url: URL, name: string, deps: 
   const sig = url.searchParams.get("s") ?? "";
   if (!Number.isFinite(exp) || exp <= deps.now()) return new Response("expired", { status: 410 });
   if (!safeEq(b64u(await hmac(env.SIGN_KEY, `get:${name}:${exp}`)), sig)) return new Response("forbidden", { status: 403 });
+  // 읽기(Class B)도 부르기 전에 장부에 먼저 적는다: 머리 확인(head) 1건 + 내용 읽기(get) 1건 — HEAD 요청은 앞의 것뿐
+  const slot = await askLedger(env, deps, { op: "read", n: req.method === "HEAD" ? 1 : 2 });
+  if (!slot) return new Response("ledger unavailable", { status: 503, headers: { "retry-after": "300" } });
+  if (!slot.ok) return new Response("monthly free cap", { status: 403, headers: { "cache-control": "no-store" } });
   const key = `stage/${name}`;
   const head = await env.STAGE.head(key);
   if (!head) return new Response("not found", { status: 404 });
@@ -343,18 +393,53 @@ async function stageServe(env: Env, req: Request, url: URL, name: string, deps: 
   return new Response(obj.body, { status, headers: heads });
 }
 
-/** 크론 — 1시간 지난 임시본을 지운다 (R2 의 수명 규칙은 최소 1일이라 이 크론이 1시간을 지킨다) */
+/** 크론 한 번에 지우는 최대 개수 (한 번의 실행이 쓸 수 있는 호출 수를 넘지 않게 — 남은 것은 10분 뒤에) */
+const 크론삭제상한 = 400;
+
+/**
+ * 크론 — 1시간 지난 임시본을 지운다 (R2 의 수명 규칙은 최소 1일이라 이 크론이 1시간을 지킨다).
+ * 목록 조회는 Class A 라서 부르기 전에 장부에 적는다. 지우기는 무료라 한도에 닿아도 멈추지 않는다.
+ * 장부에 일이 안 닿아도(장부 고장) 지우기는 한다 — 목록 조회 한 번(10분에 1건)보다 남아 있는 영상 쪽이 비용이 크다.
+ */
 export async function cleanStage(env: Env, deps: Deps = 실제): Promise<number> {
   let cursor: string | undefined, n = 0;
   const limit = deps.now() - 읽기주소ms;
   for (let i = 0; i < 50; i++) {
+    const slot = await askLedger(env, deps, { op: "list", pages: 1 });
+    if (slot && !slot.ok) break; // 무료 한도 자체(100%)에 닿았다 — 목록을 부르지 않는다
     const page = await env.STAGE.list({ prefix: "stage/", cursor, limit: 500 });
-    const old = page.objects.filter((o) => o.uploaded.getTime() < limit).map((o) => o.key);
-    if (old.length) { await env.STAGE.delete(old); n += old.length; }
+    // 장부와 맞춘다: 너무 오래된 것 · 말한 크기보다 큰 것을 가려내고, 실제 보관 용량을 장부의 오늘 최고치에 반영한다
+    const sw = await askLedger(env, deps, {
+      op: "sweep", present: page.objects.map((o) => ({ name: o.key.replace(/^stage\//, ""), size: o.size, uploaded: o.uploaded.getTime() })),
+    });
+    const kill = sw && sw.ok && Array.isArray(sw.kill)
+      ? (sw.kill as string[]).map((x) => `stage/${x}`)
+      : page.objects.filter((o) => o.uploaded.getTime() < limit).map((o) => o.key);
+    for (const key of kill) {
+      if (n >= 크론삭제상한) return n;
+      await env.STAGE.delete(key);
+      n++;
+    }
     if (!page.truncated) break;
     cursor = page.cursor;
   }
   return n;
+}
+
+/* ============================================================ 사용량 보기 (관리용) */
+
+/** Authorization: Bearer <만료 ms>.<서명> — 서명 = HMAC(SIGN_KEY, "usage:<만료 ms>"). 만료는 지금부터 1시간 안이어야 한다. */
+async function usage(env: Env, req: Request, deps: Deps): Promise<Response> {
+  if (!env.SIGN_KEY) return json({ ok: false, why: "준비되지 않았습니다" }, 503);
+  const m = /^Bearer (\d{10,16})\.([A-Za-z0-9_-]{20,64})$/.exec(req.headers.get("authorization") ?? "");
+  const exp = m ? Number(m[1]) : 0;
+  const now = deps.now();
+  if (!m || exp <= now || exp - now > 3600_000 || !safeEq(b64u(await hmac(env.SIGN_KEY, `usage:${exp}`)), m[2])) {
+    return json({ ok: false, why: "확인할 수 없습니다" }, 401);
+  }
+  const got = await askLedger(env, deps, { op: "usage" });
+  if (!got) return json({ ok: false, why: "장부를 읽지 못했습니다" }, 503);
+  return json(got);
 }
 
 /* ============================================================ 메타가 부르는 연결 해제 · 데이터 삭제 알림 */
@@ -403,7 +488,8 @@ export async function handle(req: Request, env: Env, deps: Deps = 실제): Promi
     }
     if (m === "POST" && p === "/pickup") return await pickup(env, req);
     if (m === "POST" && p === "/stage/ticket") return await stageTicket(env, req, url, deps);
-    if (m === "POST" && p === "/stage/delete") return await stageDelete(env, req);
+    if (m === "POST" && p === "/stage/delete") return await stageDelete(env, req, deps);
+    if (m === "GET" && p === "/usage") return await usage(env, req, deps);
     if ((r = /^\/s\/([^/]+)$/.exec(p)) && (m === "GET" || m === "HEAD")) return await stageServe(env, req, url, r[1], deps);
     if ((r = /^\/(ig|th)\/(deauthorize|delete)$/.exec(p)) && m === "POST") return await metaNotice(env, req, url, r[1] as Kind, r[2] as "deauthorize" | "delete", deps);
     if (m === "GET" && p === "/deletion") return await deletionPage(env, url);
