@@ -137,7 +137,7 @@ export async function tick(o: TickOpts = {}): Promise<TickResult> {
       if (!(await MT.available()).on) return "꺼짐";
       const g = await MT.refreshDue();
       const r = await MP.run({ say });
-      return r.busy ? "다른 곳에서 올리는 중" : `올림 ${r.posted} · 기다림 ${r.waiting} · 실패 ${r.failed} · 확인필요 ${r.unknown}${g.due ? ` · 토큰갱신 ${g.due}` : ""}`;
+      return r.busy ? "다른 곳에서 올리는 중" : `올림 ${r.posted} · 기다림 ${r.waiting} · 실패 ${r.failed} · 확인필요 ${r.unknown}${r.shrunk ? ` · 영상 줄임 ${r.shrunk}` : ""}${g.due ? ` · 토큰갱신 ${g.due}` : ""}`;
     });
 
     for (const s of res.steps) await recordLine("심사확인.log", `${s.ok ? "·" : "✗"} ${s.name}  ${s.note}`);

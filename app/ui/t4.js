@@ -392,7 +392,7 @@
     // 최근 결과
     const jobs = MT.jobs || [];
     $('t4MtJobs').innerHTML = jobs.length ? jobs.map(j => {
-      const ph = MT_PHASE[j.phase] || '';
+      const ph = j.shrink === '줄이는중' ? '릴스·스레드용으로 영상을 줄이는 중' : j.shrink === '대기' ? '릴스·스레드용으로 영상을 줄일 차례를 기다리는 중' : (MT_PHASE[j.phase] || '');
       const when = j.phase !== '끝' && j.go_after ? ` · ${mdHm(j.go_after)} 이후` : '';
       const rows = (j.targets || []).map(t => {
         const cls = t.state === '올림' ? 't4-ok' : (t.state === '실패' || t.state === '결과불명') ? 't4-bad' : '';

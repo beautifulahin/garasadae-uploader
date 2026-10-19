@@ -301,7 +301,7 @@ async function 메타담기(
       if (n && (n.instagram !== undefined || n.threads !== undefined)) flags = { instagram: n.instagram, threads: n.threads };
     }
     const r = await MP.enqueue({ videoId: vid, channel: 채널, file: path, title: 글.title, desc: 글.desc, tags: 글.tags, info, kind, flags });
-    if (r.queued) say(`    인스타그램·스레드: ${r.why === "대기" ? "유튜브 공개 뒤 올립니다" : "올리지 않습니다 — 화면에서 까닭을 볼 수 있습니다"}`);
+    if (r.queued) say(`    인스타그램·스레드: ${r.why === "대기" ? (r.shrink ? "릴스·스레드 규격에 맞게 영상을 줄여서 유튜브 공개 뒤 올립니다" : "유튜브 공개 뒤 올립니다") : "올리지 않습니다 — 화면에서 까닭을 볼 수 있습니다"}`);
   } catch (e) {
     say(`    인스타그램·스레드 준비는 건너뜁니다 — ${cut(e instanceof Error ? e.message : String(e), 100)}`);
     await recordLine("올리기.log", `인스타그램·스레드 준비 실패  [${채널}] ${baseName(path)}  ${cut(e instanceof Error ? e.message : String(e), 100)}`);

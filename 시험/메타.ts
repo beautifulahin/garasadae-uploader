@@ -13,7 +13,9 @@ import { tick } from "../app/tick.ts";
 import { buildRoutes, newAppState } from "../app/routes.ts";
 import { appendLedger } from "../app/ledger.ts";
 import { confFor, loadChannels } from "../app/channels.ts";
-import { dataPath, withFileLock, writeJson } from "../app/paths.ts";
+import { dataPath, IS_MAC, withFileLock, writeJson } from "../app/paths.ts";
+import { forceToolMissing, forceToolPath, resetToolCache } from "../app/tools.ts";
+import { 영상쓰기 } from "./도구.ts";
 import { isoWall, wallNow } from "../app/clock.ts";
 import { readNote } from "../app/sidecar.ts";
 import type { MediaInfo } from "../app/shorts.ts";
@@ -55,8 +57,13 @@ async function 연결(meta: 가짜메타, p: MT.Provider, uid: string, name: str
   return key;
 }
 
+/** 줄이기 시험만 가짜 ffmpeg 가 있는 컴퓨터로 만든다 (모래상자는 시작할 때 도구 자리를 비운다 — 세상을 만들 때마다 다시 정한다) */
+let 가짜ffmpeg있음 = false;
+
 /** 채널 하나 + 인스타·스레드 계정이 걸린 세상 */
 async function 세상만들기(dir: string, o: { ig?: boolean; th?: boolean } = {}): Promise<세상> {
+  forceToolMissing("ffprobe"); // 길이·크기는 내장 판독기로 — 시험 컴퓨터의 진짜 도구에 기대지 않는다
+  if (가짜ffmpeg있음) forceToolPath("ffmpeg", "/가짜/ffmpeg"); else forceToolMissing("ffmpeg");
   setEmbeddedMetaForTest(열쇠);
   const fake = new 가짜구글(); fake.instantProcessing = true;
   const c = await 채널준비(dir, fake, { name: "채널A" });
@@ -71,10 +78,10 @@ const J = (id: string) => MP.loadJobs().jobs[id];
 const 상태 = (id: string) => [J(id)?.targets.instagram?.state, J(id)?.targets.threads?.state];
 
 /** 영상 한 편을 두고 장부에 담는다 */
-async function 담기(w: 세상, name: string, o: Partial<MP.EnqueueArgs> & { long?: boolean; sec?: number } = {}) {
-  const path = await 영상두기(w.c.folder, name, { long: o.long, sec: o.sec });
+async function 담기(w: 세상, name: string, o: Partial<MP.EnqueueArgs> & { long?: boolean; sec?: number; px?: { w: number; h: number } } = {}) {
+  const path = await 영상두기(w.c.folder, name, { long: o.long, sec: o.sec, w: o.px?.w, h: o.px?.h });
   const id = o.videoId ?? "VID_" + name.replace(/\.[^.]+$/, "");
-  const { long: _l, sec: _s, ...rest } = o;
+  const { long: _l, sec: _s, px: _p, ...rest } = o;
   const r = await MP.enqueue({
     videoId: id, channel: "채널A", file: path, title: "첫 영상 제목", desc: "설명 한 줄\n\n#태그가 #태그나", tags: [], info: 쇼츠정보, kind: "쇼츠", ...rest,
   });
@@ -112,6 +119,8 @@ async function 글파일들(dir: string): Promise<string[]> {
 export async function 실행() {
   // 규격 조사는 ffprobe 에 맡기지 않는다 — 시험 컴퓨터마다 달라지지 않게 고정한다
   MP.setExtraProbeForTest(async () => null);
+  // ffmpeg 도 기본은 없는 컴퓨터로 — 줄이기 시험만 가짜 ffmpeg 를 놓는다(진짜 ffmpeg 는 한 번도 부르지 않는다)
+  forceToolMissing("ffmpeg");
   try {
     await 글시험();
     await 규격시험();
@@ -120,16 +129,20 @@ export async function 실행() {
     await 로그인시험();
     await 연결끊기시험();
     await 담기시험();
+    await 줄이기시험();
     await 올리기시험();
     await 스레드길시험();
     await 두번안올림시험();
     await 오류와기다림시험();
+    await 결함세건시험();
     await 청소시험();
     await 훅시험();
     await 화면길시험();
     await 새지않음시험();
   } finally {
     MP.setExtraProbeForTest(undefined);
+    MP.setTranscoderForTest(undefined);
+    resetToolCache();
   }
 }
 
@@ -193,6 +206,26 @@ async function 규격시험() {
   참인가("스레드: 5분 초과", 문제(MP.threadsProblems(ok({ sec: 301 }), "a.mp4", 좋은추가), "5분"));
   같나("스레드: 3초 미만 제한은 없다", MP.threadsProblems(ok({ sec: 2 }), "a.mp4", 좋은추가).problems, []);
   참인가("스레드: 프레임 수 15", 문제(MP.threadsProblems(ok(), "a.mp4", { ...좋은추가, fps: 15 }), "23~60"));
+
+  // 다시 인코딩하면 풀리는 문제(soft)와 안 풀리는 문제(길이·화면비)를 가른다
+  const 고침 = (r: MP.SpecResult) => r.soft.length === r.problems.length;
+  참인가("릴스: 크기·가로폭·코덱·프레임·음성·비트레이트·파일 형식은 줄이면 풀린다", 고침(MP.reelsProblems(ok({ mb: 643, w: 2160, display_w: 2160, codec: "vp9" }), "a.avi", { fps: 120, audio: "mp3", bitrate: 30_000_000 })));
+  참인가("릴스: 3초 미만 · 15분 초과는 줄여도 안 풀린다", MP.reelsProblems(ok({ sec: 2 }), "a.mp4", 좋은추가).soft.length === 0 && MP.reelsProblems(ok({ sec: 16 * 60 }), "a.mp4", 좋은추가).soft.length === 0);
+  참인가("스레드: 5분 초과는 줄여도 안 풀린다 · 크기는 풀린다", MP.threadsProblems(ok({ sec: 301 }), "a.mp4", 좋은추가).soft.length === 0 && 고침(MP.threadsProblems(ok({ mb: 400 }), "a.mp4", 좋은추가)));
+
+  구역("줄이는 방법 — 크기 · 프레임 · 비트레이트 계산");
+  const 큰 = ok({ w: 2160, h: 3840, display_w: 2160, display_h: 3840, codec: "hevc", sec: 114, mb: 643 });
+  같나("4K 세로 → 1080x1920 · 프레임 그대로 · 기본 8Mbps / 최대 10Mbps", MP.shrinkPlan(큰, null), { w: 1080, h: 1920, fps: null, vbps: 8_000_000, maxbps: 10_000_000 });
+  같나("1440x2560 → 1080x1920", [MP.shrinkPlan(ok({ w: 1440, h: 2560, display_w: 1440, display_h: 2560 }), null).w, MP.shrinkPlan(ok({ w: 1440, h: 2560, display_w: 1440, display_h: 2560 }), null).h], [1080, 1920]);
+  같나("이미 작은 영상은 그대로 · 짝수", [MP.shrinkPlan(ok({ w: 720, h: 1280, display_w: 720, display_h: 1280 }), null).w, MP.shrinkPlan(ok({ w: 720, h: 1280, display_w: 720, display_h: 1280 }), null).h], [720, 1280]);
+  같나("가로 대신 표시 크기를 따른다(회전·화소비 반영)", [MP.shrinkPlan(ok({ w: 1920, h: 1080, display_w: 1080, display_h: 1920 }), null).w, MP.shrinkPlan(ok({ w: 1920, h: 1080, display_w: 1080, display_h: 1920 }), null).h], [1080, 1920]);
+  같나("프레임 60 초과면 30 · 23 미만도 30 · 범위 안이면 그대로", [MP.shrinkPlan(큰, { fps: 120, audio: "aac", bitrate: null }).fps, MP.shrinkPlan(큰, { fps: 15, audio: "aac", bitrate: null }).fps, MP.shrinkPlan(큰, { fps: 59.94, audio: "aac", bitrate: null }).fps], [30, 30, null]);
+  const 길 = MP.shrinkPlan(ok({ sec: 900 }), null);
+  참인가("길이가 길면 비트레이트를 낮춰 300MB 안에 넉넉히 든다", 길.vbps < 8_000_000 && ((길.vbps + 128_000) * 900) / 8 <= 220 * 1048576 && 길.maxbps <= 10_000_000);
+  const 인자 = MP.shrinkArgs("/a/in.mov", "/a/out.mp4", MP.shrinkPlan(큰, { fps: 120, audio: "aac", bitrate: null }), "libx264");
+  const 뒤 = (k: string) => 인자[인자.indexOf(k) + 1];
+  같나("ffmpeg 인자: H.264 · yuv420p · AAC · faststart · 크기 · 프레임", [뒤("-c:v"), 뒤("-pix_fmt"), 뒤("-c:a"), 뒤("-movflags"), 뒤("-vf"), 뒤("-r"), 인자[인자.length - 1]], ["libx264", "yuv420p", "aac", "+faststart", "scale=1080:1920,setsar=1", "30", "/a/out.mp4"]);
+  참인가("원본은 읽기만 한다(-i 뒤 입력 하나 · -y 는 출력용)", 인자.filter((x) => x === "-i").length === 1 && 뒤("-i") === "/a/in.mov");
 }
 
 /* ═══════════════════════════ 3. 연결 정보 ═══════════════════════════ */
@@ -415,7 +448,7 @@ async function 담기시험() {
     참인가("가로 영상은 건너뜀", 상태(g.id).join() === "건너뜀,건너뜀" && J(g.id).targets.threads!.why!.includes("가로"));
 
     const v = await 담기(w, "v.mp4", { info: { ...쇼츠정보, codec: "vp9" } });
-    참인가("코덱이 맞지 않으면 건너뜀 + 까닭", 상태(v.id).join() === "건너뜀,건너뜀" && J(v.id).targets.instagram!.why!.includes("영상 규격이 맞지 않아") && J(v.id).targets.instagram!.why!.includes("H.264"));
+    참인가("코덱이 맞지 않고 ffmpeg 도 없으면 건너뜀 + 까닭(줄일 수 없다)", 상태(v.id).join() === "건너뜀,건너뜀" && J(v.id).targets.instagram!.why!.includes("ffmpeg 가 없습니다") && J(v.id).targets.instagram!.why!.includes("H.264"));
     const s = await 담기(w, "s.mp4", { info: { ...쇼츠정보, sec: 2 } });
     같나("2초 영상: 릴스는 건너뜀 · 스레드는 대기(스레드엔 3초 하한이 없다)", 상태(s.id), ["건너뜀", "대기"]);
     같나("하나라도 올릴 것이 있으면 사본을 둔다", [J(s.id).phase, (await 있나(J(s.id).file))], ["영상대기", true]);
@@ -423,7 +456,7 @@ async function 담기시험() {
     MP.setExtraProbeForTest(async () => ({ fps: 15, audio: "aac", bitrate: 1_000_000 }));
     const f = await 담기(w, "f.mp4");
     MP.setExtraProbeForTest(async () => null);
-    참인가("추가 조사(프레임 수)가 맞지 않으면 건너뜀", 상태(f.id).join() === "건너뜀,건너뜀" && J(f.id).targets.instagram!.why!.includes("23~60"));
+    참인가("추가 조사(프레임 수)가 맞지 않고 ffmpeg 도 없으면 건너뜀", 상태(f.id).join() === "건너뜀,건너뜀" && J(f.id).targets.instagram!.why!.includes("23~60") && J(f.id).targets.instagram!.why!.includes("ffmpeg 가 없습니다"));
 
     await MT.updateStore((st) => { delete st[w.ig]; });
     const d = await 담기(w, "d.mp4");
@@ -861,6 +894,296 @@ async function 오류와기다림시험() {
 const 게시 = (w: 세상) => w.meta.callsTo(/\.publish$/).length;
 
 /* ═══════════════════════════ 12. 청소 ═══════════════════════════ */
+
+/* ═══════════════════════════ 줄이기 (큰 영상 → 릴스·스레드용 사본) ═══════════════════════════ */
+
+const 큰정보: MediaInfo = { w: 2160, h: 3840, display_w: 2160, display_h: 3840, codec: "hevc", sec: 114, mb: 643 };
+const 대기목록 = async () => { const out: string[] = []; try { for await (const e of Deno.readDir(dataPath("메타대기"))) out.push(e.name); } catch { /* 없다 */ } return out.sort(); };
+/** 가짜 ffmpeg — 마지막 인자(출력 경로)에 가짜 영상을 쓴다. 실제로는 아무것도 인코딩하지 않는다 */
+const 가짜인코더 = (o: { w?: number; h?: number; sec?: number; fail?: (args: string[]) => boolean; calls?: string[][]; gate?: Promise<void> } = {}): MP.Transcoder => async (_ff, args) => {
+  o.calls?.push(args);
+  if (o.gate) await o.gate;
+  if (o.fail?.(args)) return { code: 1, stderr: "Unknown encoder 'h264_videotoolbox'" };
+  await 영상쓰기(args[args.length - 1], { w: o.w ?? 1080, h: o.h ?? 1920, sec: o.sec ?? 114 });
+  return { code: 0, stderr: "" };
+};
+const 기다려 = async (조건: () => boolean) => { for (let i = 0; i < 200 && !조건(); i++) await 쉬기(25); };
+
+async function 줄이기시험() {
+  구역("줄이기 — 큰 영상은 건너뛰지 않고 릴스·스레드용 사본으로 줄여서 올린다 (가짜 ffmpeg · 진짜 ffmpeg 는 안 부름)");
+  가짜ffmpeg있음 = true;
+  try {
+    // ① 4K 643MB → 사본을 만들어 대기 → 올림
+    await 모래상자(async (dir) => {
+      const w = await 세상만들기(dir);
+      const calls: string[][] = [];
+      MP.setTranscoderForTest(가짜인코더({ calls }));
+      const a = await 담기(w, "big.mp4", { info: 큰정보, px: { w: 2160, h: 3840 } });
+      같나("4K 643MB 쇼츠: 건너뛰지 않고 줄이기 대기", [a.r, 상태(a.id), J(a.id).phase, J(a.id).file, J(a.id).shrink?.state, J(a.id).shrink?.needs], [{ queued: true, why: "대기", shrink: true }, ["대기", "대기"], "영상대기", "", "대기", ["instagram", "threads"]]);
+      참인가("까닭이 화면에 보인다", J(a.id).targets.instagram!.why!.includes("줄여서 올립니다") && J(a.id).targets.instagram!.why!.includes("643MB") && J(a.id).targets.threads!.why!.includes("2160px"));
+      같나("화면용 목록: 줄이기 대기", MP.listJobs()[0].shrink, "대기");
+      같나("담는 동안에는 인코딩도 메타 호출도 없다(오래 막지 않는다)", [calls.length, w.meta.calls.length], [0, 0]);
+      참인가("원본 사본이 메타대기에 있고 원본은 그대로", (await 대기목록()).join().includes(".원본.mp4") && (await 있나(a.path)) && (await 있나(J(a.id).shrink!.src)));
+
+      const r0 = await MP.run(빠르게);
+      같나("공개 전(영상대기)에도 run 이 줄여 둔다 · 올리지는 않는다", [calls.length, r0.shrunk, r0.posted, J(a.id).shrink?.state, 상태(a.id), w.meta.calls.length], [1, 1, 0, "끝", ["대기", "대기"], 0]);
+      const ar = calls[0];
+      const 뒤 = (k: string) => ar[ar.indexOf(k) + 1];
+      같나("ffmpeg 인자: 1080x1920 · AAC · faststart · 기본 8Mbps", [뒤("-vf"), 뒤("-c:a"), 뒤("-movflags"), 뒤("-b:v"), ar.includes("-r"), ar[ar.length - 1].endsWith(".줄이는중.mp4")], ["scale=1080:1920,setsar=1", "aac", "+faststart", "8000000", false, true]);
+      같나("맥은 하드웨어 인코더 먼저, 그 밖은 libx264", 뒤("-c:v"), IS_MAC ? "h264_videotoolbox" : "libx264");
+      const 사본 = J(a.id).file;
+      같나("사본은 메타대기/<번호>.mp4 · 규격 안(1080x1920) · 장부 갱신", [사본.endsWith(`${a.id}.mp4`), await 있나(사본), J(a.id).info?.w, J(a.id).info?.h, J(a.id).shrink?.src], [true, true, 1080, 1920, ""]);
+      같나("줄인 뒤 원본 사본·임시 파일은 없다 · 원본은 그대로", [(await 대기목록()).join(), await 있나(a.path)], [`${a.id}.mp4`, true]);
+      같나("화면용 목록: 줄이기 끝", MP.listJobs()[0].shrink, "");
+      참인가("줄인 사실이 기록에 남는다", (await 로그("올리기.log")).includes("영상 줄임  [채널A]") && (await 로그("올리기.log")).includes("2160x3840") && (await 로그("올리기.log")).includes("→ 1080x1920"));
+      const 사본크기 = (await Deno.stat(사본)).size;
+      await MP.markPublic(a.id);
+      const r = await MP.run(빠르게);
+      같나("공개되면 올린다 · 다시 인코딩하지 않는다", [r.posted, calls.length, 상태(a.id), r.shrunk], [2, 1, ["올림", "올림"], 0]);
+      같나("임시 보관에 올라간 것은 줄인 사본이다", [w.meta.callsTo(/^r2\.put$/)[0].bytes, [...w.meta.staged.values()][0].bytes], [사본크기, 사본크기]);
+      같나("끝나면 사본까지 치운다", [J(a.id).file, (await 대기목록()).length], ["", 0]);
+      같나("또 돌려도 인코딩 없음", [(await MP.run(빠르게)).shrunk, calls.length], [0, 1]);
+    });
+
+    // ② 줄인 사본도 규격을 넘으면 건너뜀
+    await 모래상자(async (dir) => {
+      const w = await 세상만들기(dir);
+      MP.setTranscoderForTest(가짜인코더({ w: 2160, h: 3840 }));
+      const a = await 담기(w, "big.mp4", { info: 큰정보, px: { w: 2160, h: 3840 } });
+      const r = await MP.run(빠르게);
+      같나("사본도 규격 초과(가로 2160): 건너뜀 · 올리지 않는다", [상태(a.id), J(a.id).phase, r.shrunk, r.posted, w.meta.calls.length], [["건너뜀", "건너뜀"], "끝", 0, 0, 0]);
+      참인가("까닭: 줄여 보았지만 규격에 맞지 않는다", J(a.id).targets.instagram!.why!.includes("줄여 보았지만 규격에 맞지 않아") && J(a.id).targets.instagram!.why!.includes("1920px"));
+      같나("쓰지 못할 사본은 지운다(원본 사본·임시 포함)", [J(a.id).file, (await 대기목록()).length, await 있나(a.path)], ["", 0, true]);
+    });
+
+    // ③ ffmpeg 없음 — 담을 때 / 담은 뒤 사라졌을 때
+    await 모래상자(async (dir) => {
+      const w = await 세상만들기(dir);
+      forceToolMissing("ffmpeg");
+      const a = await 담기(w, "big.mp4", { info: 큰정보, px: { w: 2160, h: 3840 } });
+      같나("ffmpeg 가 없으면 담는 자리에서 건너뜀 · 사본도 만들지 않는다", [상태(a.id), J(a.id).phase, J(a.id).shrink, (await 대기목록()).length], [["건너뜀", "건너뜀"], "끝", undefined, 0]);
+      참인가("까닭: 영상이 커서 줄여야 하는데 ffmpeg 가 없다", J(a.id).targets.instagram!.why!.startsWith("영상이 커서 줄여야 하는데 ffmpeg 가 없습니다 — ") && J(a.id).targets.instagram!.why!.includes("643MB"));
+      forceToolPath("ffmpeg", "/가짜/ffmpeg");
+      const b = await 담기(w, "big2.mp4", { info: 큰정보, px: { w: 2160, h: 3840 } });
+      forceToolMissing("ffmpeg");
+      await MP.run(빠르게);
+      같나("담은 뒤 ffmpeg 가 사라지면 줄일 때 건너뜀 + 같은 까닭", [상태(b.id), J(b.id).targets.threads!.why!.startsWith("영상이 커서 줄여야 하는데 ffmpeg 가 없습니다"), (await 대기목록()).length], [["건너뜀", "건너뜀"], true, 0]);
+      forceToolPath("ffmpeg", "/가짜/ffmpeg");
+    });
+
+    // ④ 줄이는 도중 프로그램이 꺼졌다 켜졌다 — 반쯤 만든 파일은 믿지 않고 처음부터
+    await 모래상자(async (dir) => {
+      const w = await 세상만들기(dir);
+      const calls: string[][] = [];
+      MP.setTranscoderForTest(가짜인코더({ calls }));
+      const a = await 담기(w, "big.mp4", { info: 큰정보, px: { w: 2160, h: 3840 } });
+      const 임시 = dataPath("메타대기", `${a.id}.줄이는중.mp4`), 완성 = dataPath("메타대기", `${a.id}.mp4`);
+      await Deno.writeTextFile(임시, "반쯤 쓰다 만 파일");
+      await Deno.writeTextFile(완성, "확인 못 한 완성본");
+      const l = MP.loadJobs();
+      l.jobs[a.id].shrink!.state = "줄이는중";
+      await writeJson(dataPath("메타올리기.json"), l, { indent: 2 });
+      같나("꺼진 뒤 장부는 「줄이는중」 그대로", [MP.listJobs()[0].shrink, calls.length], ["줄이는중", 0]);
+      const r = await MP.run(빠르게);
+      같나("다시 켜지면 처음부터 한 번 더 줄인다", [calls.length, r.shrunk, J(a.id).shrink?.state], [1, 1, "끝"]);
+      참인가("반쯤 만든 파일·확인 못 한 완성본을 쓰지 않고 새로 만든다", !(await Deno.readTextFile(완성).catch(() => "x")).startsWith("확인 못") && J(a.id).file === 완성 && (await Deno.stat(완성)).size > 100 && !(await 있나(임시)));
+      참인가("끊겼던 일이 기록에 남는다", (await 로그("올리기.log")).includes("도중에 끊겨 있었습니다"));
+      같나("또 돌려도 두 번 인코딩하지 않는다", [(await MP.run(빠르게)).shrunk, calls.length], [0, 1]);
+    });
+
+    // ⑤ 작은 정상 영상은 인코딩하지 않는다
+    await 모래상자(async (dir) => {
+      const w = await 세상만들기(dir);
+      const calls: string[][] = [];
+      MP.setTranscoderForTest(가짜인코더({ calls }));
+      const a = await 담기(w, "small.mp4");
+      같나("규격에 맞는 영상: 줄이기 표시 없음 · 사본은 그대로", [J(a.id).shrink, J(a.id).file.endsWith(`${a.id}.mp4`), (await 대기목록()).join()], [undefined, true, `${a.id}.mp4`]);
+      await MP.markPublic(a.id);
+      const r = await MP.run(빠르게);
+      같나("인코딩 0번 · 그대로 올린다", [calls.length, r.shrunk, r.posted], [0, 0, 2]);
+    });
+
+    // ⑥ 하드웨어 인코더가 실패하면 libx264 로 다시 (맥) · 마지막 인코더도 실패하면 「실패」+ 다시 시도
+    await 모래상자(async (dir) => {
+      const w = await 세상만들기(dir);
+      const calls: string[][] = [];
+      MP.setTranscoderForTest(가짜인코더({ calls, fail: (a) => a.includes("h264_videotoolbox") }));
+      const a = await 담기(w, "big.mp4", { info: 큰정보, px: { w: 2160, h: 3840 } });
+      const r = await MP.run(빠르게);
+      같나("videotoolbox 가 실패하면 libx264 로 다시 만든다", [r.shrunk, calls.length, calls[calls.length - 1].includes("libx264"), J(a.id).shrink?.state], [1, IS_MAC ? 2 : 1, true, "끝"]);
+    });
+    await 모래상자(async (dir) => {
+      const w = await 세상만들기(dir);
+      const calls: string[][] = [];
+      MP.setTranscoderForTest(가짜인코더({ calls, fail: () => true }));
+      const a = await 담기(w, "big.mp4", { info: 큰정보, px: { w: 2160, h: 3840 } });
+      await MP.markPublic(a.id);
+      const r = await MP.run(빠르게);
+      같나("ffmpeg 가 실패하면 「실패」 · 유튜브 쪽과 무관 · 올리지 않는다", [상태(a.id), J(a.id).shrink?.state, r.shrunk, r.posted, w.meta.calls.length], [["실패", "실패"], "실패", 0, 0, 0]);
+      참인가("까닭이 적힌다", J(a.id).targets.instagram!.why!.includes("영상을 줄이지 못했습니다") && J(a.id).targets.instagram!.why!.includes("Unknown encoder"));
+      참인가("다시 시도할 수 있게 원본 사본을 둔다 · 임시 파일은 없다", (await 있나(J(a.id).shrink!.src)) && !(await 대기목록()).some((n) => n.includes("줄이는중")));
+      같나("화면 단추: 다시 시도", MP.listJobs()[0].targets[0].actions, ["retry"]);
+      await MP.run(빠르게);
+      같나("자동으로 다시 인코딩하지 않는다", calls.length, IS_MAC ? 2 : 1);
+      MP.setTranscoderForTest(가짜인코더({ calls }));
+      await MP.retryTarget(a.id, "instagram");
+      같나("다시 시도: 그 계정만 줄이기부터 다시", [상태(a.id), J(a.id).shrink?.state, J(a.id).phase], [["대기", "실패"], "대기", "진행"]);
+      const r2 = await MP.run(빠르게);
+      같나("줄이고 올린다", [r2.shrunk, r2.posted, 상태(a.id)[0]], [1, 1, "올림"]);
+    });
+
+    // ⑦ 인스타그램만 문제인 영상(음성 코덱) — 스레드는 원본 그대로
+    await 모래상자(async (dir) => {
+      const w = await 세상만들기(dir);
+      MP.setExtraProbeForTest(async () => ({ fps: 30, audio: "mp3", bitrate: 1_000_000 }));
+      forceToolMissing("ffmpeg");
+      const a = await 담기(w, "mp3.mp4");
+      같나("ffmpeg 없음: 문제 있는 쪽(릴스)만 건너뜀 · 스레드는 그대로 대기", [상태(a.id), J(a.id).shrink, J(a.id).file.endsWith(`${a.id}.mp4`)], [["건너뜀", "대기"], undefined, true]);
+      forceToolPath("ffmpeg", "/가짜/ffmpeg");
+      MP.setTranscoderForTest(가짜인코더({ fail: () => true }));
+      const b = await 담기(w, "mp3b.mp4");
+      같나("ffmpeg 가 있으면 릴스만 줄이기 대기(스레드도 사본을 기다린다)", [상태(b.id), J(b.id).shrink?.needs], [["대기", "대기"], ["instagram"]]);
+      await MP.markPublic(b.id);
+      await MP.run(빠르게);
+      같나("줄이기가 실패해도 줄일 필요 없던 스레드는 원본으로 올린다", [상태(b.id), J(b.id).targets.threads!.state], [["실패", "올림"], "올림"]);
+      MP.setExtraProbeForTest(async () => null);
+    });
+
+    // ⑧ 줄이는 동안 다른 run 은 기다리지 않고 돌아간다 · 같은 일감을 두 번 줄이지 않는다
+    await 모래상자(async (dir) => {
+      const w = await 세상만들기(dir);
+      const calls: string[][] = [];
+      let 풀기 = () => {};
+      const gate = new Promise<void>((r) => { 풀기 = r; });
+      MP.setTranscoderForTest(가짜인코더({ calls, gate }));
+      const a = await 담기(w, "big.mp4", { info: 큰정보, px: { w: 2160, h: 3840 } });
+      const p1 = MP.run(빠르게);
+      await 기다려(() => calls.length === 1);
+      같나("줄이는 중: 장부와 화면에 「줄이는중」", [J(a.id).shrink?.state, MP.listJobs()[0].shrink], ["줄이는중", "줄이는중"]);
+      const r2 = await MP.run(빠르게);
+      같나("그동안 다른 run 은 이미 돌고 있음(busy) · 인코딩 1번", [r2.busy, calls.length], [true, 1]);
+      풀기();
+      const r1 = await p1;
+      같나("끝나면 한 번 줄인 것으로", [r1.shrunk, calls.length], [1, 1]);
+    });
+
+    // ⑨ 줄이는 중에 취소하면 만든 것을 버린다
+    await 모래상자(async (dir) => {
+      const w = await 세상만들기(dir);
+      const calls: string[][] = [];
+      let 풀기 = () => {};
+      const gate = new Promise<void>((r) => { 풀기 = r; });
+      MP.setTranscoderForTest(가짜인코더({ calls, gate }));
+      const a = await 담기(w, "big.mp4", { info: 큰정보, px: { w: 2160, h: 3840 } });
+      const p1 = MP.run(빠르게);
+      await 기다려(() => calls.length === 1);
+      같나("줄이는 중에도 취소할 수 있다", await MP.cancelJob(a.id), true);
+      풀기();
+      const r1 = await p1;
+      같나("취소된 일감: 줄인 사본을 쓰지 않고 지운다", [r1.shrunk, J(a.id).file, J(a.id).phase, (await 대기목록()).length], [0, "", "끝", 0]);
+    });
+  } finally {
+    가짜ffmpeg있음 = false;
+    MP.setTranscoderForTest(undefined);
+    MP.setExtraProbeForTest(async () => null);
+  }
+}
+
+/* ═══════════════════════════ 실제 시험 게시에서 찾은 결함 세 건 ═══════════════════════════ */
+
+async function 결함세건시험() {
+  구역("결함 ① 스레드가 인스타 영상 주소 길에서 임시 보관 길로 넘어갈 때 메타가 준 까닭을 기록에 남긴다");
+  await 모래상자(async (dir) => {
+    const w = await 세상만들기(dir);
+    w.meta.rejectMediaUrl = true;
+    const d = await 완주(w, "a.mp4");
+    const 글 = await 로그("올리기.log");
+    const 줄 = 글.split("\n").find((x) => x.includes("인스타 영상 주소 길 실패")) ?? "";
+    참인가("넘어가기 전에 한 줄이 남는다(메타의 상태와 까닭)", 줄.includes("ERROR: 영상을 가져올 수 없습니다") && 줄.includes("임시 보관 길로 바꿈") && 줄.includes(J(d.id).title));
+    참인가("토큰·서명·주소는 싣지 않는다", !/TOK-|access_token|https?:\/\/|sig/i.test(줄));
+    같나("그래도 임시 보관 길로 올라간다", [J(d.id).targets.threads!.state, J(d.id).targets.threads!.route], ["올림", "staging"]);
+  });
+
+  구역("결함 ② 임시 보관본은 지워졌다는 답을 받았을 때만 「지움」으로 적는다");
+  await 모래상자(async (dir) => {
+    const w = await 세상만들기(dir, { th: false });
+    w.meta.failNext(/stage\/delete/, 500, { ok: false });
+    const d = await 완주(w, "a.mp4");
+    let s = J(d.id).staged!;
+    같나("지우기가 500 이면 지웠다고 적지 않는다(서명은 남긴다)", [s.deleted, s.delete_why?.includes("500"), s.delete_tries, s.delete_sig !== ""], [undefined, true, 1, true]);
+    참인가("지우지 못했다는 기록이 남는다", (await 로그("올리기.log")).includes("임시 보관본을 지우지 못했습니다") && (await 로그("올리기.log")).includes("1시간 뒤"));
+    같나("중계 쪽에는 아직 남아 있다", [...w.meta.staged.values()].map((x) => x.deleted), [false]);
+    await MP.run(빠르게);
+    같나("바로 다음 바퀴(10분 안)에서는 다시 부르지 않는다", [J(d.id).staged!.delete_tries, w.meta.callsTo(/stage\/delete/).length], [1, 1]);
+    await MP.run({ ...빠르게, now: new Date(Date.now() + 11 * 분) });
+    s = J(d.id).staged!;
+    같나("10분 뒤 바퀴에서 다시 지워 본다 → 지워졌다는 답이 오면 그때 「지움」", [s.deleted, s.delete_sig, s.delete_why, [...w.meta.staged.values()].map((x) => x.deleted)], [true, "", undefined, [true]]);
+  });
+  await 모래상자(async (dir) => {
+    const w = await 세상만들기(dir, { th: false });
+    w.meta.failNext(/stage\/delete/, 404, { ok: false });
+    const d = await 완주(w, "a.mp4");
+    같나("이미 없다(404)는 지워진 것으로 본다", J(d.id).staged!.deleted, true);
+  });
+  await 모래상자(async (dir) => {
+    const w = await 세상만들기(dir, { th: false });
+    w.meta.failNext(/stage\/delete/, 403, { ok: false }, 10);
+    const d = await 완주(w, "a.mp4");
+    for (let i = 1; i <= 6; i++) await MP.run({ ...빠르게, now: new Date(Date.now() + i * 11 * 분) });
+    같나("계속 거절되면 3번까지만 해 본다(무한히 부르지 않는다)", [J(d.id).staged!.deleted, J(d.id).staged!.delete_tries, w.meta.callsTo(/stage\/delete/).length], [undefined, 3, 3]);
+  });
+
+  구역("결함 ③ 요청한 때·끝난 때는 run 시작 시각이 아니라 실제 사건 때의 시각을 적는다");
+  await 모래상자(async (dir) => {
+    const w = await 세상만들기(dir);
+    w.meta.igPublish = "5xx_posted";
+    const d = await 담기(w, "a.mp4");
+    await MP.markPublic(d.id);
+    const 시작 = Date.now();
+    const 늦음 = { 쉼: 0 };
+    const sleep = async () => { 늦음.쉼 += 1; await 쉬기(30); }; // 처리 기다리는 동안 실제로 시간이 흐른다
+    await MP.run({ sleep, pollMs: 1, threadsWaitMs: 1 });
+    const t = J(d.id).targets.instagram!;
+    const 요청 = Date.parse(t.requested_at!), 끝 = Date.parse(J(d.id).done_at!);
+    참인가("게시를 요청한 때는 run 시작보다 뒤다(요청 직전 시각)", 요청 >= 시작 && 요청 <= Date.now());
+    참인가("끝난 때(done_at)는 요청한 때보다 뒤다", 끝 >= 요청 && 끝 <= Date.now());
+    참인가("끝난 때는 run 시작 시각이 아니라 기다린 시간(스레드 대기 30ms)만큼 뒤다", 끝 - 시작 >= 25);
+    참인가("마지막으로 건드린 때(at)도 실제 시각", Date.parse(J(d.id).targets.threads!.at) >= 요청);
+  });
+  await 모래상자(async (dir) => {
+    const w = await 세상만들기(dir);
+    const d = await 담기(w, "a.mp4");
+    await MP.markPublic(d.id);
+    // 시험이 시계를 끼운다: 부를 때마다 1분씩 간다(기다림이 길어진 것처럼)
+    const base = Date.now(); let n = 0;
+    const clock = () => new Date(base + n++ * 분);
+    await MP.run({ ...빠르게, clock });
+    const t = J(d.id).targets.instagram!;
+    const 요청 = Date.parse(t.requested_at!), 끝 = Date.parse(J(d.id).done_at!);
+    참인가("주입한 시계를 따른다: 요청은 시작(첫 눈금)보다 뒤", 요청 > base);
+    참인가("끝난 때는 요청한 때보다 뒤", 끝 > 요청);
+  });
+  await 모래상자(async (dir) => {
+    const w = await 세상만들기(dir);
+    const d = await 담기(w, "a.mp4");
+    await MP.markPublic(d.id);
+    const 고정 = new Date(Date.now() + 10_000);
+    await MP.run({ ...빠르게, now: 고정 });
+    같나("시험이 now 를 고정해 주면 모든 시각이 그 값(예전 시험과 같다)", [J(d.id).targets.instagram!.at, J(d.id).done_at], [고정.toISOString(), 고정.toISOString()]);
+  });
+  await 모래상자(async (dir) => {
+    // 결과불명 확인이 놓치지 않는다: 최근 게시물의 시각이 요청한 때보다 5분 이르면 찾고, 그보다 이르면 안 찾는다(기준은 그대로)
+    const w = await 세상만들기(dir, { th: false });
+    w.meta.igPublish = "5xx_lost";
+    const d = await 완주(w, "a.mp4");
+    const 요청 = Date.parse(J(d.id).targets.instagram!.requested_at!);
+    const 캡션 = J(d.id).text.caption;
+    w.meta.igMedia = [{ id: "IGM-OLD", caption: 캡션, permalink: "https://www.instagram.com/reel/OLD/", timestamp: new Date(요청 - 6 * 분).toISOString() }];
+    같나("요청보다 6분 이른 같은 글은 이번 게시가 아니다", (await MP.checkUnknown(d.id, "instagram")).found, false);
+    w.meta.igMedia = [{ id: "IGM-NEW", caption: 캡션, permalink: "https://www.instagram.com/reel/NEW/", timestamp: new Date(요청 - 4 * 분).toISOString() }];
+    같나("요청보다 4분 이른 시각(시계 차이)까지는 이번 게시로 찾는다", [(await MP.checkUnknown(d.id, "instagram")).found, J(d.id).targets.instagram!.state], [true, "올림"]);
+  });
+}
 
 async function 청소시험() {
   구역("청소 — 오래된 것 정리 · 사본 보관 기한");

@@ -58,3 +58,5 @@ export async function findTool(name: "ffmpeg" | "ffprobe"): Promise<string> {
 export function resetToolCache() { 캐시.clear(); }
 /** 시험: 도구가 없는 컴퓨터를 흉내 낸다 */
 export function forceToolMissing(name: string) { 캐시.set(name, ""); }
+/** 시험: 도구가 이 자리에 있는 것처럼 꾸민다 (파일이 실제로 있는지는 보지 않는다) */
+export function forceToolPath(name: string, path: string) { 캐시.set(name, path); }
