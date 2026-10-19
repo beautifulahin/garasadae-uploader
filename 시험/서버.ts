@@ -97,7 +97,7 @@ async function 문지기시험() {
     같나("상태: 앱 이름 · 버전 · 마지막 답이 ok", [st.ok, st.version, st.app], [true, APP_VERSION, APP_NAME]);
     같나("상태에 새 칸들이 있다 (ai · coupang · migrate · update · updating)", ["ai", "coupang", "migrate", "update", "updating"].filter((k) => !(k in st)), []);
     같나("방금 켠 서버는 이행 보류가 아니다", st.migrate, { hold: false });
-    같나("버전이 2.0.0 이다", APP_VERSION, "2.0.0");
+    같나("버전이 2.1.0 이다", APP_VERSION, "2.1.0");
   });
 
   구역("서버 — 문지기 (Host · Origin · 내용 종류 · 방법 · Sec-Fetch)");

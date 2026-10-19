@@ -1316,7 +1316,7 @@ async function 환경시험() {
   await 모래상자(async (dir) => {
     const r = await report();
     같나("이상 없음", [r.ok, r.problems], [true, []]);
-    같나("운영체제 · 구조 · 앱 버전", [r.os, r.arch, r.osName.length > 0, r.appVersion], [Deno.build.os, Deno.build.arch, true, "2.0.0"]);
+    같나("운영체제 · 구조 · 앱 버전", [r.os, r.arch, r.osName.length > 0, r.appVersion], [Deno.build.os, Deno.build.arch, true, "2.1.0"]);
     같나("개발 모드로 돌고 있다", r.compiled, false);
     같나("데이터 폴더에 쓸 수 있다", [r.dataDir, r.dataDirWritable, r.dataDirExists], [`${dir}/데이터`, true, true]);
     같나("점검 중에 남긴 시험 파일이 없다", (await Array.fromAsync(Deno.readDir(`${dir}/데이터`))).filter((e) => e.name.includes("쓰기시험")).length, 0);
