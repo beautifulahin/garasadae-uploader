@@ -10,10 +10,13 @@
 //   · 모든 메타 호출은 google.ts 의 doFetch 한 문을 지난다 (시험은 setFetch, 오프라인 시험은 막힌다).
 //   · 만료 전에 알아서 갱신한다(60일 토큰 · 만료 10일 전부터, 발급 24시간 뒤부터 가능). 갱신이 안 되면 사람 말로 까닭을 남긴다.
 //   · 연결 정보(중계 주소·앱 번호)가 실행 파일에 없으면 이 기능은 화면에 나타나지 않는다(embedded.ts).
+//   · 운영 방식: 메타 앱은 심사 없이 개발 모드다 — 사용 신청(이메일)을 한 사람만 앱 시험 사용자로 초대되고, 수락해야 연결된다.
+//     신청 이메일·초대 수락하는 곳은 아래 `신청` 한 곳에서만 정한다(화면·오류 안내가 모두 이것을 쓴다).
 import { doFetch } from "./google.ts";
 import { dataPath, readJson, readJsonSync, recordLine, withFileLock, writeJson } from "./paths.ts";
 import { embeddedMeta } from "./embedded.ts";
 import { editChannels, loadChannels } from "./channels.ts";
+import { 오류글 } from "../worker/meta-auth/src/scrub.ts"; // 로그인 오류 글에 토큰·코드가 섞이지 않게 — 중계와 같은 것
 
 export type Provider = "instagram" | "threads";
 export const PROVIDERS: Provider[] = ["instagram", "threads"];
@@ -24,6 +27,24 @@ export const PROV: Record<Provider, { prefix: "ig" | "th"; graph: string; ver: s
   instagram: { prefix: "ig", graph: "https://graph.instagram.com", ver: "v26.0", refreshGrant: "ig_refresh_token", scopes: ["instagram_business_basic", "instagram_business_content_publish"] },
   threads: { prefix: "th", graph: "https://graph.threads.com", ver: "v1.0", refreshGrant: "th_refresh_token", scopes: ["threads_basic", "threads_content_publish"] },
 };
+
+/** 사용 신청 안내 — 이메일·메일 문안·초대 수락하는 곳. 화면(`meta/get` 의 apply)과 로그인 오류 안내가 모두 여기서 읽는다. */
+export const 신청 = {
+  email: "beautifulahin@gmail.com",
+  subject: "가라사대 업로더 인스타·스레드 사용 신청",
+  body: "인스타그램 아이디:\n스레드 아이디:\n(쓰지 않는 쪽은 비워 두세요)\n",
+  /** 초대가 오면 수락하는 곳 */
+  accept: {
+    instagram: "인스타그램(instagram.com) › 설정 › 앱 및 웹사이트 › 「테스터 초대」",
+    threads: "스레드 앱 › 설정 › 설정 더 보기(또는 계정) › 웹사이트 권한 › 초대",
+  } as Record<Provider, string>,
+};
+/** 신청 메일을 쓰는 mailto 주소 */
+export const 신청메일 = () => `mailto:${신청.email}?subject=${encodeURIComponent(신청.subject)}&body=${encodeURIComponent(신청.body)}`;
+/** 화면 서버가 돌려주는 신청 안내 (토큰 없음) */
+export const 신청안내자료 = () => ({ email: 신청.email, mailto: 신청메일(), accept: 신청.accept });
+/** 연결이 안 될 때 오류 글 끝에 붙이는 한 덩이 — 신청 방법 + 초대 수락하는 곳 */
+export const 신청안내 = (p: Provider) => `신청은 ${신청.email} 으로 인스타그램 아이디를 보내면 됩니다 · 초대는 ${신청.accept[p]} 에서 수락합니다`;
 
 const 일 = 24 * 3600_000;
 /** 만료 이 기간 안으로 들어오면 갱신한다 */
@@ -116,7 +137,7 @@ export function explainMeta(e: unknown): string {
   switch (e.kind) {
     case "auth": return `로그인이 풀렸거나 만료됐습니다 — 설정에서 다시 연결해 주세요 (${원문})`;
     case "limit": return `메타의 올리기 한도에 걸렸습니다 — 시간을 두고 다시 시도합니다 (${원문})`;
-    case "perm": return `권한이 없습니다 — 메타 앱 심사가 끝나기 전에는 앱 역할(테스터)로 초대된 계정만 올릴 수 있습니다 (${원문})`;
+    case "perm": return `권한이 없습니다 — 사용 신청을 하고 초대를 수락한 계정만 올릴 수 있습니다 (신청: ${신청.email}) (${원문})`;
     case "temp": return `메타 쪽 일시 오류입니다 (${원문})`;
     default: return 원문 || `메타 오류 ${e.status}`;
   }
@@ -168,11 +189,21 @@ const 결과쪽 = (제목: string, 본문: string) =>
     { headers: { "content-type": "text/html; charset=utf-8" } },
   );
 
-/** 메타가 돌려준 오류 이름 → 사람 말 */
-function explainLogin(code: string, why = ""): string {
-  if (code === "access_denied") return "연결을 허락하지 않으셨습니다";
-  if (code === "exchange_failed") return `메타와 토큰을 바꾸지 못했습니다${why ? " — " + why : ""}`;
-  return `${code || "알 수 없는 오류"}${why ? " — " + why : ""}`;
+/** 직접 취소한 것으로 보는 메타 오류 이름 */
+const 취소이름 = new Set(["access_denied", "user_denied"]);
+
+/**
+ * 메타가 돌려준 오류(이름 · 까닭 · 설명) → 사람 말. 값은 앱에서도 한 번 더 가린다(중계 판이 낡았어도 토큰·코드가 화면에 나오지 않게).
+ *  · error_reason=user_denied → 직접 취소 · 취소 이름만 오고 까닭이 없으면 취소로 보되 신청 확인 한 줄을 덧붙인다
+ *  · exchange_failed(중계가 토큰을 못 바꿈) → 그대로 · 그 밖의 모든 오류(모르는 이름 포함)는 신청·초대 수락 안내를 덧붙인다
+ */
+export function explainLogin(provider: Provider, code: string, why = "", reason = ""): string {
+  const c = 오류글(code, 60), w = 오류글(why, 100), r = 오류글(reason, 40);
+  if (r === "user_denied") return "연결을 취소했습니다";
+  if (취소이름.has(c)) return "연결을 취소했습니다 (취소한 적이 없다면 사용 신청과 초대 수락을 확인해 주세요 — " + 신청안내(provider) + ")";
+  if (c === "exchange_failed") return `메타와 토큰을 바꾸지 못했습니다${w ? " — " + w : ""}`;
+  const 원문 = [c, r, w].filter(Boolean).join(" / ");
+  return `연결하지 못했습니다 — 아직 사용 신청이 안 된 계정이거나 초대를 수락하지 않았을 수 있습니다. ${신청안내(provider)}${원문 ? ` (메타가 알려 준 오류: ${원문})` : ""}`;
 }
 
 /**
@@ -190,8 +221,9 @@ export async function startSignIn(provider: Provider, o: { now?: () => Date; tim
   const nonce = b64url(crypto.getRandomValues(new Uint8Array(18)));
 
   let port = 0;
-  let resolveCb!: (v: { ok?: boolean; error?: string; why?: string }) => void;
-  const cb = new Promise<{ ok?: boolean; error?: string; why?: string }>((r) => { resolveCb = r; });
+  /** message = 끝난 까닭(사람 말). ok 가 아니면 항상 message 가 있다 */
+  let resolveCb!: (v: { ok?: boolean; message?: string }) => void;
+  const cb = new Promise<{ ok?: boolean; message?: string }>((r) => { resolveCb = r; });
   const srv = Deno.serve({ port: 0, hostname: "127.0.0.1", onListen: (a) => { port = a.port; } }, (req) => {
     const u = new URL(req.url);
     if (u.pathname !== "/meta/done") return new Response("not found", { status: 404 });
@@ -199,25 +231,26 @@ export async function startSignIn(provider: Provider, o: { now?: () => Date; tim
       return 결과쪽("연결 실패", `<h2 style="color:#ff4466">❌ 확인값이 맞지 않습니다</h2><p style="color:#8e8ea8">앱에서 다시 시도해 주세요.</p>`);
     }
     const ok = u.searchParams.get("ok") === "1";
-    const error = u.searchParams.get("error") ?? "";
-    resolveCb(ok ? { ok: true } : { error: error || "unknown", why: u.searchParams.get("why") ?? "" });
+    const 글 = ok ? "" : explainLogin(provider, u.searchParams.get("error") ?? "unknown", u.searchParams.get("why") ?? "", u.searchParams.get("reason") ?? "");
+    resolveCb(ok ? { ok: true } : { message: 글 });
     return ok
       ? 결과쪽("연결 완료", `<h2 style="color:#2dd4a8">✅ 연결됐습니다</h2><p style="color:#5a5a72;font-size:13px">이 창을 닫고 앱으로 돌아가세요.</p><script>setTimeout(()=>window.close(),2500)</script>`)
-      : 결과쪽("연결 실패", `<h2 style="color:#ff4466">❌ 연결하지 못했습니다</h2><p style="color:#8e8ea8">${esc(explainLogin(error, u.searchParams.get("why") ?? ""))}</p>`);
+      : 결과쪽("연결 실패", `<h2 style="color:#ff4466">❌ 연결하지 못했습니다</h2><p style="color:#8e8ea8;max-width:560px;margin:0 auto;line-height:1.7">${esc(글)}</p>`);
   });
   for (let i = 0; i < 50 && !port; i++) await new Promise((r) => setTimeout(r, 10));
   const q = new URLSearchParams({ port: String(port), challenge, nonce });
   const url = `${worker}/${PROV[provider].prefix}/start?${q}`;
   signin.state = { running: true, provider, url };
   const 끝 = () => { try { srv.shutdown(); } catch { /* 이미 꺼짐 */ } };
-  signin.stop = () => { resolveCb({ error: "취소했습니다" }); 끝(); };
+  signin.stop = () => { resolveCb({ message: "취소했습니다" }); 끝(); };
 
   const done = (async () => {
     try {
-      const timer = setTimeout(() => resolveCb({ error: "10분이 지나 로그인을 접었습니다" }), o.timeoutMs ?? 10 * 60_000);
+      // 메타가 자기 화면에서 오류를 보여 주고 돌아오지 않는 경우(신청 안 된 계정 등)는 여기서 시간 초과로 끝난다 — 확인할 것을 함께 말한다
+      const timer = setTimeout(() => resolveCb({ message: `10분이 지나 로그인을 접었습니다 — 로그인 창에 오류가 보였다면 신청한 계정으로 로그인했는지, 초대를 수락했는지 확인해 주세요. ${신청안내(provider)}` }), o.timeoutMs ?? 10 * 60_000);
       const got = await cb;
       clearTimeout(timer);
-      if (!got.ok) throw new Error(got.error && /[가-힣]/.test(got.error) ? got.error : explainLogin(got.error ?? "", got.why));
+      if (!got.ok) throw new Error(got.message || "연결하지 못했습니다");
       // 토큰은 주소로 오지 않았다 — 이제 verifier 를 보여 주고 한 번만 받아 간다
       const r = await doFetch(`${worker}/pickup`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ verifier }) });
       const j = await r.json().catch(() => ({})) as Record<string, unknown>;
@@ -235,7 +268,7 @@ export async function startSignIn(provider: Provider, o: { now?: () => Date; tim
       signin.state = { running: false, provider, done: { key, username: tok.username || tok.user_id, provider } };
       return { key, username: tok.username || tok.user_id };
     } catch (e) {
-      signin.state = { running: false, provider, why: String(e instanceof Error ? e.message : e).slice(0, 200) };
+      signin.state = { running: false, provider, why: 오류글(e instanceof Error ? e.message : e, 500) };
       throw e;
     } finally {
       끝();

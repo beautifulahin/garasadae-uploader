@@ -208,14 +208,22 @@
     <h3>📷 인스타그램·스레드 <span class="t4-chip" id="t4MtChip">-</span></h3>
     <div class="p13">유튜브에 올린 <b>쇼츠</b>가 공개되는 때에 맞춰 <b>인스타그램 릴스</b>와 <b>스레드</b>에도 같은 영상을 자동으로 올립니다.
     롱폼·가로 영상은 올리지 않고, 올리다 실패해도 유튜브 쪽에는 아무 영향이 없습니다. 인스타그램은 <b>비즈니스 또는 크리에이터 계정</b>이어야 하고,
-    메타 앱 심사가 끝나기 전에는 앱에 초대된 테스터 계정만 올릴 수 있습니다.</div>
+    이 기능은 <b>사용 신청을 한 분만</b> 쓸 수 있습니다.</div>
+    <div class="t4-warnbox" id="t4MtApply">
+      <b>사용 신청 → 초대 수락 → 연결</b> (신청하지 않았거나 초대를 수락하지 않은 계정은 연결되지 않습니다)
+      <div>① <b>신청</b> — 인스타그램(스레드도 쓰면 함께) 아이디를 <b id="t4MtMailTo">-</b> 으로 보내 주세요.
+        <a id="t4MtMail" href="#">✉ 신청 메일 쓰기</a> <button type="button" class="tb" onclick="t4MtCopyMail()">주소 복사</button></div>
+      <div>② <b>초대 수락</b> — 신청이 받아지면 초대가 옵니다. 수락하는 곳:
+        <span id="t4MtAccIgW">인스타그램 — <span id="t4MtAccIg"></span></span><span id="t4MtAccSep"> · </span><span id="t4MtAccThW">스레드 — <span id="t4MtAccTh"></span></span></div>
+      <div>③ 수락한 뒤 아래 <b>연결</b> 단추를 누르세요.</div>
+    </div>
     <div class="t4-row">
       <button type="button" class="tb on" id="t4MtIgBtn" onclick="t4MtLogin('instagram')">📷 인스타그램 연결</button>
       <button type="button" class="tb on" id="t4MtThBtn" onclick="t4MtLogin('threads')">🧵 스레드 연결</button>
       <button type="button" class="tb hide" id="t4MtStop" onclick="t4MtStop()">로그인 그만두기</button>
       <button type="button" class="tb hide" id="t4MtCopy" onclick="t4MtCopyUrl()">🔗 로그인 주소 복사</button>
     </div>
-    <div class="hintline" id="t4MtLine">로그인만 하면 됩니다. 열쇠나 비밀번호를 이 앱에 입력하지 않습니다.</div>
+    <div class="hintline" id="t4MtLine">신청과 초대 수락을 마쳤다면 로그인만 하면 됩니다. 열쇠나 비밀번호를 이 앱에 입력하지 않습니다.</div>
     <div id="t4MtAccts"></div>
     <div class="t4-sub">채널마다 올릴 계정 <span style="font-weight:400;color:var(--t3)">(기본은 끔)</span></div>
     <div id="t4MtBind"></div>

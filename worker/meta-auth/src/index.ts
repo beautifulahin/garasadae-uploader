@@ -24,6 +24,7 @@
 
 import { type LedgerAsk, type LedgerEnv, type LedgerRes, type Refusal } from "./ledger.ts";
 export { R2Ledger } from "./ledger.ts"; // wrangler 가 Durable Object 클래스를 이 파일의 내보내기에서 찾는다
+import { 오류글 } from "./scrub.ts"; // 오류 글에 토큰·코드가 섞여 나가지 않게 (앱과 같은 것을 쓴다)
 
 /* ============================================================ 환경 꼴 */
 
@@ -127,7 +128,6 @@ const 쪽 = (status: number, 제목: string, 본문: string) =>
       `<body style="font-family:-apple-system,'Malgun Gothic',sans-serif;max-width:520px;margin:70px auto;padding:0 20px;line-height:1.7"><h2>${제목}</h2><p>${본문}</p></body>`,
     { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } },
   );
-const 짧게 = (s: unknown, n = 120) => String(s ?? "").replace(/\s+/g, " ").slice(0, n);
 
 function baseUrl(env: Env, url: URL): string {
   return (env.PUBLIC_URL || url.origin).replace(/\/+$/, "");
@@ -184,7 +184,7 @@ async function exchange(env: Env, deps: Deps, kind: Kind, code: string, redirect
     body: new URLSearchParams({ client_id: P.id(env), client_secret: P.secret(env), grant_type: "authorization_code", redirect_uri: redirectUri, code }),
   });
   const raw1 = await r1.text();
-  if (!r1.ok) throw new Error(`코드 교환 실패 ${r1.status} ${짧게(raw1, 100)}`);
+  if (!r1.ok) throw new Error(`코드 교환 실패 ${r1.status} ${오류글(raw1, 100)}`);
   let short = "";
   try {
     const j = JSON.parse(raw1);
@@ -195,14 +195,14 @@ async function exchange(env: Env, deps: Deps, kind: Kind, code: string, redirect
 
   const r2 = await deps.fetch(`${P.longLived}?${new URLSearchParams({ grant_type: P.grant, client_secret: P.secret(env), access_token: short })}`);
   const raw2 = await r2.text();
-  if (!r2.ok) throw new Error(`장기 토큰 교환 실패 ${r2.status} ${짧게(raw2, 100)}`);
+  if (!r2.ok) throw new Error(`장기 토큰 교환 실패 ${r2.status} ${오류글(raw2, 100)}`);
   const j2 = JSON.parse(raw2);
   const token = String(j2.access_token ?? "");
   if (!token) throw new Error("장기 토큰을 받지 못했습니다");
 
   const r3 = await deps.fetch(`${P.me}&${new URLSearchParams({ access_token: token })}`);
   const raw3 = await r3.text();
-  if (!r3.ok) throw new Error(`계정 정보 확인 실패 ${r3.status} ${짧게(raw3, 100)}`);
+  if (!r3.ok) throw new Error(`계정 정보 확인 실패 ${r3.status} ${오류글(raw3, 100)}`);
   const me = JSON.parse(raw3);
   const uid = (kind === "ig" ? 번호뽑기(raw3, "user_id") : 번호뽑기(raw3, "id")) || uid0;
   if (!uid) throw new Error("계정 번호를 확인하지 못했습니다");
@@ -214,12 +214,24 @@ async function exchange(env: Env, deps: Deps, kind: Kind, code: string, redirect
 
 async function callback(env: Env, url: URL, kind: Kind, deps: Deps): Promise<Response> {
   const st = await readState(env, url.searchParams.get("state") ?? "", deps.now());
-  if (!st || st.k !== kind) return 쪽(400, "로그인을 확인하지 못했습니다", "시간이 지났거나 이미 쓴 주소입니다. 앱에서 연결 단추를 다시 눌러 주세요.");
+  if (!st || st.k !== kind) {
+    // 메타가 state 없이 거절만 알려 온 경우 — 앱으로 돌려보낼 곳(포트)을 알 수 없으니 이 쪽에서 까닭을 말한다 (오류 이름은 안전한 글자일 때만 보인다)
+    const e0 = url.searchParams.get("error") ?? "";
+    if (e0) {
+      const 이름 = /^[A-Za-z0-9_.-]{1,60}$/.test(e0) ? ` (메타가 알려 준 오류: ${e0})` : "";
+      return 쪽(400, "연결하지 못했습니다", `메타가 로그인을 거절했습니다${이름}. 직접 취소하신 게 아니라면 아직 사용 신청이 안 된 계정이거나 초대를 수락하지 않았을 수 있습니다. 앱 설정 화면의 안내를 확인한 뒤 다시 연결해 주세요.`);
+    }
+    return 쪽(400, "로그인을 확인하지 못했습니다", "시간이 지났거나 이미 쓴 주소입니다. 앱에서 연결 단추를 다시 눌러 주세요.");
+  }
   // ★토큰은 이 주소에 싣지 않는다 — 브라우저 기록·화면에 남지 않게. 앱이 verifier 로 따로 가져간다.
   const back = (q: Record<string, string>) =>
     new Response(null, { status: 302, headers: { location: `http://127.0.0.1:${st.p}/meta/done?${new URLSearchParams({ n: st.n, ...q })}`, "cache-control": "no-store" } });
   const err = url.searchParams.get("error");
-  if (err) return back({ ok: "0", error: 짧게(err, 60), why: 짧게(url.searchParams.get("error_description") ?? "", 100) });
+  if (err) {
+    // 메타의 거절은 error · error_reason(user_denied 등) · error_description 세 값으로 온다 — 모두 가려 짧게 앱으로 넘긴다 (reason 은 있을 때만)
+    const reason = 오류글(url.searchParams.get("error_reason") ?? "", 40);
+    return back({ ok: "0", error: 오류글(err, 60), ...(reason ? { reason } : {}), why: 오류글(url.searchParams.get("error_description") ?? "", 100) });
+  }
   const code = (url.searchParams.get("code") ?? "").replace(/#_$/, "");
   if (!code) return back({ ok: "0", error: "no_code" });
   try {
@@ -227,7 +239,7 @@ async function callback(env: Env, url: URL, kind: Kind, deps: Deps): Promise<Res
     await env.META_KV.put(`pu:${st.c}`, JSON.stringify(got), { expirationTtl: 토큰보관초 });
     return back({ ok: "1" });
   } catch (e) {
-    return back({ ok: "0", error: "exchange_failed", why: 짧게(e instanceof Error ? e.message : e) });
+    return back({ ok: "0", error: "exchange_failed", why: 오류글(e instanceof Error ? e.message : e) });
   }
 }
 
@@ -495,7 +507,7 @@ export async function handle(req: Request, env: Env, deps: Deps = 실제): Promi
     if (m === "GET" && p === "/deletion") return await deletionPage(env, url);
     return new Response("not found", { status: 404 });
   } catch (e) {
-    return json({ ok: false, why: 짧게(e instanceof Error ? e.message : e) }, 500);
+    return json({ ok: false, why: 오류글(e instanceof Error ? e.message : e) }, 500);
   }
 }
 

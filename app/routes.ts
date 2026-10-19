@@ -990,6 +990,7 @@ export function buildRoutes(S: AppState): { get: Record<string, Handler>; post: 
     const st = MT.signin.state;
     return {
       available: av,
+      apply: MT.신청안내자료(), // 사용 신청 안내(이메일·메일 문안·초대 수락하는 곳) — 화면은 이것만 읽는다
       accounts: MT.accountsView(),
       channels: Object.entries(loadChannels()).map(([alias, cf]) => ({ alias, ...MT.bindingOf(cf) })),
       jobs: MP.listJobs(20),

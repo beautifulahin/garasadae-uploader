@@ -6,6 +6,7 @@ import { 가짜메타 } from "./가짜메타.ts";
 import { 영상두기, type 채널준비결과, 채널준비 } from "./바탕.ts";
 import { parseMetaJson, setEmbeddedMetaForTest } from "../app/embedded.ts";
 import * as MT from "../app/meta.ts";
+import { 오류글 } from "../worker/meta-auth/src/scrub.ts";
 import * as MP from "../app/metapost.ts";
 import * as R from "../app/review.ts";
 import { uploadOne } from "../app/upload.ts";
@@ -365,10 +366,49 @@ async function 로그인시험() {
     같나("스레드 로그인 결과", (await s2.done).key, "th:26310000000000002");
 
     // 거절·취소·실패
+    const 까닭 = async (p: Promise<unknown>) => { try { await p; return "(던지지 않음)"; } catch (e) { return e instanceof Error ? e.message : String(e); } };
     const s3 = await MT.startSignIn("instagram");
     await 돌아옴(s3.url, { error: "access_denied" });
-    await 던지나("연결을 허락하지 않으면", () => s3.done, /허락하지 않으셨습니다/);
+    await 던지나("취소 이름만 오고 까닭이 없으면 취소로 보되 신청 확인을 덧붙인다", () => s3.done, /연결을 취소했습니다 \(취소한 적이 없다면 사용 신청과 초대 수락을 확인해 주세요/);
     같나("그 뒤 진행 중이 아니다", MT.signin.state.running, false);
+
+    // 메타가 거절을 알려 온 경우 — 직접 취소 · 신청 안 된 계정(알 수 없는 오류 포함) · 중계의 교환 실패
+    const sa = await MT.startSignIn("instagram");
+    const 쪽a = await 돌아옴(sa.url, { error: "access_denied", reason: "user_denied", why: "The user denied your request" });
+    같나("error_reason=user_denied 는 직접 취소 — 신청 안내를 붙이지 않는다", await 까닭(sa.done), "연결을 취소했습니다");
+    참인가("돌아온 쪽 화면도 같은 말", 쪽a.text.includes("연결을 취소했습니다") && !쪽a.text.includes(MT.신청.email));
+
+    const sb = await MT.startSignIn("instagram");
+    const 쪽b = await 돌아옴(sb.url, { error: "invalid_request", why: "Insufficient Developer Role" });
+    const 글b = await 까닭(sb.done);
+    참인가("신청 안 된 계정(알 수 없는 오류)은 신청 안내 — 아직 신청이 안 됐거나 초대를 수락하지 않았다", /연결하지 못했습니다 — 아직 사용 신청이 안 된 계정이거나 초대를 수락하지 않았을 수 있습니다/.test(글b));
+    참인가("  안내에 신청 이메일 · 인스타그램의 수락하는 곳 · 메타가 알려 준 오류 원문", 글b.includes(MT.신청.email) && 글b.includes("앱 및 웹사이트 › 「테스터 초대」") && 글b.includes("invalid_request / Insufficient Developer Role") && !글b.includes("웹사이트 권한"));
+    참인가("  돌아온 쪽 화면에도 같은 안내", 쪽b.text.includes(MT.신청.email) && 쪽b.text.includes("테스터 초대"));
+    같나("  화면이 읽는 진행 상태에도 남는다", MT.signin.state.why, 글b);
+
+    const sc = await MT.startSignIn("threads");
+    await 돌아옴(sc.url, { error: "some_new_meta_error" });
+    const 글c = await 까닭(sc.done);
+    참인가("처음 보는 오류 이름도 신청 안내(스레드는 스레드 쪽 수락하는 곳)", 글c.includes(MT.신청.email) && 글c.includes("웹사이트 권한 › 초대") && !글c.includes("테스터 초대") && 글c.includes("some_new_meta_error"));
+
+    const sd = await MT.startSignIn("instagram");
+    await 돌아옴(sd.url, { error: "no_code" });
+    참인가("코드도 오류도 없이 돌아오면(no_code) 신청 안내", (await 까닭(sd.done)).includes(MT.신청.email));
+
+    const se = await MT.startSignIn("instagram");
+    await 돌아옴(se.url, { error: "exchange_failed", why: "코드 교환 실패 400" });
+    같나("중계가 토큰을 못 바꾼 것은 신청 안내 없이 그대로", await 까닭(se.done), "메타와 토큰을 바꾸지 못했습니다 — 코드 교환 실패 400");
+
+    // 오류 글에 토큰·코드가 섞여 와도 화면·진행 상태·기록에 나오지 않는다
+    const sf = await MT.startSignIn("instagram");
+    const 쪽f = await 돌아옴(sf.url, { error: "invalid_request", reason: "code=SECRETCODE12345", why: "Bad access_token=EAAGm0PX4ZDZDabc and Bearer IGAAXYZSECRETTOKEN and EAAGm0PX4ZDZDabcdefghijklmnopqrstuvwxyz0123456789 end" });
+    const 글f = await 까닭(sf.done);
+    const 새면 = ["SECRETCODE12345", "EAAGm0PX4ZDZDabc", "IGAAXYZSECRETTOKEN", "ijklmnopqrstuvwxyz0123456789"];
+    참인가("오류 글의 토큰·코드 값은 가려진다 (오류 · 진행 상태 · 돌아온 쪽 화면)", 새면.every((t) => !글f.includes(t) && !쪽f.text.includes(t) && !JSON.stringify(MT.signin.state).includes(t)));
+    참인가("  가려도 진단에 필요한 이름은 남는다", 글f.includes("invalid_request") && 글f.includes("end"));
+    참인가("  기록에도 없다", !(await 로그("올리기.log")).includes("SECRETCODE12345"));
+    같나("오류 글 가리기: 짧은 숫자 code 는 진단 값이라 남긴다", [오류글("{\"code\":400,\"message\":\"x\"}"), 오류글("code=ABCDEFG&state=Zzz")], ["{\"code\":400,\"message\":\"x\"}", "code=…&state=…"]);
+    같나("오류 글 가리기: 긴 글은 가린 뒤에 자른다(토큰 앞부분이 남지 않는다)", 오류글("가".repeat(20) + " " + "A1".repeat(20), 30), "가".repeat(20) + " …");
 
     const s4 = await MT.startSignIn("instagram");
     MT.signin.stop?.();
@@ -386,7 +426,11 @@ async function 로그인시험() {
     참인가("그런 답으로는 저장소가 늘지 않았다", Object.keys(MT.loadStore()).length === 2);
 
     const s7 = await MT.startSignIn("instagram", { timeoutMs: 30 });
-    await 던지나("시간이 지나면 접는다", () => s7.done, /로그인을 접었습니다/);
+    const 글7 = await 까닭(s7.done);
+    참인가("시간이 지나면 접는다", /10분이 지나 로그인을 접었습니다/.test(글7));
+    참인가("  메타 화면에서 막혀 돌아오지 않은 경우 — 신청한 계정인지·초대를 수락했는지 확인 문구와 신청 이메일·수락하는 곳", /신청한 계정으로 로그인했는지, 초대를 수락했는지 확인/.test(글7) && 글7.includes(MT.신청.email) && 글7.includes("테스터 초대"));
+    const s8 = await MT.startSignIn("threads", { timeoutMs: 30 });
+    참인가("  스레드는 스레드 쪽 수락하는 곳", (await 까닭(s8.done)).includes("웹사이트 권한 › 초대"));
 
     setEmbeddedMetaForTest({ ...열쇠, th_app_id: "" });
     await 던지나("이 판에 스레드 번호가 없으면 시작하지 않는다", () => MT.startSignIn("threads"), /연결 정보가 들어 있지 않습니다/);
@@ -1321,6 +1365,23 @@ async function 화면길시험() {
     같나("채널 짝", g.channels, [{ alias: "채널A", instagram: w.ig }]);
     같나("일감 목록 · 요약", [g.jobs[0].id, g.jobs[0].targets[0].state, g.summary], [d.id, "대기", { waiting: 1, unknown: 0, failed: 0 }]);
     참인가("답에는 토큰 값이 없다", !JSON.stringify(g).includes("TOK-"));
+    같나("사용 신청 안내: 이메일 · 두 곳의 수락하는 곳 (화면은 이것만 읽는다)", [g.apply.email, g.apply.accept.instagram.includes("테스터 초대"), g.apply.accept.threads.includes("웹사이트 권한")], [MT.신청.email, true, true]);
+    const mu = new URL(g.apply.mailto);
+    같나("  신청 메일 주소 · 제목 · 본문의 아이디 칸", [mu.protocol, decodeURIComponent(mu.pathname), mu.searchParams.get("subject"), mu.searchParams.get("body")?.includes("인스타그램 아이디:")],
+      ["mailto:", "beautifulahin@gmail.com", "가라사대 업로더 인스타·스레드 사용 신청", true]);
+    같나("연결 정보가 없는 판의 답에는 신청 안내가 없다", (꺼짐 as Obj).apply, undefined);
+    // 신청 이메일은 코드 한 곳(app/meta.ts 의 신청)에서만 정한다 — 화면·다른 파일에는 글자로 베끼지 않는다
+    const 베낀곳: string[] = [];
+    const 앱 = decodeURIComponent(new URL("../app", import.meta.url).pathname);
+    const 훑기 = async (dir: string) => {
+      for await (const e of Deno.readDir(dir)) {
+        const q = `${dir}/${e.name}`;
+        if (e.isDirectory) await 훑기(q);
+        else if (/\.(ts|js|html)$/.test(e.name) && (await Deno.readTextFile(q)).includes(MT.신청.email)) 베낀곳.push(q.slice(앱.length));
+      }
+    };
+    await 훑기(앱);
+    같나("신청 이메일 글자는 meta.ts 에만 있다", 베낀곳, ["/meta.ts"]);
 
     await 던지나("종류를 잘못 고르면", () => 길.post["meta/bind"](몸({ alias: "채널A", provider: "페이스북", key: w.ig }) as never), /인스타그램 또는 스레드/);
     await 던지나("모르는 계정으로 짝지으면", () => 길.post["meta/bind"](몸({ alias: "채널A", provider: "instagram", key: "ig:없음" }) as never), /연결된 인스타그램 계정이 아닙니다/);

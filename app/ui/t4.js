@@ -368,6 +368,15 @@
     if (!(av && av.on)) return;
     hasHide('t4MtIgBtn', !av.instagram); hasHide('t4MtThBtn', !av.threads);
     hasHide('t4MtStop', !mtLogin); hasHide('t4MtCopy', !(mtLogin && mtUrl));
+    // 사용 신청 안내 — 이메일·메일 문안·수락하는 곳은 서버(meta.ts 의 신청)가 주는 것만 쓴다
+    const ap = MT.apply;
+    if (ap) {
+      const a = $('t4MtMail'); if (a) a.href = ap.mailto;
+      text('t4MtMailTo', ap.email);
+      text('t4MtAccIg', (ap.accept || {}).instagram || ''); text('t4MtAccTh', (ap.accept || {}).threads || '');
+      hasHide('t4MtAccIgW', !av.instagram); hasHide('t4MtAccThW', !av.threads); hasHide('t4MtAccSep', !(av.instagram && av.threads));
+    }
+    hasHide('t4MtApply', !ap);
     const accts = MT.accounts || [];
     const chip = $('t4MtChip');
     chip.className = 't4-chip ' + (accts.length ? 'ok' : 'no');
@@ -410,23 +419,29 @@
       return `<div class="t4-mtjob"><div class="tt">[${esc(j.channel)}] ${esc(cutS(j.title, 36))} <span style="color:var(--t3)">${esc(ph)}${esc(when)}</span>${cancel}</div>${rows}</div>`;
     }).join('') : '<div class="hintline">아직 없습니다.</div>';
   }
+  /** 로그인 줄 — 연결 실패 안내는 길어서 토스트가 아니라 이 줄에 붉게 남긴다 */
+  const mtLine = (t, bad) => { text('t4MtLine', t); const e = $('t4MtLine'); if (e) e.classList.toggle('t4-bad', !!bad); };
+  window.t4MtCopyMail = () => { if (MT && MT.apply) cpy(MT.apply.email, '신청 메일 주소를 복사했습니다'); };
   window.t4MtLogin = async provider => {
     if (mtLogin) return msg('이미 로그인 창이 열려 있습니다');
     const r = await call('/api/meta/signin/start', { provider });
     if (r.ok === false) return msg(r.why || '로그인을 시작하지 못했습니다', 'err');
     mtLogin = true; mtUrl = r.url || '';
-    text('t4MtLine', '브라우저에서 로그인을 마쳐 주세요. 창이 열리지 않으면 「로그인 주소 복사」 뒤 브라우저에 붙여 넣으세요.');
+    mtLine('브라우저에서 로그인을 마쳐 주세요. 창이 열리지 않으면 「로그인 주소 복사」 뒤 브라우저에 붙여 넣으세요.');
     fillMt();
     for (let i = 0; i < 420 && mtLogin; i++) {
       await new Promise(res => setTimeout(res, 1500));
       const c = await call('/api/meta/signin/check', {});
-      if (c.ok === false) { text('t4MtLine', c.why || '연결하지 못했습니다'); msg(c.why || '연결하지 못했습니다', 'err'); break; }
-      if (c.state === 'done') { text('t4MtLine', `${MT_NAME[c.provider] || ''} @${c.username} 연결됐습니다.`); msg(`@${c.username} 연결됐습니다`, 'ok'); break; }
+      if (c.ok === false) {
+        const why = c.why || '연결하지 못했습니다';
+        mtLine(why, true); msg(why.length > 60 ? '연결하지 못했습니다 — 아래 안내를 확인해 주세요' : why, 'err'); break;
+      }
+      if (c.state === 'done') { mtLine(`${MT_NAME[c.provider] || ''} @${c.username} 연결됐습니다.`); msg(`@${c.username} 연결됐습니다`, 'ok'); break; }
     }
     mtLogin = false; mtUrl = '';
     await loadMt();
   };
-  window.t4MtStop = async () => { await call('/api/meta/signin/stop', {}); mtLogin = false; mtUrl = ''; text('t4MtLine', '로그인을 그만뒀습니다.'); fillMt(); };
+  window.t4MtStop = async () => { await call('/api/meta/signin/stop', {}); mtLogin = false; mtUrl = ''; mtLine('로그인을 그만뒀습니다.'); fillMt(); };
   window.t4MtCopyUrl = () => { if (mtUrl) cpy(mtUrl, '로그인 주소를 복사했습니다'); };
   async function mtDo(path, body, ok) {
     const r = await call(path, body);

@@ -258,6 +258,23 @@ export async function 실행() {
     const 돌아옴 = async (path: string) => { const r = await w.call("GET", path); return [r.status, r.headers.get("location")]; };
     같나("메타가 거절을 알려 오면 앱으로 알린다", await 돌아옴(`/ig/callback?${new URLSearchParams({ error: "access_denied", error_description: "The user denied", state: st })}`),
       [302, `http://127.0.0.1:${s.port}/meta/done?n=${s.nonce}&ok=0&error=access_denied&why=The+user+denied`]);
+    같나("메타가 거절 까닭(error_reason)까지 보내오면 함께 앱으로 알린다", await 돌아옴(`/ig/callback?${new URLSearchParams({ error: "access_denied", error_reason: "user_denied", error_description: "The user denied your request", state: st })}`),
+      [302, `http://127.0.0.1:${s.port}/meta/done?n=${s.nonce}&ok=0&error=access_denied&reason=user_denied&why=The+user+denied+your+request`]);
+    {
+      const stT = new URL((await w.call("GET", 시작주소("th", s))).headers.get("location")!).searchParams.get("state")!;
+      const desc = "Bad code=SECRETCODE12345 and EAAGm0PX4ZDZDabcdefghijklmnopqrstuvwxyz0123456789 end";
+      const r = await w.call("GET", `/th/callback?${new URLSearchParams({ error: "invalid_request", error_description: desc, state: stT })}`);
+      const loc = new URL(r.headers.get("location")!);
+      참인가("거절 설명에 토큰·코드 값이 섞여 와도 앱으로 넘기지 않는다", r.status === 302 && !loc.href.includes("SECRETCODE12345") && !loc.href.includes("ijklmnopqrstuvwxyz0123456789")
+        && (loc.searchParams.get("why") ?? "").includes("end") && loc.searchParams.get("error") === "invalid_request");
+    }
+    {
+      const r = await w.call("GET", `/ig/callback?${new URLSearchParams({ error: "access_denied", error_reason: "user_denied" })}`);
+      const html = await r.text();
+      참인가("state 없이 거절만 오면(앱으로 돌려보낼 곳을 모름) 이 쪽에서 까닭을 말한다 — 시간이 지난 주소라고 하지 않는다", r.status === 400 && html.includes("메타가 로그인을 거절했습니다 (메타가 알려 준 오류: access_denied)") && html.includes("사용 신청이 안 된 계정") && !html.includes("이미 쓴 주소"));
+      const x = await (await w.call("GET", `/ig/callback?${new URLSearchParams({ error: "<script>alert(1)</script>" })}`)).text();
+      참인가("  오류 이름이 이상한 글자면 화면에 싣지 않는다(스크립트 주입 없음)", !x.includes("<script>alert") && x.includes("메타가 로그인을 거절했습니다."));
+    }
     같나("코드가 없으면", await 돌아옴(`/ig/callback?${new URLSearchParams({ state: st })}`), [302, `http://127.0.0.1:${s.port}/meta/done?n=${s.nonce}&ok=0&error=no_code`]);
     const x = await w.call("GET", `/ig/callback?${new URLSearchParams({ code: "틀린코드", state: st })}`);
     const xl = new URL(x.headers.get("location")!);
