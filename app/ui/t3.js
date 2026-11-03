@@ -35,7 +35,7 @@
   const uid = name => { if (!uids.has(name)) uids.set(name, 'c' + (++uidN)); return uids.get(name); };
   const chans = () => (ST && ST.channels) || [];
   const chan = name => chans().find(c => c.name === name) || null;
-  const KEYFROM = { '내장': '내장 열쇠', '파일': '내 열쇠(파일)', '전용': '이 채널 전용 열쇠' };
+  const KEYFROM = { '파일': '내 열쇠(파일)', '전용': '이 채널 전용 열쇠' };
   const HOW = { browser: '🔑 브라우저 로그인', device: '📟 코드 인증' };
   const fid = (n, k) => `t3f_${uid(n)}_${k.replace(/[^A-Za-z0-9_]/g, '_')}`;
 
@@ -145,7 +145,8 @@
   function warnHtml(c) {
     const o = [];
     if (c.lastError) o.push(`<div class="danger">⚠️ ${esc(c.lastError)}</div>`);
-    if (c.needsReconnect) o.push('<div class="danger">🔑 <b>로그인이 풀렸습니다 — 다시 연결이 필요합니다.</b> 이 채널은 지금 영상을 올리지 못합니다. 아래 <b>다시 연결</b>을 누르면 기다리던 영상은 사라지지 않고 그대로 올라갑니다.</div>');
+    if (c.keyFrom === '다시연결') o.push('<div class="danger">🔑 <b>내 열쇠를 넣고 채널을 다시 연결해 주세요.</b> 이 채널은 이전 판(2.1.0 이하)에 들어 있던 공용 열쇠로 연결돼 있어, 이번 판에서는 영상을 올리지 못합니다. 위쪽 <b>「내 구글 클라우드 열쇠 넣기」</b>에 내 열쇠를 넣은 뒤 아래 <b>다시 연결</b>을 누르면, 기다리던 영상과 기록은 사라지지 않고 그대로 올라갑니다.</div>');
+    else if (c.needsReconnect) o.push('<div class="danger">🔑 <b>로그인이 풀렸습니다 — 다시 연결이 필요합니다.</b> 이 채널은 지금 영상을 올리지 못합니다. 아래 <b>다시 연결</b>을 누르면 기다리던 영상은 사라지지 않고 그대로 올라갑니다.</div>');
     else if (!c.authed) o.push('<div class="t3-note">🔑 아직 구글에 연결되지 않았습니다. 아래 <b>구글 계정 연결</b>을 눌러 이 채널을 가진 계정으로 로그인하고, 로그인 창에서 이 채널을 고르세요.</div>');
     else if (c.canPublish === false) o.push('<div class="danger">🌐 <b>공개 권한이 없습니다.</b> 로그인할 때 권한 세 칸 중 공개 전환 칸을 빼고 허용한 연결입니다. 이대로는 비공개로 올린 영상을 공개로 바꾸지 못합니다 — <b>다시 연결</b>하면서 세 칸을 모두 체크해 주세요.</div>');
     if (!c.folder) o.push('<div class="t3-note">📂 영상 폴더가 정해지지 않았습니다. 아래 <b>폴더 바꾸기</b>로 고르세요.</div>');
@@ -351,8 +352,8 @@
     return `<details class="t3-sec"><summary>🔑 이 채널만 다른 열쇠 쓰기 (고급)</summary><div class="t3-sec-b">
       <div class="p13" style="padding-top:8px">${c.secretFile
         ? `이 채널은 전용 열쇠 <code>${esc(c.secretFile)}</code> 로 연결됩니다.`
-        : '지금은 공통 열쇠(내장 또는 위에서 넣은 열쇠)를 씁니다.'}</div>
-      <div class="hintline">채널마다 다른 구글 프로젝트의 열쇠를 쓰고 싶을 때만 쓰세요. <b>내 열쇠를 쓰는 경우에만</b> 구글의 하루 호출 한도가 열쇠(프로젝트)마다 따로 계산됩니다.
+        : '지금은 공통 열쇠(위에서 넣은 내 열쇠)를 씁니다.'}</div>
+      <div class="hintline">채널마다 다른 구글 프로젝트의 열쇠를 쓰고 싶을 때만 쓰세요. 구글의 하루 호출 한도는 열쇠(프로젝트)마다 따로 계산되므로, 채널마다 다른 프로젝트의 열쇠를 쓰면 한도도 따로 받습니다.
       지정한 뒤에는 이 채널을 <b>다시 연결</b>해야 적용됩니다.</div>
       <div class="t3-acts">
         <button type="button" class="tb on" onclick="t3Act(this,'sec-pick')">📂 열쇠 JSON 파일 올리기</button>
@@ -785,16 +786,16 @@
     const r = await call('/api/secret/state', {});
     if (r.ok === false) return;
     secState = r;
-    const st = (own, emb) => own ? ['✓ 내 열쇠 파일 있음', 'ok'] : emb ? ['내장 열쇠 사용 중', ''] : ['⚠ 열쇠 없음', 'no'];
-    const [ct, cc] = st(r.client, r.embedded && r.embedded.browser), [dt, dc] = st(r.device, r.embedded && r.embedded.device);
+    const st = own => own ? ['✓ 내 열쇠 파일 있음', 'ok'] : ['⚠ 열쇠 없음', 'no'];
+    const [ct, cc] = st(r.client), [dt, dc] = st(r.device);
     const a = $('t3SecClient'), b = $('t3SecDevice');
     a.textContent = ct; a.className = 'chbadge ' + cc; b.textContent = dt; b.className = 'chbadge ' + dc;
     const bad = [];
     if (r.ready && r.ready.browser === false) bad.push('구글 로그인(🔑)');
     if (r.ready && r.ready.device === false) bad.push('코드 인증(📟)');
     $('t3SecLine').innerHTML = bad.length
-      ? `<span class="t4-bad" style="color:var(--accent)">⚠️ ${bad.join('과 ')}에 쓸 열쇠가 없어 연결할 수 없습니다. 아래에 넣어 주세요.</span>`
-      : `연결 준비가 되어 있습니다.${r.channels != null ? ` (연결된 채널 ${num(r.channels)}개${(r.missing || []).length ? ` · 아직 연결 안 된 채널 ${(r.missing || []).length}개` : ''})` : ''}`;
+      ? `<span class="t4-bad" style="color:var(--accent)">⚠️ ${bad.join('과 ')}에 쓸 열쇠가 없어 연결할 수 없습니다. 아래에 내 열쇠를 넣어 주세요.</span>`
+      : `연결 준비가 되어 있습니다.${r.channels != null ? ` (연결된 채널 ${num(r.channels)}개${(r.missing || []).length ? ` · 아직 연결 안 된 채널 ${(r.missing || []).length}개` : ''}${r.retired ? ` · 내 열쇠로 다시 연결해야 하는 채널 ${num(r.retired)}개` : ''})` : ''}`;
   }
   async function secFile(kind, el) {
     const file = el.files && el.files[0]; if (!file) return;
@@ -828,7 +829,7 @@
     return !!(c && c.secretFile);
   }
   function notReady() {
-    msg('이 프로그램에 들어 있는 구글 열쇠를 찾지 못했습니다. 「내 구글 열쇠 쓰기」에서 열쇠를 넣어 주세요', 'err');
+    msg('내 구글 클라우드 열쇠가 아직 없습니다. 「내 구글 클라우드 열쇠 넣기」에서 열쇠를 넣어 주세요 (만드는 법은 🚀 시작하기 탭)', 'err');
     window.t3GoAdv();
   }
 
@@ -1005,11 +1006,15 @@
   function paintLink(s) {
     const need = (s.channels || []).filter(c => c.needsReconnect), rc = $('t3Recon');
     rc.classList.toggle('hide', !need.length);
-    const rsig = JSON.stringify(need.map(c => c.name));
+    const old = need.filter(c => c.keyFrom === '다시연결').length;     // 이전 판의 공용 열쇠로 연결돼 있던 채널
+    const rsig = JSON.stringify([need.map(c => c.name), old]);
     if (rc.dataset.sig !== rsig) {                  // 같으면 다시 그리지 않는다
       rc.dataset.sig = rsig;
       rc.innerHTML = need.length
-        ? `🔑 <b>로그인이 풀려 다시 연결이 필요한 채널 ${need.length}개</b> — 다시 연결하면 기다리던 영상이 그대로 올라갑니다.<div class="t3-acts" style="margin-bottom:0">${need.map(c => `<button type="button" class="tb on" data-ch="${attr(c.name)}" onclick="t3Act(this,'recon')">🔑 ${esc(c.name)} 다시 연결</button>`).join('')}</div>`
+        ? (old
+          ? `🔑 <b>내 열쇠를 넣고 채널을 다시 연결해 주세요 (${old}개)</b> — 이전 판(2.1.0 이하)에 들어 있던 공용 열쇠로 연결한 채널은 이번 판에서 쓸 수 없습니다. 먼저 아래 <b>「내 구글 클라우드 열쇠 넣기」</b>에 내 열쇠를 넣은 뒤 다시 연결하면, 기다리던 영상과 기록은 그대로 남아 올라갑니다.`
+          : `🔑 <b>로그인이 풀려 다시 연결이 필요한 채널 ${need.length}개</b> — 다시 연결하면 기다리던 영상이 그대로 올라갑니다.`) +
+          `<div class="t3-acts" style="margin-bottom:0">${need.map(c => `<button type="button" class="tb on" data-ch="${attr(c.name)}" onclick="t3Act(this,'recon')">🔑 ${esc(c.name)} 다시 연결</button>`).join('')}</div>`
         : '';
     }
     const r = s.welcome && s.welcome.ready, note = $('t3LinkNote');
@@ -1017,7 +1022,14 @@
     if (r && r.browser === false) bad.push('구글 로그인(🔑)');
     if (r && r.device === false) bad.push('코드 인증(📟)');
     note.classList.toggle('hide', !bad.length);
-    note.innerHTML = bad.length ? `⚠️ ${bad.join('과 ')}에 쓸 구글 열쇠를 이 프로그램에서 찾지 못했습니다. 아래 <b>「내 구글 열쇠 쓰기」</b>에서 열쇠를 넣어 주세요. <button type="button" class="tb" onclick="t3GoAdv()">🔑 열쇠 넣는 곳으로</button>` : '';
+    note.innerHTML = bad.length ? `<b>🔑 내 구글 클라우드 열쇠 넣기</b> — 이 프로그램은 만든 사람의 열쇠를 들고 있지 않습니다. ${bad.join('과 ')}에 쓸 <b>내 구글 열쇠</b>가 아직 없어 연결할 수 없습니다.
+      <ol style="margin:6px 0 6px 18px;padding:0"><li><b>🚀 시작하기</b> 탭의 「내 구글 클라우드 열쇠 만들기」를 따라 열쇠 파일을 만듭니다(구글 로그인용 <code>client_secret.json</code> · 코드 인증용 <code>device_secret.json</code>).</li>
+      <li>아래 <b>「내 구글 클라우드 열쇠 넣기」</b>에서 파일을 올리거나 클라이언트 ID·보안 비밀번호를 붙여넣습니다.</li><li>위의 <b>🔑 구글 계정 연결</b>을 누릅니다.</li></ol>
+      <span style="color:var(--t3)">참고 — 새로 만든 구글 프로젝트는 YouTube API 감사(심사)를 통과하기 전에는 이 앱으로 올린 영상이 비공개로 잠길 수 있습니다. 신청 방법은 🚀 시작하기 탭에 있습니다.</span><br>
+      <button type="button" class="tb on" onclick="t3GoAdv()">🔑 열쇠 넣는 곳으로</button> <button type="button" class="tb" onclick="t5GoAdv()">🚀 열쇠 만드는 법 보기</button>` : '';
+    // 열쇠가 없으면 열쇠 넣는 칸을 한 번 펼쳐 둔다 (사용자가 접으면 다시 펼치지 않는다)
+    const adv = $('t3Adv');
+    if (bad.length && adv && !adv.dataset.autoOpened) { adv.dataset.autoOpened = '1'; adv.open = true; loadSecret(); }
   }
   registerTab('t3', {
     init(s) {

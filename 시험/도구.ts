@@ -9,7 +9,7 @@ import { setQuiet } from "../app/paths.ts";
 import { resetCache } from "../app/shorts.ts";
 import { resetToolCache } from "../app/tools.ts";
 import { forgetAccessTokens } from "../app/ytcore.ts";
-import { setEmbeddedForTest, setEmbeddedMetaForTest } from "../app/embedded.ts";
+import { setEmbeddedMetaForTest } from "../app/embedded.ts";
 
 export const 결과 = { 실패: 0, 통과: 0 };
 
@@ -52,13 +52,13 @@ export async function 모래상자<T>(일: (dir: string) => Promise<T>): Promise
   await Deno.mkdir(`${dir}/집`, { recursive: true });
   setQuiet(true);
   resetCache(); resetToolCache(); forgetAccessTokens(); setFetch(null);
-  // 시험은 실제 내장 열쇠를 읽지 않는다 — 기본은 「없음」, 필요한 시험이 가짜 열쇠를 끼운다.
-  setEmbeddedForTest("browser", null); setEmbeddedForTest("device", null); setEmbeddedMetaForTest(null);
+  // 2.2.0 — 구글 열쇠는 앱에 묶이지 않는다. 시험 폴더는 열쇠 파일이 없는 채로 시작하고, 필요한 시험이 바탕.ts 의 열쇠넣기()로 가짜 열쇠 파일을 둔다.
+  setEmbeddedMetaForTest(null);
   try {
     return await 일(dir);
   } finally {
     setFetch(null);
-    setEmbeddedForTest("browser", undefined); setEmbeddedForTest("device", undefined); setEmbeddedMetaForTest(undefined);
+    setEmbeddedMetaForTest(undefined);
     for (const [k, v] of [["GARASADAE_DATA_DIR", 앞.data], ["GARASADAE_HOME", 앞.home], ["GARASADAE_OFFLINE", 앞.off]] as const) {
       if (v === undefined) Deno.env.delete(k); else Deno.env.set(k, v);
     }

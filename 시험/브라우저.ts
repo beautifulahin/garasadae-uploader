@@ -156,6 +156,33 @@ export async function 실행() {
       같나("끝까지 자바스크립트 오류·실패한 요청이 없다", [p.errs, p.bad], [[], []]);
     } finally { await p.close(); await s.shutdown(); setAiBackend(null); g.uninstall(); }
   });
+
+  // 열쇠 파일이 하나도 없는 처음 상태 — 안내 카드와 「열쇠 넣기」 안내가 보여야 한다 (2.2.0)
+  구역("브라우저 — 내 구글 열쇠가 없는 처음 상태 (열쇠 안내 · 감사 안내 · 연결 단추 대신 안내)");
+  await 모래상자(async (_dir) => {
+    const g = new 가짜구글();
+    const s = await startServer({ port: 0, tick: false, autoUpdate: false });
+    const p = await 크롬열기(chrome);
+    if (!p) { await s.shutdown(); 같나("크롬을 띄웠다", false, true); return; }
+    try {
+      await p.go(s.url + "/");
+      await sleep(3500);
+      await p.ev("swTab('t5'), true"); await sleep(1500);
+      같나("시작하기 탭에 「내 구글 클라우드 열쇠가 아직 없습니다」 카드가 보인다", [
+        await p.ev("(()=>{const c=document.getElementById('t5KeyNeed'); return !!c && !c.classList.contains('hide') && c.offsetHeight>0})()"),
+        String(await p.ev("document.getElementById('t5KeyNeed')?.textContent")).includes("내 구글 클라우드 열쇠가 아직 없습니다"),
+      ], [true, true]);
+      await p.ev("swTab('t3'), true"); await sleep(1500);
+      const 안내 = String(await p.ev("document.getElementById('t3LinkNote')?.textContent"));
+      같나("채널 탭에 「내 구글 클라우드 열쇠 넣기」 안내가 보인다", [
+        await p.ev("(()=>{const c=document.getElementById('t3LinkNote'); return !!c && !c.classList.contains('hide') && c.offsetHeight>0})()"),
+        안내.includes("내 구글 클라우드 열쇠 넣기"),
+        안내.includes("YouTube API 감사"),
+      ], [true, true, true]);
+      같나("화면에 만든 사람의 열쇠가 있다는 말이 없다", 안내.includes("기본 열쇠"), false);
+      같나("끝까지 자바스크립트 오류·실패한 요청이 없다", [p.errs, p.bad], [[], []]);
+    } finally { await p.close(); await s.shutdown(); g.uninstall(); }
+  });
 }
 
 if (import.meta.main) {

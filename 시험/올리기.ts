@@ -209,6 +209,27 @@ export async function 실행() {
     같나("한도미룸이 올리기.log 에 남는다", (await 로그("올리기.log")).includes("한도미룸"), true);
     for (const x of Q.list()) await Q.remove(x.file);
 
+    구역("발사대기 — 한도 이유를 구분해 기록한다 (프로젝트 할당량 소진 / 채널 하루 업로드 한도 / 요청 거절)");
+    const 미룸 = async (이름: string, 오류: unknown) => {
+      await Q.add(일감(c, await 영상두기(c.folder, 이름), { publish_at: "2026-10-20 09:00" }), "2020-01-01T00:00:00", say);
+      const 쏨 = await Q.fire({ say, now: wall(2026, 10, 20, 12, 0), uploader: async () => { throw 오류; } });
+      const 줄 = Q.list().map((x) => String((x as Record<string, unknown>).한도미룸 ?? ""));
+      for (const x of Q.list()) await Q.remove(x.file);
+      return { 쏨, 줄 };
+    };
+    const 프 = await 미룸("p1.mp4", new GoogleError("403 quotaExceeded: The request cannot be completed because you have exceeded your quota.\n둘째 줄", 403, "quotaExceeded"));
+    같나("프로젝트 할당량 소진(quotaExceeded) — 큐 줄에 이유와 구글 말 첫 줄이 남는다", [프.쏨, 프.줄.length, 프.줄[0]?.startsWith("프로젝트 할당량 소진(quotaExceeded)"), 프.줄[0]?.includes("구글 말: 403 quotaExceeded"), 프.줄[0]?.includes("둘째 줄")], [0, 1, true, true, false]);
+    const 채 = await 미룸("p2.mp4", new GoogleError("400 uploadLimitExceeded: The user has exceeded the number of videos they may upload.", 400, "uploadLimitExceeded"));
+    같나("채널 하루 업로드 한도(uploadLimitExceeded) — 프로젝트 할당량과 다른 이름으로 남는다", [채.줄.length, 채.줄[0]?.startsWith("채널 하루 업로드 한도(uploadLimitExceeded)"), 채.줄[0]?.includes("프로젝트 할당량")], [1, true, false]);
+    const 요 = await 미룸("p3.mp4", new GoogleError("429 Too Many Requests", 429));
+    같나("이유 없이 HTTP 429 만 오면 「요청 거절」로 남긴다", [요.줄.length, 요.줄[0]?.startsWith("구글이 요청을 거절함(HTTP 429)")], [1, true]);
+    const 로그글 = await 로그("올리기.log");
+    같나("올리기.log 한도미룸 줄에 이유와 구글 말이 같이 남는다", [/한도미룸  1편 → .*이유: 프로젝트 할당량 소진\(quotaExceeded\) · 구글 말: 403 quotaExceeded/.test(로그글), /한도미룸  1편 → .*이유: 채널 하루 업로드 한도\(uploadLimitExceeded\)/.test(로그글)], [true, true]);
+    // 「429」가 글 어딘가에 들어 있어도 한도가 아니다 — 한도로 보고 영상을 미루지 않고 실패로 센다
+    const 가짜 = await 미룸("p4.mp4", new Error("영상 4290번째 줄에서 읽기 실패"));
+    같나("글에 429 가 들어 있어도 구글 한도가 아니면 미루지 않는다(큐에 한도미룸 표시 없음 · 일반 실패로 기록)", [가짜.줄.filter(Boolean).length, (await 로그("올리기.log")).includes("발사실패 [채널A] p4.mp4  영상 4290번째 줄에서 읽기 실패")], [0, true]);
+    for (const x of Q.list()) await Q.remove(x.file);
+
     for (const n of ["y1.mp4", "y2.mp4"]) await Q.add(일감(c, await 영상두기(c.folder, n)), "2020-01-01T00:00:00", say);
     let 부름 = 0;
     const 실패 = async (j: Job) => { 부름++; if (baseOf(j.file) === "y1.mp4") throw new Error("그냥 실패\n둘째 줄"); return "Y2"; };

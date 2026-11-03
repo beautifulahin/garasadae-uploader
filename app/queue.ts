@@ -26,7 +26,7 @@ import { resolve } from "./ytcore.ts";
 import { externalRoot } from "./tools.ts";
 import { markDone } from "./folders.ts";
 import { failNotice, launchNotice } from "./notify.ts";
-import { GoogleError } from "./google.ts";
+import { GoogleError, limitInfo } from "./google.ts";
 
 /** 이보다 오래 늦은 것은 사람에게 묻는다 (초) */
 export const LATE_LIMIT = 24 * 3600;
@@ -170,10 +170,13 @@ export function nextReset(now: Date = new Date()): string {
   return isoWall(nextQuotaReset(now, systemZone()));
 }
 
-/** 하루 업로드 한도에 걸렸다는 응답인가. (2026-09-19 채널 하루 편수 한도(400)도 같이 미룬다) */
+/**
+ * 하루 업로드 한도에 걸렸다는 응답인가. (2026-09-19 채널 하루 편수 한도(400)도 같이 미룬다)
+ * 2.2.0: 「429」라는 글자가 오류 글 어딘가에 있다고 한도로 보지 않는다 — HTTP 상태 429 이거나 구글이 한도 이유(quotaExceeded · uploadLimitExceeded …)를 줬을 때만.
+ * 어떤 한도인지(프로젝트 할당량 · 채널 하루 업로드 한도)는 google.ts 의 limitInfo 가 가린다.
+ */
 export function isLimitError(e: unknown): boolean {
-  const m = String((e as Error)?.message ?? e) + " " + String((e as { body?: string })?.body ?? "");
-  return ["429", "quotaExceeded", "Quota exceeded", "exceeded the number of videos", "uploadLimitExceeded"].some((k) => m.includes(k));
+  return limitInfo(e) !== null;
 }
 
 /* ============================================================ 쏘기 */
@@ -292,6 +295,7 @@ async function fireLocked(o: FireOpts, 말: (s: string) => void): Promise<number
       //   한도에 걸리면 남은 것을 하나씩 더 두드려 봐야 전부 거절된다. (실측: 88번째부터 62편이 줄줄이 429)
       //   여기서 멈추고 남은 것 전부를 다음 초기화(태평양 자정 + 10분) 뒤로 미룬다.
       if (isLimitError(e)) {
+        const 한도 = limitInfo(e)!;
         const 다음 = nextReset();
         const 남은 = new Set(쏠것.map((j) => String(j.file ?? "")));
         const n = await editQueue((q) => {
@@ -299,6 +303,7 @@ async function fireLocked(o: FireOpts, 말: (s: string) => void): Promise<number
           for (const x of q) {
             if (남은.has(String(x.file ?? "")) && String(x.쏠때 ?? "") < 다음) {
               x.쏠때 = 다음;
+              x.한도미룸 = `${한도.name}${한도.first ? ` — 구글 말: ${한도.first}` : ""}`; // 화면이 「왜 미뤄졌나」를 보인다
               센++;
               // ★공개 예약도 **하루씩 미룬다** (「오늘 막혔으면 내일, 내일 막히면 모레」). 올릴 때 이미 지난 예약이면
               //   검토 뒤 곧바로 공개돼 버리므로, 올리기+1시간 뒤가 될 때까지 같은 시각으로 하루씩 민다.
@@ -316,7 +321,8 @@ async function fireLocked(o: FireOpts, 말: (s: string) => void): Promise<number
           return { q, out: 센 };
         });
         말(`  하루 업로드 한도에 걸렸습니다 — 남은 ${n}편을 ${다음} 로 미룹니다`);
-        await recordLine("올리기.log", `한도미룸  ${n}편 → ${다음}  (${이름})`);
+        말(`  이유: ${한도.name}. ${한도.words}${한도.first ? ` (구글 말: ${한도.first})` : ""}`);
+        await recordLine("올리기.log", `한도미룸  ${n}편 → ${다음}  (${이름})  이유: ${한도.name}${한도.first ? ` · 구글 말: ${한도.first}` : ""}`);
         break;
       }
       말(`  ${이름} — 쏘지 못했습니다: ${까닭.slice(0, 90)}`);

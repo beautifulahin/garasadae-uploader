@@ -9,7 +9,8 @@ import { 같나, 결과, 구역, 던지나, 모래상자, 참인가 } from "./�
 import { 가짜구글 } from "./가짜구글.ts";
 import { APP_ID, dataPath, join, readJson, recordLine, recordPath, withFileLock, writeJson } from "../app/paths.ts";
 import { addDays, addMinutes, dateOnly, isoWall, parseWall, wallNow } from "../app/clock.ts";
-import { setFetch } from "../app/google.ts";
+import { GoogleError, limitInfo, setFetch } from "../app/google.ts";
+import { isLimitError } from "../app/queue.ts";
 import { appendLedger } from "../app/ledger.ts";
 import { findTool, forceToolMissing, resetToolCache } from "../app/tools.ts";
 import { ytFor } from "../app/ytcore.ts";
@@ -431,10 +432,39 @@ async function 브리핑시험() {
     같나("폴더가 돌아오면 사라진다", await collect(), []);
   });
 
+  구역("한도 판정 — HTTP 429 이거나 구글이 한도 이유를 줬을 때만 (글에 429 가 들었다고 한도가 아니다)");
+  {
+    같나("HTTP 429", isLimitError(new GoogleError("429 Too Many Requests", 429)), true);
+    같나("프로젝트 할당량(quotaExceeded, 403)", isLimitError(new GoogleError("403 quotaExceeded", 403, "quotaExceeded")), true);
+    같나("프로젝트 하루 한도(dailyLimitExceeded)", isLimitError(new GoogleError("403 dailyLimitExceeded", 403, "dailyLimitExceeded")), true);
+    같나("채널 하루 업로드 한도(uploadLimitExceeded, 400)", isLimitError(new GoogleError("400 uploadLimitExceeded", 400, "uploadLimitExceeded")), true);
+    같나("이유가 글에만 있어도 알아본다(이유 칸이 비어 있는 오류)", [isLimitError(new Error("The user has exceeded the number of videos they may upload.")), isLimitError(new Error("quotaExceeded"))], [true, true]);
+    같나("파일 이름·줄 번호에 429 가 들어 있어도 한도가 아니다", [isLimitError(new Error("영상 4290번째 줄에서 읽기 실패")), isLimitError(new Error("a429.mp4 를 열지 못했습니다")), isLimitError(new Error("code 14291"))], [false, false, false]);
+    같나("맨 앞이 429 로 시작하는 글(HTTP 429 꼴)은 한도로 본다", [isLimitError(new Error("429 Too Many Requests")), isLimitError(new Error("HTTP 429"))], [true, true]);
+    같나("서버 오류(500)·권한(403 forbidden)·인증은 한도가 아니다", [
+      isLimitError(new GoogleError("500 backendError", 500, "backendError")), isLimitError(new GoogleError("403 forbidden", 403, "forbidden")),
+      isLimitError(new GoogleError("401 invalid_grant", 401, "invalid_grant")), isLimitError(null), isLimitError(undefined),
+    ], [false, false, false, false, false]);
+    const 프 = limitInfo(new GoogleError("403 quotaExceeded: 오늘 할당량을 다 썼습니다\n자세한 설명 둘째 줄", 403, "quotaExceeded"))!;
+    const 채 = limitInfo(new GoogleError("400 uploadLimitExceeded", 400, "uploadLimitExceeded"))!;
+    const 요 = limitInfo(new GoogleError("429 Too Many Requests", 429))!;
+    같나("종류가 셋으로 갈린다(프로젝트 / 채널 / 요청)", [프.kind, 채.kind, 요.kind], ["프로젝트", "채널", "요청"]);
+    같나("이름이 서로 다르다 — 사람이 어느 한도인지 안다", [프.name, 채.name, 요.name], ["프로젝트 할당량 소진(quotaExceeded)", "채널 하루 업로드 한도(uploadLimitExceeded)", "구글이 요청을 거절함(HTTP 429)"]);
+    같나("구글이 준 이유(reason)를 그대로 싣는다", [프.reason, 채.reason, 요.reason], ["quotaExceeded", "uploadLimitExceeded", ""]);
+    같나("구글 말은 첫 줄만 싣는다", [프.first.includes("오늘 할당량을 다 썼습니다"), 프.first.includes("둘째 줄")], [true, false]);
+    같나("프로젝트 한도는 같은 열쇠를 쓰는 모든 채널이 막힌다고 말한다", 프.words.includes("모든 채널"), true);
+    같나("채널 한도는 열쇠 할당량과 따로 센다고 말한다", 채.words.includes("따로 세는"), true);
+    같나("구글이 보낸 HTML 태그는 떼고 보인다", limitInfo(new GoogleError("403 quotaExceeded <b>굵게</b> 글", 403, "quotaExceeded"))!.first, "403 quotaExceeded 굵게 글");
+    같나("일반 오류는 한도 정보가 없다", limitInfo(new Error("그냥 실패")), null);
+  }
+
   구역("브리핑 — 오류 문구를 사람 말로");
   {
     같나("할당량", explainUploadFailure("HttpError 403 quotaExceeded").왜, "오늘 쓸 수 있는 유튜브 할당량을 다 썼습니다.");
     같나("할당량(우리 말)", explainUploadFailure("오늘 쓸 수 있는 유튜브 할당량을 다 썼습니다.").왜.includes("할당량"), true);
+    같나("프로젝트 할당량은 같은 열쇠를 쓰는 모든 채널이 막힌다고 알린다", explainUploadFailure("403 quotaExceeded").할일.includes("모든 채널"), true);
+    같나("채널 하루 업로드 한도는 할당량과 다른 말", [explainUploadFailure("400 uploadLimitExceeded").왜.includes("채널의 하루 업로드 한도"), explainUploadFailure("400 uploadLimitExceeded").왜 === explainUploadFailure("403 quotaExceeded").왜], [true, false]);
+    같나("열쇠가 없거나 옛 열쇠면 내 열쇠를 넣고 다시 연결하라고 알린다", explainUploadFailure("이 채널은 이전 판(2.1.0 이하)에 들어 있던 공용 열쇠로 연결돼 있어 더는 쓸 수 없습니다. 내 열쇠를 넣고 채널을 다시 연결해 주세요.").할일.includes("다시 연결"), true);
     같나("인증", explainUploadFailure("invalid_grant: Token has been expired").왜, "이 채널의 인증이 풀렸습니다.");
     같나("인증(우리 말)", explainUploadFailure("인증이 만료되었거나 취소되었습니다. 다시 연결해 주세요.").왜, "이 채널의 인증이 풀렸습니다.");
     같나("권한", explainUploadFailure("403 forbidden").왜.includes("권한"), true);
@@ -1316,7 +1346,7 @@ async function 환경시험() {
   await 모래상자(async (dir) => {
     const r = await report();
     같나("이상 없음", [r.ok, r.problems], [true, []]);
-    같나("운영체제 · 구조 · 앱 버전", [r.os, r.arch, r.osName.length > 0, r.appVersion], [Deno.build.os, Deno.build.arch, true, "2.1.0"]);
+    같나("운영체제 · 구조 · 앱 버전", [r.os, r.arch, r.osName.length > 0, r.appVersion], [Deno.build.os, Deno.build.arch, true, "2.2.0"]);
     같나("개발 모드로 돌고 있다", r.compiled, false);
     같나("데이터 폴더에 쓸 수 있다", [r.dataDir, r.dataDirWritable, r.dataDirExists], [`${dir}/데이터`, true, true]);
     같나("점검 중에 남긴 시험 파일이 없다", (await Array.fromAsync(Deno.readDir(`${dir}/데이터`))).filter((e) => e.name.includes("쓰기시험")).length, 0);

@@ -8,7 +8,7 @@
 //   실행:  TZ=Asia/Seoul deno run -A --no-lock 시험/계획.ts
 import { 같나, 결과, 구역, 모래상자, 영상쓰기, type Fx } from "./도구.ts";
 import { 가짜구글 } from "./가짜구글.ts";
-import { setEmbeddedForTest } from "../app/embedded.ts";
+import { 열쇠넣기 } from "./바탕.ts";
 import { saveStore, SCOPES, type Store, updateStore } from "../app/ytcore.ts";
 import { baseName, dataPath, join, readJsonSync, recordPath, writeJson } from "../app/paths.ts";
 import { channelsPath, loadChannels, writeMark } from "../app/channels.ts";
@@ -48,7 +48,7 @@ interface 칸 { 이름: string; id: string; 설정?: Record<string, unknown> }
 /** 가짜 구글 + 채널 설정 + 토큰 + 폴더 */
 async function 세상(dir: string, 칸들: 칸[]): Promise<가짜구글> {
   const g = new 가짜구글().install();
-  setEmbeddedForTest("browser", { client_id: "시험열쇠", client_secret: "비밀아님" });
+  await 열쇠넣기("client", { client_id: "시험열쇠", client_secret: "비밀아님" });
   forceToolMissing("ffprobe"); // 내장 판독기로 — 외부 도구 없이
   const store: Store = {};
   const conf: Record<string, unknown> = {};

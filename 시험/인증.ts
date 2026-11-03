@@ -1,14 +1,15 @@
-// 인증 시험 — 관리자 계정 하나로 로그인(브라우저·코드 인증)하고 채널을 바꿔 고른다. 앱에 묶인 열쇠(내장) · 내 열쇠 · 채널 전용 열쇠.
+// 인증 시험 — 관리자 계정 하나로 로그인(브라우저·코드 인증)하고 채널을 바꿔 고른다. 내 열쇠 파일 · 채널 전용 열쇠 · 옛 공용 열쇠(2.0.0~2.1.0)로 받은 토큰.
+// 2.2.0 부터 앱에는 구글 열쇠가 묶이지 않는다 — 열쇠는 사용자가 데이터 폴더에 넣은 파일에서만 온다.
 // 구글에는 한 번도 닿지 않는다(가짜 서버). 브라우저 로그인의 돌아오는 주소는 이 컴퓨터 안(127.0.0.1)에서만 오간다.
 import { 같나, 구역, 던지나, 모래상자, 참인가 } from "./도구.ts";
 import { 가짜구글 } from "./가짜구글.ts";
-import { 가짜열쇠, 가짜채널id, 채널준비 } from "./바탕.ts";
+import { 가짜열쇠, 가짜채널id, 열쇠넣기, 채널준비 } from "./바탕.ts";
 import {
-  accessToken, AuthError, canPublish, clientFor, deviceSecretsPath, entryFor, loadStore, pickClient, putEntry, SCOPES, secretsPath, SCOPES_LEGACY,
-  forgetAccessTokens, type TokenEntry,
+  accessToken, AuthError, canPublish, clientFor, deviceSecretsPath, entryFor, loadStore, pickClient, projectIdOf, putEntry, SCOPES, secretsPath, SCOPES_LEGACY,
+  forgetAccessTokens, reconnectWords, tokenKeyState, type TokenEntry,
 } from "../app/ytcore.ts";
 import { clientState, deviceSave, deviceStart, devicePoll, deviceWait, NotReady, registerToken, saveChannelClientFile, saveChannelClientJson, saveClientFile, signin, startSignIn } from "../app/oauth.ts";
-import { embeddedState, parseClientJson, setEmbeddedForTest } from "../app/embedded.ts";
+import { parseClientJson } from "../app/embedded.ts";
 import { setFetch } from "../app/google.ts";
 import { loadChannels } from "../app/channels.ts";
 import { dataPath, readJsonSync, writeJson } from "../app/paths.ts";
@@ -32,50 +33,64 @@ const 로그전부 = async () => {
 };
 
 export async function 실행() {
-  구역("앱에 묶인 열쇠(내장) 읽기");
+  구역("열쇠 파일 읽기 (parseClientJson)");
   같나("구글이 주는 파일(installed)을 읽는다", parseClientJson(JSON.stringify({ installed: { client_id: "a", client_secret: "b" } }))?.client_id, "a");
   같나("납작한 꼴도 읽는다", parseClientJson('{"client_id":"a","client_secret":"b"}')?.client_secret, "b");
   같나("client_id 가 없으면 null", parseClientJson('{"installed":{}}'), null);
   같나("깨진 글은 null", parseClientJson("이건 JSON 이 아님"), null);
 
-  구역("어느 열쇠로 갱신하나 — 채널 전용 > 내장 표식 > 내 파일 > 내장 > 다른 종류");
+  구역("어느 열쇠로 갱신하나 — 채널 전용 > 내 파일 (내장 열쇠는 없다)");
   await 모래상자(async (dir) => {
     const fake = new 가짜구글();
-    await 채널준비(dir, fake, { name: "채널A" });
+    await 채널준비(dir, fake, { name: "채널A" }); // 데이터 폴더에 가짜 열쇠 파일 둘을 둔다
     const 본 = 엿보기(fake);
     const e = (o: Partial<TokenEntry> = {}): TokenEntry => ({ channel_id: "UCq", title: "t", refresh_token: "refresh-ch", added: "x", ...o });
-    같나("표식이 「내장」이면 내장 열쇠", (await clientFor(e({ client: "내장" }))).client_id, 가짜열쇠.client_id);
-    같나("내장 열쇠는 표시가 붙는다", (await clientFor(e({ client: "내장" }))).embedded, true);
-    같나("아무 표식이 없고 내 파일도 없으면 내장", (await clientFor(e())).client_id, 가짜열쇠.client_id);
-    // 내 파일을 둔다
+    같나("표식 없음 + 내 파일 있음 → 내 파일", (await clientFor(e())).client_id, 가짜열쇠.client_id);
     await saveClientFile("client", { clientId: "mine.apps.googleusercontent.com", clientSecret: "mine-secret" });
-    같나("내 파일이 있으면(옛 사용자) 내 파일이 내장보다 앞선다", (await clientFor(e())).client_id, "mine.apps.googleusercontent.com");
-    같나("그래도 내장 표식이 있는 토큰은 계속 내장 열쇠로 갱신한다(다른 열쇠로 갱신하면 구글이 거부한다)", (await clientFor(e({ client: "내장" }))).client_id, 가짜열쇠.client_id);
+    같나("내 파일을 바꿔 넣으면 그 파일", (await clientFor(e())).client_id, "mine.apps.googleusercontent.com");
     // 채널 전용
     const 파일 = await saveChannelClientFile("채널 A", { clientId: "own.apps.googleusercontent.com", clientSecret: "own-secret" });
     같나("전용 열쇠 파일 이름은 안전한 글자로", 파일, "client_secret_채널_A.json");
-    같나("채널 전용 열쇠가 가장 앞선다", (await clientFor(e({ secret: 파일, client: "내장" }))).client_id, "own.apps.googleusercontent.com");
+    같나("채널 전용 열쇠가 가장 앞선다", (await clientFor(e({ secret: 파일 }))).client_id, "own.apps.googleusercontent.com");
+    같나("전용 열쇠로 연결한 토큰은 옛 「내장」 표식이 붙어 있어도 전용 열쇠로 산다", (await clientFor(e({ secret: 파일, client: "내장" }))).client_id, "own.apps.googleusercontent.com");
     await 던지나("전용 파일이 사라졌으면 분명히 말한다", () => clientFor(e({ secret: "없는파일.json" })), /전용 열쇠 파일\(없는파일\.json\)을 읽지 못했습니다/);
     // 코드 인증 토큰은 TV 열쇠
-    같나("코드 인증으로 받은 토큰은 device 열쇠(내장)로 간다", (await clientFor(e({ how: "device", client: "내장" }))).client_id, 가짜열쇠.client_id);
+    같나("코드 인증으로 받은 토큰은 device 열쇠 파일로 간다", (await clientFor(e({ how: "device" }))).client_id, 가짜열쇠.client_id);
     await saveClientFile("device", { clientId: "tv.apps.googleusercontent.com", clientSecret: "tv-secret" });
     같나("내 TV 열쇠 파일이 있으면 그것", (await clientFor(e({ how: "device" }))).client_id, "tv.apps.googleusercontent.com");
     같나("저장된 파일은 같은 이름으로 데이터 폴더에 있다", [secretsPath().endsWith("client_secret.json"), deviceSecretsPath().endsWith("device_secret.json")], [true, true]);
+
+    구역("옛 공용 열쇠(2.0.0~2.1.0)로 받은 토큰은 쓰지 않는다 — 다시 연결을 안내한다");
+    forgetAccessTokens(); 본.length = 0;
+    await 던지나("표식이 「내장」인 토큰은 갱신하지 않고 내 열쇠를 넣고 다시 연결하라고 한다", () => clientFor(e({ client: "내장" })), /내 열쇠를 넣고 채널을 다시 연결해 주세요/);
+    await 던지나("accessToken 도 마찬가지(AuthError)", () => accessToken(e({ client: "내장", refresh_token: "refresh-old" })), /내 열쇠를 넣고 채널을 다시 연결해 주세요/);
+    같나("옛 토큰으로는 구글에 갱신 요청이 한 건도 가지 않는다", 본.length, 0);
+    같나("tokenKeyState: 내장 표식", tokenKeyState(e({ client: "내장" })), { ok: false, why: "내장" });
+    같나("tokenKeyState: 전용 열쇠", tokenKeyState(e({ secret: 파일 })), { ok: true, from: "전용" });
+    같나("tokenKeyState: 표식 없음 + 내 파일", tokenKeyState(e()), { ok: true, from: "파일" });
+    같나("tokenKeyState: 코드 인증 토큰 + TV 열쇠 파일", tokenKeyState(e({ how: "device" })), { ok: true, from: "파일" });
+    const 이름표 = projectIdOf("mine.apps.googleusercontent.com");
+    같나("tokenKeyState: 열쇠 이름표(client_pid)가 지금 열쇠와 같으면 쓴다", tokenKeyState(e({ client_pid: 이름표 })), { ok: true, from: "파일" });
+    같나("tokenKeyState: 이름표가 다른 열쇠면 다시 연결", tokenKeyState(e({ client_pid: projectIdOf("other.apps.googleusercontent.com") })), { ok: false, why: "다른열쇠" });
+    같나("이름표는 짧은 식별 글자일 뿐 클라이언트 ID 원문이 아니다", [이름표.length, 이름표.includes("mine")], [12, false]);
+    await 던지나("다른 열쇠 이름표 토큰도 갱신하지 않고 안내한다", () => clientFor(e({ client_pid: projectIdOf("other.apps.googleusercontent.com") })), /지금 넣어 둔 열쇠와 다른 열쇠/);
+    같나("안내 글 셋 모두 다시 연결을 말한다", (["내장", "열쇠없음", "다른열쇠"] as const).every((w) => /다시 연결/.test(reconnectWords(w))), true);
     // 아무것도 없으면
-    setEmbeddedForTest("browser", null); setEmbeddedForTest("device", null);
     await Deno.remove(secretsPath()); await Deno.remove(deviceSecretsPath());
-    await 던지나("열쇠가 하나도 없으면 어디서 넣는지 알려 준다", () => clientFor(e()), /내 열쇠 쓰기/);
-    setEmbeddedForTest("browser", { ...가짜열쇠 }); setEmbeddedForTest("device", { ...가짜열쇠 });
+    같나("tokenKeyState: 표식 없음 + 열쇠 파일이 하나도 없음 → 내장 열쇠로 받은 것으로 본다", tokenKeyState(e()), { ok: false, why: "열쇠없음" });
+    await 던지나("열쇠가 하나도 없으면 내 열쇠를 넣고 다시 연결하라고 한다", () => clientFor(e()), /내 열쇠를 넣고 채널을 다시 연결해 주세요/);
+    같나("그래도 채널 전용 열쇠로 연결한 토큰은 산다(전용 파일이 있으면)", tokenKeyState(e({ secret: 파일 })).ok, true);
+    await 열쇠넣기();
 
     구역("접근 토큰 — 발급 당시의 범위로 갱신한다");
     forgetAccessTokens(); 본.length = 0;
     fake.grant("refresh-keep", 가짜채널id("k"));
-    const at = await accessToken(e({ refresh_token: "refresh-keep", client: "내장", scopes: [...SCOPES_LEGACY] }));
+    const at = await accessToken(e({ refresh_token: "refresh-keep", scopes: [...SCOPES_LEGACY] }));
     같나("접근 토큰을 받는다", at, "AT:refresh-keep");
     같나("갱신 요청에 그 토큰이 받은 범위를 싣는다(범위를 늘렸다가 옛 토큰이 invalid_scope 로 죽은 일)", 본.at(-1)?.get("scope"), SCOPES_LEGACY.join(" "));
-    같나("내장 열쇠로 갱신한다", [본.at(-1)?.get("client_id"), 본.at(-1)?.get("client_secret")], [가짜열쇠.client_id, 가짜열쇠.client_secret]);
+    같나("내 열쇠 파일로 갱신한다", [본.at(-1)?.get("client_id"), 본.at(-1)?.get("client_secret")], [가짜열쇠.client_id, 가짜열쇠.client_secret]);
     forgetAccessTokens();
-    await 던지나("취소된 토큰은 한국말로 안내한다", () => accessToken(e({ refresh_token: "refresh-gone", client: "내장" })), /인증이 만료되었거나 취소되었습니다/);
+    await 던지나("취소된 토큰은 한국말로 안내한다", () => accessToken(e({ refresh_token: "refresh-gone" })), /인증이 만료되었거나 취소되었습니다/);
     같나("공개 전환 권한이 없는 옛 토큰은 알 수 있다", [canPublish(e({ scopes: [...SCOPES_LEGACY] })), canPublish(e({ scopes: [...SCOPES] })), canPublish(e())], [false, true, false]);
     같나("범위는 세 개뿐", SCOPES.length, 3);
     같나("force-ssl 은 요청하지 않는다(코드 인증이 거부한다)", SCOPES.some((s) => s.includes("force-ssl")), false);
@@ -83,17 +98,26 @@ export async function 실행() {
 
   구역("새 연결이 쓸 열쇠 고르기 (pickClient)");
   await 모래상자(async () => {
-    setEmbeddedForTest("browser", { ...가짜열쇠 }); setEmbeddedForTest("device", { ...가짜열쇠 });
-    같나("내 파일도 전용도 없으면 내장 — 토큰에 「내장」 표식", (await pickClient("browser")).mark, { client: "내장" });
-    같나("코드 인증도 내장 device 열쇠", (await pickClient("device")).mark, { client: "내장" });
+    await 던지나("열쇠 파일이 없으면 브라우저 로그인을 시작하지 않고 열쇠 넣기를 안내한다", () => pickClient("browser"), /내 구글 클라우드 열쇠 넣기/);
+    await 던지나("코드 인증도 마찬가지", () => pickClient("device"), /내 구글 클라우드 열쇠 넣기/);
+    await 던지나("안내에 열쇠 만드는 곳(시작하기 탭)이 적혀 있다", () => pickClient("browser"), /시작하기 탭/);
     await saveClientFile("client", { clientId: "mine.apps.googleusercontent.com", clientSecret: "s" });
     같나("내 파일이 있으면 그것(표식 없음)", [(await pickClient("browser")).conf.client_id, (await pickClient("browser")).mark], ["mine.apps.googleusercontent.com", {}]);
+    await 던지나("TV 열쇠 파일이 없으면 코드 인증은 아직 안내", () => pickClient("device"), /내 구글 클라우드 열쇠 넣기/);
     const f = await saveChannelClientFile("전용", { clientId: "own.apps.googleusercontent.com", clientSecret: "o" });
     같나("전용 파일을 지정하면 그것(표식 secret)", [(await pickClient("browser", f)).conf.client_id, (await pickClient("browser", f)).mark], ["own.apps.googleusercontent.com", { secret: f }]);
     await 던지나("지정한 전용 파일이 없으면", () => pickClient("browser", "없음.json"), /전용 열쇠 파일\(없음\.json\)을 읽지 못했습니다/);
-    setEmbeddedForTest("browser", null);
     await Deno.remove(secretsPath());
-    await 던지나("내장도 없고 파일도 없으면 안내", () => pickClient("browser"), /내 열쇠 쓰기/);
+    await 던지나("파일을 치우면 다시 안내", () => pickClient("browser"), /내 구글 클라우드 열쇠 넣기/);
+  });
+
+  구역("열쇠가 없는 처음 상태 — 로그인은 막히고 안내가 나온다");
+  await 모래상자(async () => {
+    const st0 = await clientState();
+    같나("열쇠 상태: 아무것도 없음 · 준비 안 됨", [st0.client, st0.device, st0.ready, st0.retired], [false, false, { browser: false, device: false }, 0]);
+    await 던지나("열쇠 없이 브라우저 로그인을 시작하면 열쇠 넣기를 안내한다(로그인 창을 열지 않는다)", () => startSignIn("처음"), /내 구글 클라우드 열쇠 넣기/);
+    같나("로그인 상태가 「진행 중」으로 남지 않는다", signin.state.running, false);
+    await 던지나("열쇠 없이 코드 인증을 시작하면 안내(NotReady)", () => deviceStart(), /내 구글 클라우드 열쇠 넣기/);
   });
 
   구역("열쇠 파일 넣기 (내 열쇠 쓰기 — 고급)");
@@ -112,14 +136,16 @@ export async function 실행() {
     같나("채널 전용 열쇠도 JSON 파일로 넣을 수 있다", [전용, readJsonSync<Obj>(dataPath(전용), {}).installed?.client_id], ["client_secret_전용채널.json", "c.apps.googleusercontent.com"]);
     await 던지나("전용 열쇠 JSON 이 웹 유형이면 거절", () => saveChannelClientJson("x", JSON.stringify({ web: { client_id: "w", client_secret: "z" } })), /웹 애플리케이션|client_id/);
     const st = await clientState();
-    같나("열쇠 상태: 내 파일·내장·준비됨", [st.client, st.device, st.embedded, st.ready], [true, true, { browser: false, device: false }, { browser: true, device: true }]);
-    같나("상태 글(embeddedState)은 참·거짓뿐이다 — 값이 안 보인다", JSON.stringify(await embeddedState()).includes("secret"), false);
+    같나("열쇠 상태: 내 파일·준비됨·다시 연결할 채널 0", [st.client, st.device, st.ready, st.retired], [true, true, { browser: true, device: true }, 0]);
+    같나("상태 글은 참·거짓·숫자뿐이다 — 값이 안 보인다", JSON.stringify(st).includes("secret"), false);
+    await putEntry("옛채널", { channel_id: 가짜채널id("o"), title: "옛", refresh_token: "r-old", added: "x", client: "내장" });
+    같나("옛 공용 열쇠로 연결된 채널은 「다시 연결할 채널」로 센다", (await clientState()).retired, 1);
   });
 
   구역("① 브라우저 로그인 — select_account consent · 돌아오는 주소 · 같은 채널 갱신 · 채널 정보");
   await 모래상자(async (dir) => {
     const fake = new 가짜구글(); fake.install();
-    setEmbeddedForTest("browser", { ...가짜열쇠 });
+    await 열쇠넣기("client");
     const idA = 가짜채널id("a"), idB = 가짜채널id("b");
     fake.addChannel({ id: idA, title: "첫째 채널", handle: "@첫째", subs: 11 });
     fake.addChannel({ id: idB, title: "둘째 채널", subs: 22 });
@@ -140,7 +166,7 @@ export async function 실행() {
     같나("리프레시 토큰을 받는다(offline)", q.get("access_type"), "offline");
     같나("범위는 세 개뿐", q.get("scope")!.split(" ").length, 3);
     같나("PKCE(S256)", q.get("code_challenge_method"), "S256");
-    같나("내장 열쇠로 시작한다", q.get("client_id"), 가짜열쇠.client_id);
+    같나("내 열쇠 파일로 시작한다", q.get("client_id"), 가짜열쇠.client_id);
     참인가("돌아오는 주소는 이 컴퓨터(127.0.0.1)의 임시 포트", /^http:\/\/127\.0\.0\.1:\d+$/.test(q.get("redirect_uri")!));
     같나("진행 중이라고 알린다", [signin.state.running, signin.state.alias], [true, "첫째별칭"]);
     await 던지나("로그인 창이 이미 열려 있으면 두 번째는 막는다", () => startSignIn("또"), /이미 로그인 창이 열려 있습니다/);
@@ -153,7 +179,10 @@ export async function 실행() {
     const res = await done;
     같나("등록 결과", [res.key, res.channel_id, res.title, res.replaced, res.slotMade], ["첫째별칭", idA, "첫째 채널", [], true]);
     const ent = loadStore()["첫째별칭"];
-    같나("토큰 항목: 어떻게·어느 열쇠로·받은 범위", [ent.how, ent.client, ent.scopes, ent.channel_id], ["browser", "내장", [...SCOPES], idA]);
+    같나("토큰 항목: 어떻게·받은 범위·채널 (내장 표식은 더 안 붙는다)", [ent.how, ent.client, ent.scopes, ent.channel_id], ["browser", undefined, [...SCOPES], idA]);
+    같나("토큰 항목에 열쇠 이름표(client_pid)를 남긴다 — 원문이 아니다", [ent.client_pid, ent.client_pid === 가짜열쇠.client_id], [projectIdOf(가짜열쇠.client_id), false]);
+    같나("저장소 파일에 열쇠 원문(ID·비밀번호)이 없다", [JSON.stringify(loadStore()).includes("fake-id"), JSON.stringify(loadStore()).includes("fake-secret")], [false, false]);
+    같나("방금 연결한 토큰은 지금 열쇠로 쓸 수 있다", tokenKeyState(ent).ok, true);
     같나("channels.json 에 자리가 생긴다", [loadChannels()["첫째별칭"]?.channel_id, loadChannels()["첫째별칭"]?.publish], [idA, "schedule"]);
     const 프로필 = await loadProfiles();
     같나("채널 정보(핸들·구독자)를 받아 둔다", [프로필[idA]?.handle, 프로필[idA]?.subscribers], ["@첫째", 11]);
@@ -190,13 +219,13 @@ export async function 실행() {
   구역("② 코드 인증 — 주소와 코드를 보여 주고 상대가 자기 기기에서 승인한다");
   await 모래상자(async () => {
     const fake = new 가짜구글(); fake.install();
-    setEmbeddedForTest("device", { ...가짜열쇠 });
+    await 열쇠넣기("device");
     const id = 가짜채널id("d");
     fake.addChannel({ id, title: "코드 채널" });
     fake.grant("refresh-D", id);
     const s = await deviceStart();
     같나("화면에 띄울 주소와 코드", [s.verification_url, /^ABCD-\d+$/.test(s.user_code), s.expires_in], ["https://www.google.com/device", true, 1800]);
-    같나("내장 열쇠로 시작했다는 표식이 따라다닌다", s._mark, { client: "내장" });
+    같나("내 파일 열쇠로 시작했으므로 전용 열쇠 표식은 없다", s._mark, {});
     같나("아직 승인 전", (await devicePoll(s)).state, "waiting");
     fake.devices.get(s.device_code)!.state = "slow";
     같나("너무 자주 물으면 간격을 늘리라고 한다", (await devicePoll(s)).state, "slow");
@@ -204,7 +233,7 @@ export async function 실행() {
     const p = await devicePoll(s);
     같나("승인되면 리프레시 토큰", [p.state, p.state === "ok" ? p.refresh : ""], ["ok", "refresh-D"]);
     const saved = await deviceSave("refresh-D", "코드별칭", { scope: SCOPES.join(" "), mark: s._mark });
-    같나("저장: 코드 인증으로 · 내장 열쇠로 · 채널 정보까지", [saved.key, saved.channel_id, loadStore()["코드별칭"].how, loadStore()["코드별칭"].client], ["코드별칭", id, "device", "내장"]);
+    같나("저장: 코드 인증으로 · 열쇠 이름표 · 채널 정보까지", [saved.key, saved.channel_id, loadStore()["코드별칭"].how, loadStore()["코드별칭"].client, loadStore()["코드별칭"].client_pid], ["코드별칭", id, "device", undefined, projectIdOf(가짜열쇠.client_id)]);
     같나("코드 인증 토큰은 TV(device) 열쇠로 갱신된다", (await clientFor(loadStore()["코드별칭"])).client_id, 가짜열쇠.client_id);
     const s2 = await deviceStart();
     fake.devices.set(s2.device_code, { state: "denied" });
@@ -216,14 +245,14 @@ export async function 실행() {
     const s4 = await deviceStart();
     fake.devices.set(s4.device_code, { state: "denied" });
     await 던지나("deviceWait 는 거절을 오류로", () => deviceWait(s4), /사용자가 거절/);
-    setEmbeddedForTest("device", null);
+    await Deno.remove(deviceSecretsPath());
     await 던지나("TV 열쇠가 하나도 없으면 안내(NotReady)", () => deviceStart(), (NotReady as unknown as { prototype: Error }) ? /TV 및 입력 제한 기기/ : /./);
   });
 
   구역("등록 — 채널 정보를 받아 두고 열쇠 표식을 남긴다");
   await 모래상자(async () => {
     const fake = new 가짜구글(); fake.install();
-    setEmbeddedForTest("browser", { ...가짜열쇠 });
+    await 열쇠넣기("client");
     const id = 가짜채널id("r");
     fake.addChannel({ id, title: "등록 채널" });
     fake.grant("refresh-R", id);

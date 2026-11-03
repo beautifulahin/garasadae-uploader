@@ -53,8 +53,7 @@ import { APP_NAME, APP_VERSION, baseName, cut, exists, extOf, isDir, join, recor
 import { dateOnly, wallNow, type Wall } from "./clock.ts";
 import { isAgency, loadChannels, readMark, verifyAll, writeMark } from "./channels.ts";
 import type { ChannelConf, Channels } from "./channels.ts";
-import { deviceSecretsPath, loadStore, resolve, secretsPath } from "./ytcore.ts";
-import { embeddedClient } from "./embedded.ts";
+import { deviceSecretsPath, loadStore, reconnectWords, resolve, secretsPath, tokenKeyState } from "./ytcore.ts";
 import { expandHome, HOLD, summary as folderSummary, VIDEO_EXT } from "./folders.ts";
 import { explainUploadFailure } from "./briefing.ts";
 import { uploadedNames } from "./ledger.ts";
@@ -190,9 +189,9 @@ export async function collect(chans: Channels, dailyFn?: DailyFn, opts: CollectO
   //   여기서 채널마다 '인증 안 됨' 을 빨갛게 늘어놓으면 안 된다. 처음 켠 사람에게 오류 여섯 줄은 고장 난 것처럼 보인다.
   //   아직 안 한 일일 뿐이므로 한 줄로 안내하고, 나머지는 접어 둔다.
   if (!started) {
-    const 내장 = !!(await embeddedClient("browser")) || !!(await embeddedClient("device"));
+    // 「시작했나」가 열쇠 파일이 있는 경우를 이미 포함하므로, 여기까지 왔으면 열쇠 파일도 없다(내장 열쇠는 2.2.0 부터 없다)
     out.push(_i(YELLOW, "할 일", "", "아직 계정을 연결하지 않았습니다",
-      (내장 ? "구글 계정을 연결하면 올릴 수 있습니다." : "구글 로그인 파일을 넣고 계정을 연결하면 올릴 수 있습니다.") +
+      "내 구글 클라우드 열쇠를 만들어 넣고 계정을 연결하면 올릴 수 있습니다(🚀 시작하기 탭에 만드는 법이 있습니다)." +
         " 화면을 둘러보는 것은 지금도 됩니다.",
       { label: "지금 연결하기", cmd: `${CLI} 인증`, api: "/api/signin/start", body: {} }));
   }
@@ -232,6 +231,15 @@ export async function collect(chans: Channels, dailyFn?: DailyFn, opts: CollectO
     if (!Object.values(tokens).some((v) => v.channel_id === cid)) {
       out.push(_i(RED, "오류", alias, "토큰이 없습니다", `${cid} 로 인증된 기록이 없습니다`, authFix(alias)));
       continue;
+    }
+    // 2.2.0 — 이전 판에 들어 있던 공용 열쇠로 받은 로그인은 더 못 쓴다. 영상·대기열·기록은 그대로이고 다시 연결만 하면 된다.
+    {
+      const 항목 = Object.values(tokens).find((v) => v.channel_id === cid);
+      const 상태 = 항목 ? tokenKeyState(항목) : null;
+      if (상태 && !상태.ok) {
+        out.push(_i(RED, "오류", alias, "내 열쇠를 넣고 채널을 다시 연결해 주세요", reconnectWords(상태.why), authFix(alias)));
+        continue;
+      }
     }
 
     // 폴더를 아직 안 정한 채널은 위의 경고가 이미 말했다. 비어 있는 이름으로 현재 폴더를 읽어 버리지 않는다.

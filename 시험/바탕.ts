@@ -1,14 +1,27 @@
 // 시험 바탕 — 가짜 채널 하나를 연결해 두고 시작하는 도우미. 구글에는 한 번도 닿지 않는다.
 //
-// 모래상자() 안에서 부른다. 만드는 것: 가짜 구글 서버 · 내장 열쇠(가짜) · tokens.json 항목 · channels.json 칸 · 채널 폴더.
+// 모래상자() 안에서 부른다. 만드는 것: 가짜 구글 서버 · 데이터 폴더의 열쇠 파일(가짜) · tokens.json 항목 · channels.json 칸 · 채널 폴더.
 import { 가짜구글 } from "./가짜구글.ts";
 import { 영상쓰기 } from "./도구.ts";
-import { setEmbeddedForTest } from "../app/embedded.ts";
 import { editChannels } from "../app/channels.ts";
-import { putEntry, SCOPES } from "../app/ytcore.ts";
+import { deviceSecretsPath, putEntry, SCOPES, secretsPath } from "../app/ytcore.ts";
+import { writeJson } from "../app/paths.ts";
 import { isoWall, wallNow } from "../app/clock.ts";
 
 export const 가짜열쇠 = { client_id: "fake-id.apps.googleusercontent.com", client_secret: "fake-secret", token_uri: "https://oauth2.googleapis.com/token" };
+
+/**
+ * 데이터 폴더에 구글 열쇠 파일을 둔다 — 2.2.0 부터 열쇠는 앱에 묶이지 않고 사용자가 넣은 파일에서만 온다.
+ *   종류: "client"(브라우저 로그인 · client_secret.json) · "device"(코드 인증 · device_secret.json) · "둘다"
+ */
+export async function 열쇠넣기(
+  종류: "client" | "device" | "둘다" = "둘다",
+  열쇠: { client_id: string; client_secret: string; token_uri?: string } = 가짜열쇠,
+) {
+  const 내용 = { installed: { token_uri: "https://oauth2.googleapis.com/token", ...열쇠 } };
+  if (종류 !== "device") await writeJson(secretsPath(), 내용);
+  if (종류 !== "client") await writeJson(deviceSecretsPath(), 내용);
+}
 
 /** UC + 22자 가짜 채널 id (소스에 실제 모양의 글자를 직접 쓰지 않으려고 만들어 쓴다) */
 export const 가짜채널id = (c: string) => "UC" + c.repeat(22);
@@ -35,11 +48,10 @@ export async function 채널준비(
   await Deno.mkdir(folder, { recursive: true });
   fake.install();
   fake.addChannel({ id, title: name }, refresh);
-  setEmbeddedForTest("browser", { ...가짜열쇠 });
-  setEmbeddedForTest("device", { ...가짜열쇠 });
+  await 열쇠넣기();
   await putEntry(name, {
     channel_id: id, title: name, refresh_token: refresh, added: isoWall(wallNow()), scopes: [...SCOPES],
-    how: o.how ?? "browser", client: "내장",
+    how: o.how ?? "browser",
   });
   await editChannels((d) => {
     d[name] = { channel_id: id, folder, prefix: "", times: ["09:00"], publish: "schedule", daily_rule: "auto", daily_fallback: 1, ...(o.conf ?? {}) };

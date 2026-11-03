@@ -866,7 +866,7 @@
       + `<div class="t1-it-m">${kindPill(q.kind)}<span class="ch-tag">${esc(q.alias || q.channel)}</span>${q.thumb ? '<span class="pill kind-s" title="맞춤 썸네일이 붙어 있습니다">🖼</span>' : ''}${lp.chip}</div>`
       + (sp ? `<div class="t1-src">${sp}</div>` : '') + (lp.status ? `<div class="t1-lkl">${lp.status}</div>` : '')
       + `<div class="t1-it-s">⏰ ${esc(mdHm(q.fireAt))} 올림${q.publishAt ? ` · ${esc(mdHm(q.publishAt))} 공개` : ''}</div>`
-      + `<i class="t1-tmr" data-due="${attr(q.fireAt)}"></i>${q.late ? `<div class="t1-it-late">${esc(leftText(q.minutesLeft))} — 곧 올립니다</div>` : ''}${lp.panel}</div>`
+      + `<i class="t1-tmr" data-due="${attr(q.fireAt)}"></i>${q.late ? `<div class="t1-it-late">${esc(leftText(q.minutesLeft))} — 곧 올립니다</div>` : ''}${q.limitWhy ? `<div class="t1-it-late" title="${attr(q.limitWhy)}">⏳ 한도로 미뤄짐 — ${esc(cut(q.limitWhy, 70))}</div>` : ''}${lp.panel}</div>`
       + `<div class="t1-it-btn"><button class="tb" data-a="retime" data-f="${attr(q.file)}" data-cur="${attr(q.fireAt)}" onclick="t1Do(this)" title="올리기 시각을 바꿉니다">시각</button>`
       + `<button class="tb" data-a="now" data-f="${attr(q.file)}" onclick="t1Do(this)" title="기다리지 않고 지금 올립니다">⚡ 지금</button>`
       + `<button class="tb" data-a="cancel" data-f="${attr(q.file)}" onclick="t1Do(this)" title="발사를 취소합니다">✕ 취소</button></div></div>`; });

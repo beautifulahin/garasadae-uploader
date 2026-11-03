@@ -13,9 +13,9 @@ import { call, GoogleError, OAUTH_TOKEN, doFetch, toGoogleError, WWW } from "./g
 import type { Bearer, Query } from "./google.ts";
 import { dataPath, readJson, readJsonSync, recordLine, withFileLock, writeJson } from "./paths.ts";
 import { readLedger } from "./ledger.ts";
-import { embeddedClient, type ClientConf, type EmbeddedKind } from "./embedded.ts";
+import { parseClientJson, type ClientConf, type KeyKind } from "./embedded.ts";
 
-export type { ClientConf, EmbeddedKind };
+export type { ClientConf, KeyKind };
 
 export const SCOPES = [
   "https://www.googleapis.com/auth/youtube.upload",
@@ -49,8 +49,10 @@ export interface TokenEntry {
   how?: string;
   /** 이 채널만 쓰는 클라이언트 파일 이름(데이터 폴더 안) */
   secret?: string;
-  /** "내장" = 이 앱에 묶여 온 열쇠로 연결했다 (그 토큰은 항상 그 열쇠로 갱신한다) */
+  /** "내장" = 2.0.0 ~ 2.1.0 이 실행 파일에 묶어 둔 열쇠로 연결했다 — 2.2.0 부터는 그 열쇠가 없어 이 토큰은 못 쓴다(다시 연결). 새로 연결하는 토큰에는 쓰지 않는다. */
   client?: string;
+  /** 이 토큰을 발급한 열쇠(클라이언트 ID)의 짧은 이름표 — projectIdOf(client_id). 원문은 남기지 않는다. 2.2.0 부터 새로 연결하는 토큰에 적는다. */
+  client_pid?: string;
   [k: string]: unknown;
 }
 export type Store = Record<string, TokenEntry>;
@@ -151,6 +153,48 @@ export async function readClientFile(file: string): Promise<ClientConf> {
 
 const 있나 = (f: string) => Deno.stat(f).then(() => true, () => false);
 
+/** 데이터 폴더의 열쇠 파일에서 클라이언트 ID 만 동기로 읽는다 (없거나 깨졌으면 ""). 화면 판정용 — 값은 밖으로 내보내지 않는다. */
+function clientIdOfFileSync(file: string): string {
+  try {
+    const c = parseClientJson(Deno.readTextFileSync(file));
+    return c ? c.client_id : "";
+  } catch { return ""; }
+}
+
+/** 이 토큰이 갱신에 쓸 열쇠 파일 후보 — 코드 인증 토큰은 device_secret.json, 그 밖은 client_secret.json 먼저 (다른 종류의 파일도 마지막 차례로 시도한다 · 파이썬과 같다) */
+function keyFilesFor(entry: TokenEntry): string[] {
+  return entry.how === "device" ? [deviceSecretsPath(), secretsPath()] : [secretsPath(), deviceSecretsPath()];
+}
+
+/** 이 토큰을 지금 이 앱이 갱신할 수 있나 — 토큰마다 열쇠 상태 */
+export type TokenKeyState =
+  | { ok: true; from: "전용" | "파일" }
+  | { ok: false; why: "내장" | "열쇠없음" | "다른열쇠" };
+
+/**
+ * 이 토큰을 발급한 열쇠가 지금 이 컴퓨터에 있나. (2.2.0 — 배포 판은 만든 사람의 열쇠를 더는 묶지 않는다)
+ *   · 전용 열쇠 파일(entry.secret)이 있는 채널 — 그 파일이 읽히면 된다(읽히는지는 clientFor 가 말한다)
+ *   · client:"내장" — 2.0.0 ~ 2.1.0 이 묶어 둔 열쇠로 받은 토큰. 그 열쇠는 이제 없으니 항상 다시 연결해야 한다
+ *   · 표식 없음 — 데이터 폴더의 열쇠 파일로 받은 토큰(2.0 이전 판 자료 · 사용자가 넣은 열쇠). 파일이 있으면 쓰고, 파일이 하나도 없으면 내장 열쇠로 받은 토큰으로 본다
+ *   · 토큰에 열쇠 이름표(client_pid)가 있는데 지금 파일의 열쇠와 다르면 — 다른 열쇠로 받은 토큰이라 갱신이 거부된다
+ * 파일만 읽는다 — 유튜브·구글을 부르지 않는다.
+ */
+export function tokenKeyState(entry: TokenEntry): TokenKeyState {
+  if (entry.secret) return { ok: true, from: "전용" };
+  if (entry.client === "내장") return { ok: false, why: "내장" };
+  const ids = keyFilesFor(entry).map(clientIdOfFileSync).filter(Boolean);
+  if (!ids.length) return { ok: false, why: "열쇠없음" };
+  if (entry.client_pid && !ids.some((id) => projectIdOf(id) === entry.client_pid)) return { ok: false, why: "다른열쇠" };
+  return { ok: true, from: "파일" };
+}
+
+/** 다시 연결해야 하는 토큰의 사용자 안내 (화면·오류 글 공통) */
+export function reconnectWords(why: "내장" | "열쇠없음" | "다른열쇠"): string {
+  if (why === "내장") return "이 채널은 이전 판(2.1.0 이하)에 들어 있던 공용 열쇠로 연결돼 있어 더는 쓸 수 없습니다. 내 열쇠를 넣고 채널을 다시 연결해 주세요.";
+  if (why === "다른열쇠") return "이 채널은 지금 넣어 둔 열쇠와 다른 열쇠로 연결돼 있습니다. 연결했던 열쇠를 다시 넣거나, 내 열쇠를 넣고 채널을 다시 연결해 주세요.";
+  return "이 채널을 연결할 구글 열쇠가 이 컴퓨터에 없습니다. 내 열쇠를 넣고 채널을 다시 연결해 주세요.";
+}
+
 /**
  * 이 토큰을 발급한 클라이언트를 고른다. (파이썬 _client_for)
  *   토큰은 발급한 클라이언트로만 갱신된다. 코드 인증(TV 클라이언트)으로 받은 토큰을 데스크톱
@@ -158,47 +202,49 @@ const 있나 = (f: string) => Deno.stat(f).then(() => true, () => false);
  *
  * 순서
  *   1) 이 채널만 쓰는 열쇠 파일(entry.secret) — 채널마다 제 클라이언트를 따로 쓸 수 있다
- *   2) 내장 열쇠로 연결했다고 적힌 토큰(entry.client === "내장") — 데이터 폴더에 다른 열쇠 파일이 생겨도 이 토큰은 내장 열쇠로 갱신
- *   3) 데이터 폴더의 열쇠 파일(사용자가 직접 넣은 것 · 옛 앱 사용자가 넣은 것) — 코드 인증 토큰은 device_secret.json
- *   4) 이 앱에 묶여 온 내장 열쇠
- *   5) 마지막으로 다른 종류의 파일이라도 시도한다 (파이썬과 같다)
+ *   2) 데이터 폴더의 열쇠 파일(사용자가 직접 넣은 것) — 코드 인증 토큰은 device_secret.json. 다른 종류의 파일도 마지막으로 시도한다
+ *   내장 열쇠는 없다(2.2.0~). 내장 열쇠로 받은 옛 토큰은 쓰지 않고 「내 열쇠를 넣고 다시 연결」을 안내한다 — 영상·대기열·기록은 그대로다.
  */
 export async function clientFor(entry: TokenEntry): Promise<ClientConf> {
-  const kind: EmbeddedKind = entry.how === "device" ? "device" : "browser";
+  const kind: KeyKind = entry.how === "device" ? "device" : "browser";
   if (entry.secret) {
     // 전용 파일이 없거나 깨졌을 때: 어디서 무엇을 고치는지 말한다 (읽기 함수의 일반 오류 글 대신)
     try { return await readClientFile(dataPath(entry.secret)); } catch {
       throw new AuthError(`이 채널 전용 열쇠 파일(${entry.secret})을 읽지 못했습니다. 채널 탭에서 다시 지정해 주세요.`);
     }
   }
-  if (entry.client === "내장") {
-    const c = await embeddedClient(kind);
-    if (c) return c;
-    throw new AuthError("이 채널은 이 앱에 내장된 열쇠로 연결됐는데, 지금 쓰는 판에는 내장 열쇠가 없습니다. 내장 열쇠가 든 판을 쓰거나 채널을 다시 연결해 주세요.");
+  const st = tokenKeyState(entry);
+  if (!st.ok) throw new AuthError(reconnectWords(st.why));
+  // 열쇠 이름표가 있으면 그 이름표와 맞는 파일을, 없으면 종류에 맞는 파일 먼저
+  let first: ClientConf | null = null;
+  for (const f of keyFilesFor(entry)) {
+    if (!(await 있나(f))) continue;
+    const c = await readClientFile(f).catch(() => null);
+    if (!c) continue;
+    if (!entry.client_pid || projectIdOf(c.client_id) === entry.client_pid) return c;
+    first ??= c;
   }
-  const mine = kind === "device" ? deviceSecretsPath() : secretsPath();
-  if (await 있나(mine)) return await readClientFile(mine);
-  const emb = await embeddedClient(kind);
-  if (emb) return emb;
-  const other = kind === "device" ? secretsPath() : deviceSecretsPath();
-  if (await 있나(other)) return await readClientFile(other);
-  throw new AuthError(
-    kind === "device"
-      ? "코드 인증용 열쇠 파일(device_secret.json)이 없습니다. 채널 탭의 「내 열쇠 쓰기」에서 넣어 주세요."
-      : "구글 로그인용 열쇠 파일(client_secret.json)이 없습니다. 채널 탭의 「내 열쇠 쓰기」에서 넣어 주세요.",
-  );
+  if (first) return first;
+  throw new AuthError(noKeyWords(kind));
+}
+
+/** 열쇠가 없을 때의 안내 — 만드는 법은 시작하기 탭, 넣는 곳은 채널 탭 */
+export function noKeyWords(kind: KeyKind): string {
+  return kind === "device"
+    ? "코드 인증에 쓸 구글 열쇠(device_secret.json)가 없습니다. 「내 구글 클라우드 열쇠 넣기」에서 넣어 주세요. (만드는 법은 🚀 시작하기 탭에 있습니다)"
+    : "구글 로그인에 쓸 구글 열쇠(client_secret.json)가 없습니다. 「내 구글 클라우드 열쇠 넣기」에서 넣어 주세요. (만드는 법은 🚀 시작하기 탭에 있습니다)";
 }
 
 /** 새로 연결할 때 쓸 열쇠와, 토큰 항목에 남길 표식 */
-export interface PickedClient { conf: ClientConf; mark: { secret?: string; client?: string } }
+export interface PickedClient { conf: ClientConf; mark: { secret?: string } }
 
 /**
  * 새 연결(브라우저 로그인·코드 인증)이 쓸 클라이언트를 고른다.
  *   · 채널 전용 파일을 지정했으면 그것(항목에 secret 로 남김)
- *   · 데이터 폴더에 사용자가 넣은 열쇠 파일이 있으면 그것 (옛 방식 그대로, 표식 없음)
- *   · 아무것도 없으면 이 앱에 묶여 온 내장 열쇠 (항목에 client:"내장" 으로 남김)
+ *   · 아니면 데이터 폴더에 사용자가 넣은 열쇠 파일
+ *   · 둘 다 없으면 연결을 시작하지 않는다 — 내장 열쇠는 없다(2.2.0~)
  */
-export async function pickClient(kind: EmbeddedKind, secretFile?: string): Promise<PickedClient> {
+export async function pickClient(kind: KeyKind, secretFile?: string): Promise<PickedClient> {
   if (secretFile) {
     try { return { conf: await readClientFile(dataPath(secretFile)), mark: { secret: secretFile } }; } catch {
       throw new AuthError(`전용 열쇠 파일(${secretFile})을 읽지 못했습니다`);
@@ -206,13 +252,7 @@ export async function pickClient(kind: EmbeddedKind, secretFile?: string): Promi
   }
   const mine = kind === "device" ? deviceSecretsPath() : secretsPath();
   if (await 있나(mine)) return { conf: await readClientFile(mine), mark: {} };
-  const emb = await embeddedClient(kind);
-  if (emb) return { conf: emb, mark: { client: "내장" } };
-  throw new AuthError(
-    kind === "device"
-      ? "코드 인증용 열쇠가 없습니다. 이 판에는 내장 열쇠가 없어, 채널 탭의 「내 열쇠 쓰기」에서 device_secret.json 을 넣어야 합니다."
-      : "구글 로그인용 열쇠가 없습니다. 이 판에는 내장 열쇠가 없어, 채널 탭의 「내 열쇠 쓰기」에서 client_secret.json 을 넣어야 합니다.",
-  );
+  throw new AuthError(noKeyWords(kind));
 }
 
 /** 구글 프로젝트를 가르는 짧은 이름 — 클라이언트 ID 로 만든다(원문을 밖에 안 둔다) */
@@ -278,7 +318,12 @@ export async function accessToken(entry: TokenEntry): Promise<string> {
   const 열쇠 = entry.refresh_token.slice(-24);
   const 있음 = 접근토큰.get(열쇠);
   if (있음 && 있음.until > Date.now()) return 있음.token;
-  const conf = await clientFor(entry);
+  let conf: ClientConf;
+  try { conf = await clientFor(entry); } catch (e) {
+    // 열쇠가 없거나 옛 내장 열쇠로 받은 토큰이면 구글을 부르지 않고 「다시 연결」 표시를 남긴다 (화면이 이 기록만 읽는다)
+    if (e instanceof AuthError) await 인증상태적기(entry.channel_id, e.message);
+    throw e;
+  }
   const body = new URLSearchParams({
     client_id: conf.client_id,
     client_secret: conf.client_secret,

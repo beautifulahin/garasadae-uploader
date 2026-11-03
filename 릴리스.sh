@@ -29,6 +29,12 @@ src_ver=$(grep -o 'APP_VERSION = "[^"]*"' app/paths.ts | head -1 | sed 's/.*"\(.
 notes="배포/릴리스노트_${src_ver}.md"
 [ -f "$notes" ] || { echo "❌ $notes 가 없습니다."; exit 1; }
 
+# (2.2.0) 구운 실행 파일에 구글 로그인 열쇠가 묶이지 않았는지 한 번 더 본다 — 있으면 올리지 않는다.
+#   2.0.0 ~ 2.1.0 은 만든 사람의 열쇠를 묶어 모든 사용자가 한 프로젝트의 하루 할당량을 같이 썼다.
+bins=$(ls dist/맥-*/*.app/Contents/MacOS/* dist/윈도우/*.exe 2>/dev/null)
+[ -n "$bins" ] || { echo "❌ dist 에서 검사할 실행 파일을 찾지 못했습니다."; exit 1; }
+echo "$bins" | tr '\n' '\0' | xargs -0 python3 배포/열쇠검사.py || { echo "❌ 실행 파일에 구글 열쇠가 묶여 있습니다 — 올리지 않습니다."; exit 1; }
+
 echo "✅ 검사 통과 — main · v$src_ver · 깨끗함. 올립니다."
 gh release create "$tag" dist/*.zip dist/notes.md --title "$title" --notes-file "$notes"
 

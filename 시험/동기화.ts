@@ -7,7 +7,7 @@
 //   실행:  TZ=Asia/Seoul deno run -A --no-lock 시험/동기화.ts
 import { 같나, 결과, 구역, 모래상자 } from "./도구.ts";
 import { 가짜구글 } from "./가짜구글.ts";
-import { setEmbeddedForTest } from "../app/embedded.ts";
+import { 열쇠넣기 } from "./바탕.ts";
 import { saveStore, SCOPES, type Store } from "../app/ytcore.ts";
 import { dataPath, readJsonSync, recordPath, writeJson } from "../app/paths.ts";
 import { channelsPath } from "../app/channels.ts";
@@ -30,7 +30,7 @@ interface 칸 { 이름: string; id: string; 토큰?: boolean; 설정?: Record<st
 /** 가짜 구글 + 채널 설정 + 토큰(토큰: false 면 인증 없는 채널) */
 async function 세상(dir: string, 칸들: 칸[], 구글: 가짜구글 = new 가짜구글()): Promise<가짜구글> {
   const g = 구글.install();
-  setEmbeddedForTest("browser", { client_id: "시험열쇠", client_secret: "비밀아님" });
+  await 열쇠넣기("client", { client_id: "시험열쇠", client_secret: "비밀아님" });
   const store: Store = {};
   const conf: Record<string, unknown> = {};
   for (const [i, c] of 칸들.entries()) {

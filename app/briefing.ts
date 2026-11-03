@@ -97,8 +97,14 @@ function 낱말(x: string): string {
 /** 오류 문구를 보고 까닭과 할 일을 사람 말로. (파이썬 _업로드실패까닭) */
 export function explainUploadFailure(원문: string): { 왜: string; 할일: string } {
   const t = 원문.toLowerCase();
+  if (t.includes("uploadlimitexceeded") || t.includes("exceeded the number of videos")) {
+    return { 왜: "이 채널의 하루 업로드 한도에 걸렸습니다(uploadLimitExceeded).", 할일: "유튜브가 채널마다 정한 하루 한도라 열쇠(프로젝트) 할당량과는 별개입니다. 다른 채널은 올릴 수 있고, 이 채널은 한도가 풀린 뒤(대개 하루 안에) 저절로 다시 올라갑니다." };
+  }
   if (t.includes("quota") || t.includes("할당량")) {
-    return { 왜: "오늘 쓸 수 있는 유튜브 할당량을 다 썼습니다.", 할일: "한국 시간 오후 4~5시(태평양 자정)에 초기화됩니다. 그 뒤 다시 올려 주세요." };
+    return { 왜: "오늘 쓸 수 있는 유튜브 할당량을 다 썼습니다.", 할일: "한국 시간 오후 4~5시(태평양 자정)에 초기화됩니다. 이 구글 열쇠(프로젝트)를 쓰는 모든 채널이 같이 막힙니다. 그 뒤 다시 올려 주세요." };
+  }
+  if (원문.includes("내 열쇠를 넣고") || 원문.includes("구글 열쇠가 이 컴퓨터에 없")) {
+    return { 왜: "이 채널을 연결한 구글 열쇠를 쓸 수 없습니다.", 할일: "내 구글 클라우드 열쇠를 넣고 이 채널을 다시 연결해 주세요. (만드는 법은 🚀 시작하기 탭, 넣는 곳은 📺 채널 탭 — 영상과 대기열은 그대로 남습니다)" };
   }
   if (t.includes("invalid_grant") || t.includes("invalid_scope") || t.includes("unauthorized") || t.includes("401") ||
     원문.includes("인증이 만료") || 원문.includes("로그인이 풀")) {

@@ -512,7 +512,7 @@
       const k = $('t4AiBtn'); if (k) k.focus({ preventScroll: true });
     }, 80);
   };
-  /** 시작하기 맨 아래 「내 구글 열쇠」 접힘 구역으로 */
+  /** 시작하기 맨 위 「내 구글 클라우드 열쇠 만들기」 구역으로 */
   window.t5GoAdv = () => {
     swTab('t5');
     const d = $('t5Adv'); if (!d) return;
@@ -556,6 +556,7 @@
       chip('t5c5', !!(s.coupang && s.coupang.connected), '⑤ 쿠팡 파트너스 연결 (선택)');
       chip('t5c6', total > 0, '⑥ 올리기');
       const r = hmKo(s.quota && s.quota.reset); if (r && $('t5Reset')) $('t5Reset').textContent = r + '쯤';
+      hasHide('t5KeyNeed', !(w.ready && w.ready.browser === false));      // 내 구글 열쇠가 아직 없으면 안내 카드
       hasHide('t5AiNeed', !(s.ai && s.ai.needsKey));
       const cp = $('t5CpBtn'); if (cp) cp.textContent = s.coupang && s.coupang.connected ? '🛒 쿠팡 파트너스 연결됨 · 바꾸기' : '🛒 쿠팡 파트너스 연결';
       const ab = $('t5AiBtn'); if (ab) ab.textContent = aiOn(s.ai) ? '✨ AI 연결됨 · 바꾸기' : '✨ AI 연결';

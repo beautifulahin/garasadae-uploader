@@ -61,7 +61,8 @@ for d in src_dirs:
         if fp.is_file():
             try:
                 j = json.loads(fp.read_text(encoding='utf-8')); c = j.get('installed') or j.get('web') or j
-                for k in ('client_id', 'client_secret', 'ig_app_id', 'th_app_id', 'worker_url'):
+                # meta.json 의 ig_app_id·th_app_id·worker_url 은 공개 값(wrangler.toml [vars] 에 일부러 적힘) → 대조에서 뺀다 (2026-11-03)
+                for k in ('client_id', 'client_secret'):
                     v = str(c.get(k, ''))
                     if len(v) >= 8: secrets.add(v)
             except Exception: pass
@@ -86,6 +87,37 @@ if pathlib.Path('build/.client').exists() and any(pathlib.Path('build/.client').
 sys.exit(1 if bad else 0)
 PY
 [ $? -ne 0 ] && FAIL=1
+
+echo "── 2-2. 배포 빌드에 구글 로그인 열쇠가 묶이지 않는지 (2.2.0~ 사용자는 자기 열쇠를 쓴다) ──"
+# 2.0.0 ~ 2.1.0 은 만든 사람의 열쇠를 실행 파일에 묶어, 배포를 받은 모든 사람이 한 구글 프로젝트의 하루 할당량을 같이 썼다. 다시 그렇게 되지 않게 기계가 막는다.
+python3 - <<'PY'
+import re, sys, pathlib
+bad = []
+b = pathlib.Path('build.sh').read_text(encoding='utf-8')
+code = '\n'.join(l for l in b.splitlines() if not l.lstrip().startswith('#'))
+for m in re.finditer(r'for\s+f\s+in\s+([^;\n]+);\s*do', code):
+    if re.search(r'client_secret|device_secret', m.group(1)): bad.append('build.sh 가 구글 열쇠 파일을 묶음: ' + m.group(1).strip())
+if '배포/열쇠검사.py' not in code: bad.append('build.sh 에 구운 뒤 열쇠 검사(배포/열쇠검사.py)가 없음')
+if not pathlib.Path('배포/열쇠검사.py').is_file(): bad.append('배포/열쇠검사.py 가 없음')
+e = pathlib.Path('app/embedded.ts').read_text(encoding='utf-8')
+for n, l in enumerate(e.splitlines(), 1):
+    if 'readTextFile' in l and re.search(r'client_secret|device_secret|파일이름', l): bad.append('app/embedded.ts:%d 가 묶인 구글 열쇠를 읽음' % n)
+if 'embeddedClient' in e: bad.append('app/embedded.ts 에 embeddedClient(묶인 구글 열쇠 읽기)가 남아 있음')
+if bad:
+    for x in bad: print('  ❌', x)
+    sys.exit(1)
+print('  ✅ build.sh 는 meta.json 만 묶고, 앱은 묶인 구글 열쇠를 읽지 않음')
+PY
+[ $? -ne 0 ] && FAIL=1
+# 이미 구운 dist 가 지금 소스 버전의 것이면 그 실행 파일에도 열쇠가 없어야 한다 (옛 버전 dist 는 건너뛴다 — build.sh 가 곧 옆으로 치운다)
+DIST_VER=$(grep '^버전:' dist/_BUILT_FROM.txt 2>/dev/null | cut -d' ' -f2)
+SRC_VER=$(grep -o 'APP_VERSION = "[^"]*"' app/paths.ts | head -1 | sed 's/.*"\(.*\)"/\1/')
+if [ -n "$DIST_VER" ] && [ "$DIST_VER" = "$SRC_VER" ]; then
+  DIST_BINS=$(ls dist/맥-*/*.app/Contents/MacOS/* dist/윈도우/*.exe 2>/dev/null)
+  if [ -n "$DIST_BINS" ]; then
+    if echo "$DIST_BINS" | tr '\n' '\0' | xargs -0 python3 배포/열쇠검사.py >/dev/null 2>&1; then ok "구운 실행 파일($DIST_VER)에 구글 열쇠 없음"; else ng "구운 실행 파일($DIST_VER)에 구글 열쇠가 묶여 있음 (python3 배포/열쇠검사.py 로 확인)"; fi
+  fi
+fi
 
 echo "── 3. 버전 ──────────────────────────────────"
 VER=$(grep -o 'APP_VERSION = "[^"]*"' app/paths.ts | head -1 | sed 's/.*"\(.*\)"/\1/')

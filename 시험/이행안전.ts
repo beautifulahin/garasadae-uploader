@@ -20,7 +20,7 @@ import { chanView } from "../app/views.ts";
 import { loadProfiles } from "../app/profile.ts";
 import * as Q from "../app/queue.ts";
 import * as R from "../app/review.ts";
-import { setEmbeddedForTest } from "../app/embedded.ts";
+import { 열쇠넣기 } from "./바탕.ts";
 import { buildRoutes } from "../app/routes.ts";
 import { newAppState } from "../app/routes.ts";
 
@@ -314,12 +314,12 @@ async function 그대로시험() {
 /* ═══════════════════════════ 3. 옛 열쇠로 계속 산다 ═══════════════════════════ */
 
 async function 열쇠시험() {
-  구역("옛 토큰은 다시 인증 없이 그대로 — 기본(내장) 열쇠로 바꿔 끼우지 않는다");
+  구역("옛 토큰은 다시 인증 없이 그대로 — 데이터 폴더의 다른 열쇠로 바꿔 끼우지 않는다");
   await 모래상자(async (dir) => {
     const g = 구글준비();
     await 옛판쓰기(dir);
-    // 이 앱에 묶여 온 기본 열쇠가 있다 — 옛 토큰은 그래도 제 열쇠로 갱신돼야 한다
-    setEmbeddedForTest("browser", { client_id: "embedded-id.apps.googleusercontent.com", client_secret: "embedded-secret", token_uri: "https://oauth2.googleapis.com/token" });
+    // 데이터 폴더에 다른 열쇠 파일이 있다 — 옛 토큰은 그래도 제 열쇠로 갱신돼야 한다
+    await 열쇠넣기("client", { client_id: "embedded-id.apps.googleusercontent.com", client_secret: "embedded-secret", token_uri: "https://oauth2.googleapis.com/token" });
     const r = await 옮기기();
     참인가("끝까지 갔다", r.ok && r.verify?.ok === true);
     const 저장소 = loadStore();
@@ -333,11 +333,10 @@ async function 열쇠시험() {
       ["fake-refresh-a", "fake-id-a.apps.googleusercontent.com"], ["fake-refresh-b", "fake-id-a.apps.googleusercontent.com"],
       ["fake-refresh-c", "fake-id-c.apps.googleusercontent.com"], ["fake-refresh-e", "fake-id-e.apps.googleusercontent.com"],
     ]);
-    같나("기본 열쇠로 간 갱신 요청이 없다", g.갱신.some((x) => x.client_id.startsWith("embedded")), false);
+    같나("데이터 폴더의 다른 열쇠로 간 갱신 요청이 없다", g.갱신.some((x) => x.client_id.startsWith("embedded")), false);
     같나("채널마다 전용 열쇠 파일을 가리킨다 (secret 칸)", Object.fromEntries(Object.entries(저장소).map(([k, e]) => [k, e.secret])), {
       채널A: "client_secret_채널A.json", 채널B: "client_secret_채널B.json", 채널C: "client_secret_채널C.json", 채널E: "client_secret_채널E.json",
     });
-    setEmbeddedForTest("browser", null);
     g.uninstall();
   });
 }

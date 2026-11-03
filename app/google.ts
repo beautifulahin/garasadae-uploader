@@ -138,12 +138,69 @@ export async function call(
 /** 오류 문구를 사람이 읽는 말로 (브리핑·화면이 쓴다) */
 export function explainGoogle(e: unknown): string {
   if (e instanceof GoogleError) {
+    if (e.reason === "uploadLimitExceeded") return "이 채널의 하루 업로드 한도에 걸렸습니다.";
     if (e.reason === "quotaExceeded" || /quota/i.test(e.message)) {
       return "오늘 쓸 수 있는 유튜브 할당량을 다 썼습니다.";
     }
     return e.message;
   }
   return e instanceof Error ? e.message : String(e);
+}
+
+/* ─────────── 한도(할당량) 오류를 가려낸다 ───────────
+ * 구글이 한도 때문에 거절하는 모양은 둘로 갈린다. 뜻이 달라서 사용자에게 다르게 말해야 한다.
+ *   · quotaExceeded       — 이 구글 프로젝트(열쇠)의 하루 할당량을 다 썼다. 같은 열쇠를 쓰는 모든 채널이 같이 막힌다.
+ *   · uploadLimitExceeded — 이 채널의 하루 업로드 한도에 걸렸다(유튜브가 채널마다 정한 한도). 다른 채널은 올릴 수 있다.
+ * 「429」라는 글자가 오류 글 어딘가에 들어 있다고 한도로 보지 않는다 — 파일 이름·번호에 429 가 든 다른 오류까지 한도로 오인해 남은 영상을 다음 날로 미룰 수 있었다.
+ * 한도로 보는 것은 ① HTTP 상태가 429 ② 구글이 준 이유(reason)가 한도 이유 ③ 구글이 보낸 한도 문장뿐이다. */
+
+export type LimitKind = "프로젝트" | "채널" | "요청";
+export interface LimitInfo {
+  kind: LimitKind;
+  /** 구글이 준 이유 (예: quotaExceeded · uploadLimitExceeded) — 없으면 "" */
+  reason: string;
+  /** 구글이 보낸 오류 글의 첫 줄 (태그를 떼고 짧게) */
+  first: string;
+  /** 사용자에게 보이는 한 줄 이름 */
+  name: string;
+  /** 무슨 뜻이고 누가 막히는지 */
+  words: string;
+}
+
+const 프로젝트이유 = new Set(["quotaExceeded", "dailyLimitExceeded"]);
+const 채널이유 = new Set(["uploadLimitExceeded"]);
+
+/** 오류 글의 첫 줄 — 구글이 넣은 HTML 태그는 떼고 길이를 줄인다 */
+export function firstLine(m: unknown, max = 140): string {
+  return String(m ?? "").split("\n")[0].replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+/** 한도 오류면 어떤 한도인지, 아니면 null */
+export function limitInfo(e: unknown): LimitInfo | null {
+  const msg = String((e as Error)?.message ?? e ?? "");
+  const body = String((e as { body?: string })?.body ?? "");
+  const status = Number((e as { status?: number })?.status ?? 0);
+  const reason = e instanceof GoogleError ? e.reason : String((e as { reason?: string })?.reason ?? "");
+  const text = msg + " " + body;
+  let kind: LimitKind | null = null;
+  let why = reason;
+  if (채널이유.has(reason)) kind = "채널";
+  else if (프로젝트이유.has(reason)) kind = "프로젝트";
+  else if (/uploadLimitExceeded|exceeded the number of videos/i.test(text)) { kind = "채널"; why = why || "uploadLimitExceeded"; }
+  else if (/quotaExceeded|Quota exceeded/i.test(text)) { kind = "프로젝트"; why = why || "quotaExceeded"; }
+  else if (status === 429 || /^(HTTP\s*)?429(\s|$)/.test(msg)) kind = "요청";
+  if (!kind) return null;
+  const first = firstLine(msg);
+  if (kind === "프로젝트") {
+    return { kind, reason: why, first, name: `프로젝트 할당량 소진(${why || "quotaExceeded"})`,
+      words: "이 구글 열쇠(프로젝트)의 하루 할당량을 다 썼습니다. 같은 열쇠를 쓰는 모든 채널이 오늘은 같이 막힙니다." };
+  }
+  if (kind === "채널") {
+    return { kind, reason: why, first, name: `채널 하루 업로드 한도(${why || "uploadLimitExceeded"})`,
+      words: "이 채널이 오늘 올릴 수 있는 편수를 유튜브가 정한 한도까지 채웠습니다. 열쇠(프로젝트) 할당량과는 따로 세는 한도입니다." };
+  }
+  return { kind, reason: why, first, name: "구글이 요청을 거절함(HTTP 429)",
+    words: "구글이 요청이 너무 많다며 잠시 막았습니다. 어떤 한도인지 이유(reason)는 오지 않았습니다." };
 }
 
 export async function noteOffline() {

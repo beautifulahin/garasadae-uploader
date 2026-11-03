@@ -8,7 +8,7 @@ import { baseName, dataPath, dirName, expandHome, extOf, isDir, join, readJsonSy
 import { dateOnly, isoWall, parseInstant, parseNaive, systemZone, instantToWall, wallNow, type Wall } from "./clock.ts";
 import { APP_NAME, APP_VERSION } from "./paths.ts";
 import { type ChannelConf, type Channels, boundOk, confFor, getMode, isLongChannel, loadChannels, modeFeatures, modeWords, MODE_AGENCY } from "./channels.ts";
-import { authErrorOf, canPublish, deviceSecretsPath, loadStore, resolve, secretsPath, type TokenEntry } from "./ytcore.ts";
+import { authErrorOf, canPublish, loadStore, reconnectWords, resolve, tokenKeyState, type TokenEntry } from "./ytcore.ts";
 import { loadProfiles } from "./profile.ts";
 import { readLedger, uploadedNames } from "./ledger.ts";
 import * as Q from "./queue.ts";
@@ -97,13 +97,11 @@ export async function linksOf(file: string): Promise<{ links: LinkRef[]; linkSta
 
 const 이름맵 = (chans: Channels) => Object.keys(chans);
 
+/** 이 채널이 어느 열쇠로 연결돼 있나 — 전용 · 파일(내 열쇠) · 다시연결(옛 판의 공용 열쇠였거나 열쇠가 없다) */
 function keyFrom(entry: TokenEntry | null): string {
   if (!entry) return "";
-  if (entry.secret) return "전용";
-  if (entry.client === "내장") return "내장";
-  const own = entry.how === "device" ? deviceSecretsPath() : secretsPath();
-  try { Deno.statSync(own); return "파일"; } catch { /* 없다 */ }
-  return "내장";
+  const st = tokenKeyState(entry);
+  return st.ok ? st.from : "다시연결";
 }
 
 function entryOf(name: string, chans: Channels): TokenEntry | null {
@@ -145,7 +143,9 @@ export async function chanView(name: string, cf: ChannelConf, ctx: {
   const art = (pr.art ?? {}) as Obj;
   const sub = ctx.subs[name] ?? {};
   const policy = D.policyForChannel(name);
-  const err = authErrorOf(cid);
+  const keySt = entry ? tokenKeyState(entry) : null;
+  // 로그인이 풀린 채널(인증 실패 기록)이거나, 옛 판의 공용 열쇠로 연결돼 있어 내 열쇠로 다시 연결해야 하는 채널
+  const err = authErrorOf(cid) ?? (keySt && !keySt.ok ? { at: "", why: reconnectWords(keySt.why) } : null);
   const todayN = [...same, tokKey].reduce((n, k, i, a) => (a.indexOf(k) === i ? n + (ctx.today[k] ?? 0) : n), 0);
   // 하루 몫: 정책 파일의 상한 > 채널 설정의 고정 편수. 아무 데도 정해지지 않았으면 모른다(null)
   const polLimit = Number(policy?.cfg.daily_limit);
@@ -200,7 +200,7 @@ export async function queueView(now: Wall): Promise<Obj[]> {
     out.push({
       file, name: baseName(file), channel: String(j.channel ?? ""), alias: ch, kind: j.영상종류 || (j.롱폼 ? "롱폼" : "쇼츠"),
       title: t.title, titleSource: t.source, fireAt: String(j.쏠때 ?? ""), publishAt: String(j.publish_at ?? ""), minutesLeft: left, late: left < 0,
-      approvedBy: String(j._승인 ?? ""), thumb: hasNeighborThumb(file), ...(await linksOf(file)),
+      limitWhy: String(j.한도미룸 ?? ""), approvedBy: String(j._승인 ?? ""), thumb: hasNeighborThumb(file), ...(await linksOf(file)),
       meta: (() => { const rec = metaRecordFor(file); return rec ? { title: rec.title, desc: rec.description, tags: rec.tags, status: rec.status, at: rec.at } : null; })(),
     });
   }

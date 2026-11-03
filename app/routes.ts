@@ -782,7 +782,7 @@ export function buildRoutes(S: AppState): { get: Record<string, Handler>; post: 
     const want = (Array.isArray(c.body.need) ? c.body.need : []).map(String).filter(Boolean);
     const chans = loadChannels();
     const missing = (want.length ? want : Object.keys(chans)).filter((k) => k in chans && !done.has(chans[k].channel_id ?? "") && !resolve(k));
-    return { client: st.client, device: st.device, embedded: st.embedded, ready: st.ready, channels: st.channels, missing };
+    return { client: st.client, device: st.device, ready: st.ready, retired: st.retired, channels: st.channels, missing };
   };
 
   post["secret/save"] = async (c) => {

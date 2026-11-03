@@ -15,10 +15,10 @@
 import { call, doFetch, GoogleError, OAUTH_AUTH, OAUTH_DEVICE, OAUTH_TOKEN, toGoogleError } from "./google.ts";
 import {
   accessToken, AuthError, clientFor, deviceSecretsPath, explainOAuth, loadStore, pickClient, projectIdOf, putEntry,
-  SCOPES, secretsPath,
+  SCOPES, secretsPath, tokenKeyState,
 } from "./ytcore.ts";
 import type { ClientConf, TokenEntry } from "./ytcore.ts";
-import { embeddedState, parseClientJson } from "./embedded.ts";
+import { parseClientJson } from "./embedded.ts";
 import { dataPath, exists, IS_WIN, log, readJson, writeJson } from "./paths.ts";
 import { ensureChannelSlot } from "./channels.ts";
 import { downloadArt, fetchProfile, remember } from "./profile.ts";
@@ -90,22 +90,18 @@ export async function saveChannelClientJson(name: string, json: string): Promise
 
 /**
  * 열쇠가 어디까지 준비됐나 (serve secret/state)
- *   client/device  — 데이터 폴더에 사용자가 넣은 열쇠 파일이 있나
- *   embedded       — 이 앱에 묶여 온 내장 열쇠가 있나 (값은 보이지 않는다)
- *   ready          — 새 연결을 시작할 수 있나 (내 파일 또는 내장 열쇠 중 하나)
+ *   client/device  — 데이터 폴더에 사용자가 넣은 열쇠 파일이 있나 (값은 보이지 않는다)
+ *   ready          — 새 연결을 시작할 수 있나 (= 내 열쇠 파일이 있나. 2.2.0 부터 이 앱에 묶여 오는 열쇠는 없다)
+ *   retired        — 옛 판(2.1.0 이하)의 공용 열쇠로 연결돼 있어 다시 연결해야 하는 채널 수
  */
 export async function clientState(): Promise<{
-  client: boolean; device: boolean; channels: number;
-  embedded: { browser: boolean; device: boolean }; ready: { browser: boolean; device: boolean };
+  client: boolean; device: boolean; channels: number; ready: { browser: boolean; device: boolean }; retired: number;
 }> {
   const store = loadStore();
   const done = new Set(Object.values(store).map((v) => v.channel_id).filter(Boolean));
   const client = await exists(secretsPath()), device = await exists(deviceSecretsPath());
-  const embedded = await embeddedState();
-  return {
-    client, device, channels: done.size, embedded,
-    ready: { browser: client || embedded.browser, device: device || embedded.device },
-  };
+  const retired = Object.values(store).filter((e) => !tokenKeyState(e).ok).length;
+  return { client, device, channels: done.size, ready: { browser: client, device }, retired };
 }
 
 /* ============================================================ 등록(저장) — 두 방식이 같이 쓴다 */
@@ -119,17 +115,16 @@ export interface RegisterResult { key: string; channel_id: string; title: string
  */
 export async function registerToken(o: {
   alias?: string; refresh: string; accessToken?: string; how: "browser" | "device"; granted?: string[]; secretFile?: string;
-  /** "내장" = 이 앱에 묶여 온 열쇠로 연결했다 */
-  client?: string;
 }): Promise<RegisterResult> {
   const entry: TokenEntry = {
     channel_id: "", title: "", refresh_token: o.refresh, added: isoWall(wallNow()),
     how: o.how, scopes: o.granted?.length ? o.granted : [...SCOPES],
   };
   if (o.secretFile) entry.secret = o.secretFile;
-  if (o.client) entry.client = o.client;
   const token = o.accessToken ?? await accessToken(entry);
   const conf = await clientFor(entry);
+  // 어느 열쇠로 받은 토큰인지 이름표(원문 아님)를 남긴다 — 나중에 열쇠가 바뀌었는지 가려내는 데 쓴다
+  entry.client_pid = projectIdOf(conf.client_id);
   const items = (await call({ token, project: projectIdOf(conf.client_id) }, "GET", "/youtube/v3/channels",
     { query: { part: "snippet", mine: true } })).items ?? [];
   if (!items.length) throw new Error("이 인증에 연결된 채널이 없습니다. 채널 선택을 확인하세요.");
@@ -178,9 +173,9 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
  */
 export async function startSignIn(alias: string | null, secretFile?: string): Promise<{ url: string; done: Promise<RegisterResult> }> {
   if (signin.state.running) throw new Error("이미 로그인 창이 열려 있습니다");
-  // 브라우저 로그인은 반드시 데스크톱 유형 열쇠로 한다 (이 채널 전용 파일 → 데이터 폴더의 client_secret.json → 앱에 묶인 열쇠 순서).
+  // 브라우저 로그인은 반드시 데스크톱 유형 열쇠로 한다 (이 채널 전용 파일 → 데이터 폴더의 client_secret.json 순서 · 내 열쇠가 없으면 시작하지 않는다).
   //   TV 유형(device_secret.json)으로는 루프백 로그인이 안 된다.
-  let conf: ClientConf, mark: { secret?: string; client?: string };
+  let conf: ClientConf, mark: { secret?: string };
   try {
     ({ conf, mark } = await pickClient("browser", secretFile));
   } catch (e) {
@@ -254,7 +249,7 @@ export async function startSignIn(alias: string | null, secretFile?: string): Pr
       const granted = typeof j.scope === "string" ? j.scope.split(" ").filter(Boolean) : undefined;
       const res = await registerToken({
         alias: alias ?? undefined, refresh: j.refresh_token, accessToken: j.access_token, how: "browser", granted,
-        secretFile: mark.secret, client: mark.client,
+        secretFile: mark.secret,
       });
       signin.state = { running: false, alias, done: { key: res.key, title: res.title, channel_id: res.channel_id } };
       return res;
@@ -281,8 +276,8 @@ export interface DeviceSession {
   _client_id: string;
   _client_secret: string;
   _started: number;
-  /** 토큰 항목에 남길 열쇠 표식 (내장 열쇠로 시작했으면 client:"내장") */
-  _mark?: { secret?: string; client?: string };
+  /** 토큰 항목에 남길 열쇠 표식 (채널 전용 열쇠 파일 이름) */
+  _mark?: { secret?: string };
 }
 /** 진행 중인 코드 인증 (채널이름 → 세션) */
 export const codeSessions = new Map<string, DeviceSession>();
@@ -291,7 +286,7 @@ export class NotReady extends Error {
   constructor(m: string) { super(m); this.name = "NotReady"; }
 }
 
-async function deviceClient(): Promise<{ conf: ClientConf; mark: { secret?: string; client?: string } }> {
+async function deviceClient(): Promise<{ conf: ClientConf; mark: { secret?: string } }> {
   try {
     return await pickClient("device");
   } catch (e) {
@@ -362,11 +357,11 @@ export async function deviceWait(session: DeviceSession, onTick?: (left: number)
 
 /** 3단계: 어느 채널인지 확인하고 저장한다. 브라우저 로그인과 같은 자리·같은 모양. */
 export async function deviceSave(
-  refresh: string, alias?: string, o: { access?: string; scope?: string; mark?: { secret?: string; client?: string } } = {},
+  refresh: string, alias?: string, o: { access?: string; scope?: string; mark?: { secret?: string } } = {},
 ): Promise<RegisterResult> {
   const granted = o.scope ? o.scope.split(" ").filter(Boolean) : undefined;
   return await registerToken({
-    alias, refresh, accessToken: undefined, how: "device", granted, secretFile: o.mark?.secret, client: o.mark?.client,
+    alias, refresh, accessToken: undefined, how: "device", granted, secretFile: o.mark?.secret,
   });
 }
 

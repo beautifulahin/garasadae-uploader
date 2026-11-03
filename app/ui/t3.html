@@ -52,7 +52,7 @@
     <h3>🔗 구글 계정으로 채널 연결하기</h3>
     <div class="danger hide" id="t3Recon" style="margin:0 0 12px"></div>
     <div class="p13">구글 계정 하나로 로그인하고, 로그인 창에서 <b>이번에 등록할 채널</b>을 고릅니다. 채널이 여럿이면 채널마다 한 번씩 반복하세요
-    (계정·채널을 고르는 화면이 매번 뜹니다). <b>구글 클라우드에서 열쇠를 만들 필요가 없습니다</b> — 필요한 열쇠는 이 프로그램에 들어 있습니다.</div>
+    (계정·채널을 고르는 화면이 매번 뜹니다). 처음 한 번은 <b>내 구글 클라우드 열쇠</b>가 필요합니다 — 이 프로그램은 만든 사람의 열쇠를 들고 있지 않아서, 내 구글 계정으로 열쇠를 만들어 아래 <b>「내 구글 클라우드 열쇠 넣기」</b>에 넣어야 합니다(만드는 법은 🚀 시작하기 탭).</div>
     <div class="t3-perm">
       <div><b>⬆️ 업로드</b><span>영상을 올립니다</span></div>
       <div><b>👁 읽기</b><span>채널 정보·조회수를 읽습니다</span></div>
@@ -79,14 +79,15 @@
     <button type="button" class="go" style="margin-top:14px" onclick="t3Act(this,'add')">➕ 채널 만들기</button>
   </div>
 
-  <!-- 고급: 내 구글 열쇠 쓰기 — 기본 흐름에서는 필요 없다 -->
+  <!-- 내 구글 클라우드 열쇠 — 2.2.0 부터 이 프로그램에는 공용 열쇠가 없다. 채널을 연결하려면 여기에 내 열쇠를 넣어야 한다 -->
   <details class="t3-adv" id="t3Adv">
-    <summary>🔑 내 구글 열쇠 쓰기 (고급)</summary>
+    <summary>🔑 내 구글 클라우드 열쇠 넣기</summary>
     <div class="t3-adv-b">
-      <div class="p13" style="padding-top:12px">기본으로는 이 프로그램에 들어 있는 열쇠로 연결되므로 <b>건드릴 필요가 없습니다.</b>
-      내 구글 클라우드 프로젝트의 열쇠를 쓰고 싶을 때만 아래에 넣으세요. 열쇠는 <b>두 벌</b>입니다 —
+      <div class="p13" style="padding-top:12px">이 프로그램에는 <b>공용 열쇠가 들어 있지 않습니다</b> — 구글의 하루 할당량이 열쇠(프로젝트)마다 따로 계산되므로,
+      각자 내 구글 클라우드 프로젝트의 열쇠를 만들어 넣습니다. 열쇠는 <b>두 벌</b>입니다 —
       구글 로그인용(<b>데스크톱 앱</b> 유형 → <code>client_secret.json</code>)과 코드 인증용(<b>TV 및 입력 제한 기기</b> 유형 → <code>device_secret.json</code>).
-      만드는 방법은 <button type="button" class="mlink" onclick="t5GoAdv()">🚀 시작하기 맨 아래</button>에 있습니다.</div>
+      만드는 방법은 <button type="button" class="mlink" onclick="t5GoAdv()">🚀 시작하기 탭의 「내 구글 클라우드 열쇠 만들기」</button>에 있습니다.
+      구글 로그인(🔑)만 쓸 거라면 첫 번째 열쇠만 있어도 됩니다.</div>
       <div class="hintline" id="t3SecLine"></div>
 
       <div class="t3-key">

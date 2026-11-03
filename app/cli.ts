@@ -313,8 +313,8 @@ async function 인증(args: string[]): Promise<number> {
   const { f } = flags(args);
   const st = await OA.clientState();
   if (!st.ready.browser) {
-    out("  구글 로그인용 열쇠가 없습니다 — 이 판에는 내장 열쇠가 없고, 데이터 폴더에 client_secret.json 도 없습니다.");
-    out(`  열쇠 파일을 ${dataDir()} 에 client_secret.json 으로 두거나, 화면의 설정에서 넣어 주세요. (안내: docs/설정안내.md)`);
+    out("  구글 로그인용 열쇠가 없습니다 — 이 앱은 내 구글 클라우드 열쇠를 씁니다(2.2.0~). 데이터 폴더에 client_secret.json 이 없습니다.");
+    out(`  열쇠 파일을 ${dataDir()} 에 client_secret.json 으로 두거나, 화면의 「내 구글 클라우드 열쇠 넣기」에서 넣어 주세요. (만드는 법: docs/설정안내.md · 화면의 🚀 시작하기 탭)`);
     return 1;
   }
   const times = has(f, "연속") ? Math.max(1, parseInt(first(f, "연속") || "99", 10) || 99) : has(f, "batch") ? 99 : 1;

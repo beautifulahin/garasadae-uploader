@@ -39,12 +39,15 @@ if [ -d "$OUT" ]; then mv "$OUT" "$OUT.이전_$(date +%Y%m%d_%H%M%S)"; fi
 mkdir -p "$OUT"
 echo "버전: $VER"
 
-# ── 이 앱에 묶는 구글 로그인 열쇠 (사장님 지시: 「껍데기만 빼고 전부 동일」) ───────────────────
-#   · 열쇠 파일은 만든 사람의 것이다. 소스·git·문서·로그 어디에도 값을 두지 않는다 — 굽는 동안만 build/.client/ 에 복사해
-#     deno compile --include 로 실행 파일 안에 묶고, 굽고 나면(성공이든 실패든) 바로 지운다. (build/.client/ 는 .gitignore)
-#   · 열쇠가 든 폴더의 자리는 환경변수 GARASADAE_CLIENT_DIR 또는 배포/.클라이언트경로(한 줄짜리 파일 · .gitignore) 로만 알려 준다.
-#     값은 이 스크립트가 출력하지 않는다 — 「있음/없음」만 말한다.
-#   · 열쇠가 없으면 열쇠 없이 구워진다(사용자가 자기 열쇠 파일을 넣어야 로그인된다). 채널 전용 열쇠(채널마다 따로 쓰는 열쇠)는 묶지 않는다.
+# ── 이 앱에 묶는 것 — 인스타그램·스레드 연결 정보(meta.json)뿐이다 ───────────────────
+#   ★2.2.0 부터 구글 로그인 열쇠(client_secret.json · device_secret.json)는 **묶지 않는다.**
+#     2.0.0 ~ 2.1.0 은 만든 사람의 열쇠를 실행 파일에 묶었고, 그 결과 배포를 받은 모든 사용자와 만든 사람의 채널이 한 구글 프로젝트의
+#     하루 할당량을 같이 썼다(한 사람이 다 쓰면 모두가 그날 업로드가 막혔다). 이제 사용자가 자기 구글 클라우드 열쇠를 넣어 쓴다.
+#   · meta.json(중계 서버 주소·메타 앱 번호 — 비밀이 아니다)만 굽는 동안 build/.client/ 에 복사해 deno compile --include 로 묶고,
+#     굽고 나면(성공이든 실패든) 바로 지운다. (build/.client/ 는 .gitignore)
+#   · meta.json 이 든 폴더의 자리는 환경변수 GARASADAE_CLIENT_DIR 또는 배포/.클라이언트경로(한 줄짜리 파일 · .gitignore) 로만 알려 준다.
+#     그 폴더에 구글 열쇠가 같이 있어도 여기서는 가져가지 않는다. 값은 이 스크립트가 출력하지 않는다 — 「있음/없음」만 말한다.
+#   · 구운 뒤에는 실행 파일마다 배포/열쇠검사.py 로 구글 열쇠 모양과 만든 사람의 실제 열쇠 값이 없는지 확인한다(있으면 빌드 실패).
 CLIENT_SRC="${GARASADAE_CLIENT_DIR:-}"
 if [ -z "$CLIENT_SRC" ] && [ -f "배포/.클라이언트경로" ]; then CLIENT_SRC="$(head -1 배포/.클라이언트경로)"; fi
 rm -rf build/.client
@@ -52,18 +55,22 @@ trap 'rm -rf build/.client' EXIT
 mkdir -p build/.client
 BAKED=""
 # meta.json = 인스타그램·스레드 연결 정보(중계 서버 주소·메타 앱 번호). 앱 비밀은 중계 서버에만 있고 여기에는 없다. 없으면 그 기능만 화면에서 숨는다.
-for f in client_secret.json device_secret.json meta.json; do
+for f in meta.json; do
   if [ -n "$CLIENT_SRC" ] && [ -f "$CLIENT_SRC/$f" ]; then
     cp "$CLIENT_SRC/$f" "build/.client/$f"; chmod 600 "build/.client/$f"; BAKED="$BAKED $f"
   fi
 done
-if [ -n "$BAKED" ]; then echo "  ↳ 내장 로그인 열쇠를 묶습니다:$BAKED (값은 출력하지 않습니다 · 굽고 나면 지웁니다)"
-else echo "  ↳ ⚠️ 내장 로그인 열쇠 없이 굽습니다 — 이 판은 사용자가 열쇠 파일을 넣어야 로그인됩니다"; fi
+if [ -n "$BAKED" ]; then echo "  ↳ 연결 정보를 묶습니다:$BAKED (구글 로그인 열쇠는 묶지 않습니다 · 굽고 나면 지웁니다)"
+else echo "  ↳ 연결 정보(meta.json) 없이 굽습니다 — 인스타그램·스레드 기능이 화면에서 숨습니다 (구글 로그인 열쇠는 어느 판에도 묶지 않습니다)"; fi
+# 구글 열쇠가 build/.client 에 섞여 있으면 굽기 전에 멈춘다 (위 복사가 meta.json 만 하므로 정상으로는 일어나지 않는다)
+if [ -n "$(ls build/.client 2>/dev/null | grep -Ei 'client_secret|device_secret')" ]; then echo "❌ build/.client 에 구글 열쇠가 있습니다 — 배포 판에는 묶지 않습니다."; exit 1; fi
 INC="$INC --include build/.client"
 
 compile () {  # $1=타깃 $2=출력경로
   echo "▶ $1"
   deno compile --no-lock $PERM $INC --target "$1" -o "$2" app/main.ts >/dev/null
+  # 구운 실행 파일에 구글 로그인 열쇠가 묶이지 않았는지 확인한다 (값은 출력하지 않는다 · 있으면 빌드 실패)
+  python3 배포/열쇠검사.py "$2" || { echo "❌ 실행 파일에 구글 열쇠가 묶였습니다 — 배포하지 않습니다."; exit 1; }
 }
 
 make_app () {  # $1=바이너리 $2=.app 만들 폴더

@@ -10,13 +10,14 @@ import * as SAY from "../app/say.ts";
 import { APP_NAME, dataPath, writeJson } from "../app/paths.ts";
 import { addDays, wall } from "../app/clock.ts";
 import { type Channels, readMark, saveChannels, setMode, writeMark } from "../app/channels.ts";
-import { saveStore, type Store } from "../app/ytcore.ts";
+import { saveStore, secretsPath, type Store } from "../app/ytcore.ts";
 import { savePending } from "../app/review.ts";
 import { setLocked } from "../app/safety.ts";
 import { appendLedger } from "../app/ledger.ts";
 import * as quota from "../app/quota.ts";
-import { saveProfiles } from "../app/profile.ts";
-import { setEmbeddedForTest } from "../app/embedded.ts";
+import { loadProfiles, saveProfiles } from "../app/profile.ts";
+import { chanView } from "../app/views.ts";
+import { 열쇠넣기 } from "./바탕.ts";
 import type { MediaInfo } from "../app/shorts.ts";
 
 /** 가짜 채널 ID — 실제 ID 모양(UC + 22자)을 소스에 그대로 쓰지 않으려고 만들어 쓴다 */
@@ -186,13 +187,14 @@ export async function 실행() {
   await 모래상자(async (dir) => {
     const a = await 수집({});
     같나("계정을 아직 안 이었으면 한 줄만(노랑·할 일)", 줄(a), [["yellow", "할 일", "아직 계정을 연결하지 않았습니다"]]);
-    같나("열쇠 파일이 없으면 원본 문구 그대로", a[0].why.startsWith("구글 로그인 파일을 넣고 계정을 연결하면"), true);
+    같나("열쇠 파일이 없으면 내 구글 클라우드 열쇠를 만들어 넣으라고 한다", a[0].why.startsWith("내 구글 클라우드 열쇠를 만들어 넣고 계정을 연결하면"), true);
     같나("고침 단추", [a[0].fix?.label, a[0].fix?.api, a[0].auto], ["지금 연결하기", "/api/signin/start", false]);
 
-    setEmbeddedForTest("browser", { client_id: "x", client_secret: "y" });
+    // 열쇠 파일을 넣어 두면 「시작했다」로 보므로 이 한 줄 안내 대신 채널별 안내가 나온다 — 열쇠가 없을 때만 이 줄이 나온다
+    await 열쇠넣기("client", { client_id: "x", client_secret: "y" });
     const b = await 수집({});
-    같나("실행 파일에 열쇠가 묶여 있으면 파일을 넣으라고 하지 않는다", b[0].why.startsWith("구글 계정을 연결하면 올릴 수 있습니다."), true);
-    setEmbeddedForTest("browser", null);
+    같나("열쇠 파일을 넣어 두면 「아직 계정을 연결하지 않았습니다」 줄은 없다", b.some((x) => x.what === "아직 계정을 연결하지 않았습니다"), false);
+    await Deno.remove(secretsPath());
 
     // 채널이 있어도 시작 전이면 인증 빨강을 채널 수만큼 늘어놓지 않는다
     const f = await 폴더(dir, "채널A", { 영상: 2 });
@@ -204,10 +206,38 @@ export async function 실행() {
     const d = await 수집({ "채널A": { channel_id: id("q"), folder: f } });
     같나("시작 전이어도 cid 가 있는데 토큰이 없으면 빨강", 줄(d), [["yellow", "할 일", "아직 계정을 연결하지 않았습니다"], ["red", "오류", "토큰이 없습니다"]]);
 
-    // 연결된 계정이 하나라도 있으면 시작한 것이다(열쇠 파일 없이 실행 파일에 묶인 열쇠로 연결한 경우)
+    // 연결된 계정이 하나라도 있으면 시작한 것이다(열쇠 파일이 지금은 없어도 — 옛 판에서 올라온 연결)
     await saveStore({ "채널A": 토큰(id("q"), "채널A") });
     const e = await 수집({ "채널A": { channel_id: "", folder: f } });
     같나("계정이 연결돼 있으면 시작한 것 — cid 없는 칸은 빨강", 줄(e), [["red", "오류", "채널 인증이 안 됐습니다"]]);
+  });
+
+  구역("문제 모으기 — 옛 공용 열쇠(2.0.0~2.1.0)로 연결된 채널은 다시 연결을 안내한다");
+  await 모래상자(async (dir) => {
+    await 열쇠넣기("client");
+    const f = await 폴더(dir, "채널A", { 영상: 5 });
+    await writeMark(f, id("q"), "채널A", "채널A");
+    const 설정: Channels = { "채널A": { channel_id: id("q"), folder: f, daily: 2, daily_rule: "fixed" } };
+    await saveStore({ "채널A": { ...토큰(id("q"), "채널A"), client: "내장" } });
+    const a = await 수집(설정);
+    같나("옛 공용 열쇠 토큰 → 빨강 오류 한 줄", 줄(의(a, "채널A")), [["red", "오류", "내 열쇠를 넣고 채널을 다시 연결해 주세요"]]);
+    참인가("까닭이 이전 판의 공용 열쇠라고 말한다", 의(a, "채널A")[0].why.includes("이전 판(2.1.0 이하)") && 의(a, "채널A")[0].why.includes("다시 연결"));
+    같나("고침 단추는 그 채널 인증 다시 하기", [의(a, "채널A")[0].fix?.api, (의(a, "채널A")[0].fix?.body as { ch?: string })?.ch], ["/api/signin/start", "채널A"]);
+    같나("문제 글에 열쇠·토큰 값이 없다", JSON.stringify(a).includes(토큰값) || JSON.stringify(a).includes("fake-secret"), false);
+    // 화면(채널 카드)도 같은 말을 한다 — 채널은 지워지지 않고 「다시 연결 필요」만 뜬다
+    const 보기 = await chanView("채널A", 설정["채널A"], { chans: 설정, profs: await loadProfiles(), queue: [], pending: [], today: {}, subs: {} });
+    같나("채널 카드: 연결 정보는 남아 있고 다시 연결 필요가 뜬다", [보기.name, 보기.needsReconnect, 보기.lastError.includes("내 열쇠를 넣고 채널을 다시 연결")], ["채널A", true, true]);
+    // 같은 채널이 내 열쇠로 연결돼 있으면(표식 없음 + 열쇠 파일 있음) 문제가 없다
+    await saveStore({ "채널A": 토큰(id("q"), "채널A") });
+    const b = await 수집(설정);
+    같나("내 열쇠 파일이 있고 표식이 없는 토큰은 문제 없음", 줄(의(b, "채널A")), []);
+    const 보기2 = await chanView("채널A", 설정["채널A"], { chans: 설정, profs: await loadProfiles(), queue: [], pending: [], today: {}, subs: {} });
+    같나("채널 카드도 멀쩡하다", [보기2.needsReconnect, 보기2.lastError], [false, ""]);
+    // 열쇠 파일이 없으면(표식 없는 토큰) 내장 열쇠로 받은 것으로 본다
+    await Deno.remove(secretsPath());
+    const c = await 수집(설정);
+    같나("열쇠 파일이 하나도 없으면 표식 없는 토큰도 다시 연결 안내", 줄(의(c, "채널A")), [["red", "오류", "내 열쇠를 넣고 채널을 다시 연결해 주세요"]]);
+    같나("영상 파일은 그대로다", (await Deno.stat(`${f}/영상1.mp4`)).isFile, true);
   });
 
   구역("문제 모으기 — 사례마다 올바른 등급·종류");

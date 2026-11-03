@@ -33,7 +33,7 @@
 <div class="tp solo" id="t5">
   <div class="stit">🚀 처음 한 번만 하면 됩니다</div>
   <div class="ssub">유튜브에 올리려면 <b>구글 계정으로 로그인해서 채널을 연결</b>하면 됩니다.
-  <b>구글 클라우드에서 열쇠를 만들 필요가 없습니다</b> — 필요한 열쇠는 이 프로그램에 이미 들어 있습니다.</div>
+  처음 한 번은 <b>내 구글 클라우드 열쇠</b>를 만들어 넣어야 합니다 — 이 프로그램은 만든 사람의 열쇠를 들고 있지 않습니다(아래 <b>「내 구글 클라우드 열쇠 만들기」</b>).</div>
   <div style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap">
     <button type="button" class="tb on" onclick="swTab('t3')">📺 채널 탭으로 가기</button>
     <button type="button" class="tb" onclick="ext('https://github.com/beautifulahin/garasadae-uploader/blob/main/docs/%EC%84%A4%EC%A0%95%EC%95%88%EB%82%B4.md')">📖 설정 안내서 (휴대폰으로 보면서 하기)</button>
@@ -45,6 +45,14 @@
     <span class="t5-chip" id="t5c4">④ AI 열쇠 넣기 (선택)</span>
     <span class="t5-chip" id="t5c5">⑤ 쿠팡 파트너스 연결 (선택)</span>
     <span class="t5-chip" id="t5c6">⑥ 올리기</span>
+  </div>
+
+  <!-- ST.welcome.ready — 내 구글 열쇠가 아직 없을 때 (t4.js 가 보였다 숨긴다) -->
+  <div class="card warn hide" id="t5KeyNeed">
+    <h3>🔑 내 구글 클라우드 열쇠가 아직 없습니다</h3>
+    <div class="p13">열쇠가 없으면 구글 계정을 연결할 수 없습니다. 아래 <b>「내 구글 클라우드 열쇠 만들기」</b>를 따라 만든 뒤, <b>📺 채널</b> 탭의 <b>「내 구글 클라우드 열쇠 넣기」</b>에 넣어 주세요.</div>
+    <button type="button" class="tb on" style="margin-top:10px" onclick="t5GoAdv()">🔑 열쇠 만드는 법으로</button>
+    <button type="button" class="tb" style="margin-top:10px" onclick="t3GoAdv()">📺 열쇠 넣는 곳으로</button>
   </div>
 
   <!-- ST.ai.needsKey — 켜져 있는데 AI 열쇠가 없을 때 -->
@@ -68,149 +76,16 @@
     <b>세 칸 모두 체크</b>해 주세요. 하나라도 빼면 그 일을 못 합니다(공개 전환 칸을 빼면 채널 카드에 「공개 권한 없음」이라고 뜹니다) — 그때는 다시 연결하면 됩니다.</div>
   </div>
 
-  <div class="card">
-    <h3>1️⃣ 채널 이름 만들기</h3>
-    <ol>
-      <li><b>📺 채널</b> 탭 아래쪽 <b>➕ 채널 추가</b> 에 이름을 적습니다. (예: 채널1)</li>
-      <li>이름으로 영상 폴더가 하나 생깁니다. 이 채널에 올릴 영상은 그 폴더에 넣습니다.</li>
-    </ol>
-    <div class="p13" style="color:var(--t3);font-size:11px">이름을 안 정하고 바로 2️⃣ 로 가도 됩니다 — 로그인 창에서 고른 유튜브 채널 이름으로 자동 등록됩니다.</div>
-    <button type="button" class="tb on" style="margin-top:8px" onclick="swTab('t3')">📺 채널 탭으로 가기</button>
-  </div>
-
-  <div class="card">
-    <h3>2️⃣ 구글 계정 연결 <span class="must">채널마다 한 번</span></h3>
-    <ol>
-      <li>채널 카드(또는 채널 탭 맨 위)의 <b>🔑 구글 계정 연결</b> 을 누르면, 이 컴퓨터의 브라우저에 <b>구글 로그인 창</b>이 열립니다.</li>
-      <li>그 채널을 가진 구글 계정으로 로그인하세요. 계정이 하나여도 됩니다.</li>
-      <li><b>이번에 등록할 채널을 고르는 화면</b>이 나오면 그 채널을 고릅니다. (채널이 여럿이면 매번 이 화면이 나옵니다)</li>
-      <li>권한 세 칸을 모두 체크하고 <b>허용</b>을 누르면 끝입니다. 채널 이름·배너·프로필 사진은 알아서 받아 둡니다.</li>
-      <li>채널이 더 있으면 <b>다음 채널 이어서 연결</b> 을 눌러 같은 방법을 반복하세요. 계정을 바꿔 고르는 화면이 매번 뜹니다.</li>
-    </ol>
-    <div class="danger">
-      <b>📟 이 컴퓨터 앞에 채널 주인이 없다면 — 코드 인증</b><br>
-      채널 카드의 <b>📟 코드 인증</b> 을 누르면 화면에 <b>주소와 8자리 코드</b>가 뜹니다. 채널 주인에게 알려 주세요.
-      주인이 <b>자기 폰이나 컴퓨터</b>에서 그 주소를 열고 코드를 넣어 승인하면 연결됩니다. 비밀번호가 오가지 않습니다.
-    </div>
-    <div class="p13" style="color:var(--t3);font-size:11px;margin-top:10px">같은 채널을 다시 연결하면 그 자리를 갱신합니다(중복으로 늘어나지 않습니다).
-    로그인 중에 「Google에서 확인하지 않은 앱」 경고가 뜨면 <b>고급</b> → <b>(앱 이름)(으)로 이동</b> 을 눌러 계속 진행하세요.</div>
-    <button type="button" class="tb on" style="margin-top:8px" onclick="swTab('t3')">📺 채널 탭으로 가기</button>
-  </div>
-
-  <div class="card">
-    <h3>3️⃣ 영상 넣기</h3>
-    <ul>
-      <li><b>끌어다 놓기</b> — 영상 파일을 <b>👀 감시 중</b> 탭의 놓는 칸에 끌어다 놓습니다.</li>
-      <li><b>영상 넘기기</b> — 다른 프로그램이나 사람이 승인한 영상을 채널 폴더로 복사해 담습니다.</li>
-      <li><b>폴더에 직접 넣기</b> — 채널 카드의 <b>📂 폴더 열기</b> 로 그 채널 폴더를 열어 영상을 넣습니다.</li>
-    </ul>
-    <div class="p13" style="color:var(--t3);font-size:11px">제목·설명·태그는 영상 옆에 같은 이름의 문안 파일(.txt)을 두면 그대로 쓰입니다. 없으면 파일 이름이 제목이 됩니다.</div>
-  </div>
-
-  <div class="card">
-    <h3>4️⃣ AI 열쇠 넣기 <span class="must">선택</span></h3>
-    <div class="p13">문안(제목·설명·태그)을 따로 안 써 둔 영상은 올리기 직전에 <b>AI 가 영상 내용과 이 채널의 말투를 보고 제목·설명·해시태그를 지어 넣습니다.</b>
-    기본으로 켜져 있고, 열쇠만 있으면 됩니다. 열쇠가 없으면 파일 이름이 제목이 됩니다.</div>
-    <ol>
-      <li>아래 <b>✨ AI 연결</b> 을 누르면 <b>이 컴퓨터에 이미 있는 열쇠를 찾아</b> 목록으로 보여 줍니다. 쓸 열쇠를 골라 <b>이걸로 쓰기</b>를 누르세요.</li>
-      <li>찾은 열쇠가 없으면 <b>구글 AI 스튜디오</b>에서 <b>무료 열쇠</b>를 만들어(본인 구글 계정으로) 창의 칸에 붙여넣고 <b>연결 시험 후 저장</b>을 누르세요.</li>
-    </ol>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button type="button" class="tb on" id="t5AiBtn" onclick="openAi()">✨ AI 연결</button>
-      <button type="button" class="tb" onclick="ext('https://aistudio.google.com/apikey')">🔗 열쇠 받으러 가기</button>
-    </div>
-    <div class="p13" style="color:var(--t3);font-size:11px;margin-top:8px">쪽지나 직접 쓴 문안이 <b>늘 먼저</b>입니다 (사람이 화면에서 고친 것 &gt; 쪽지 &gt; 자동 생성 &gt; 파일 이름).
-    자동으로 지으려면 영상이 구글로 한 번 올라갔다가 곧바로 지워집니다 — 제목을 지으려면 구글이 영상을 봐야 하기 때문입니다.</div>
-  </div>
-
-  <div class="card">
-    <h3>5️⃣ 쿠팡 파트너스 연결 <span class="must">선택</span></h3>
-    <div class="p13"><b>쿠팡 파트너스</b>(partners.coupang.com)에 가입해 승인을 받은 뒤 받는 열쇠(Access Key·Secret Key)를 넣으면,
-    올리는 영상마다 <b>소재에 맞는 상품 링크가 설명 끝에 자동으로 붙고</b> 수수료가 <b>내 계정</b>으로 들어갑니다.
-    관련 상품이 없으면(정치·뉴스 등) 억지로 붙이지 않습니다. AI 연결과 <b>같은 창</b>에서 하며, 이 컴퓨터에 이미 있는 열쇠도 찾아 줍니다.</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
-      <button type="button" class="tb on" id="t5CpBtn" onclick="openCoupang()">🛒 쿠팡 파트너스 연결</button>
-      <button type="button" class="tb" onclick="ext('https://partners.coupang.com/')">🔗 가입·열쇠 받는 곳 열기</button>
-    </div>
-    <div class="p13" style="color:var(--t3);font-size:11px;margin-top:8px">열쇠는 이 컴퓨터에만 저장됩니다. 채널마다 켜고 끄거나 sub ID 를 다르게 두려면 <b>📺 채널</b> 탭의 채널 카드에서 정하세요.</div>
-  </div>
-
-  <div class="card">
-    <h3>6️⃣ 올리기</h3>
-    <ol>
-      <li><b>👀 감시 중</b> 탭에서 올릴 영상을 고르고 <b>올리기</b> 를 누릅니다.</li>
-      <li>올릴 영상 표(채널·제목·종류·올리기 시각·공개 시각)가 나옵니다. 확인하고 <b>올리기</b> 를 한 번 더 누르세요. <b>사람이 누른 것만</b> 올라갑니다.</li>
-      <li>영상은 먼저 <b>비공개</b>로 올라가고, <b>30분쯤 뒤 자동으로 검토</b>해서 통과하면 <b>공개</b>로 바뀝니다.</li>
-    </ol>
-  </div>
-
-  <div class="card">
-    <h3>📏 쇼츠와 롱폼은 이렇게 갈립니다</h3>
-    <ul>
-      <li><b>쇼츠</b> — 길이가 <b>3분(180초) 이하</b>이고 화면이 <b>세로 또는 정사각형</b>인 영상.</li>
-      <li><b>롱폼</b> — 그 밖의 영상(3분이 넘거나 가로 화면). 올린 뒤에는 바꿀 수 없으니 올리기 전에 종류를 꼭 확인하세요.</li>
-      <li>롱폼은 <b>맞춤 썸네일</b>이 클릭률을 좌우합니다. 영상과 <b>같은 이름의 그림 파일</b>(.jpg·.png, 2MB 이하)을 영상 옆에 두면 함께 올라갑니다.</li>
-    </ul>
-    <div class="p13" style="color:var(--t3);font-size:11px">채널마다 하루 몇 편까지 올릴지 정할 때도 쇼츠와 롱폼을 나눠 셀 수 있습니다 — <b>📺 채널</b> 탭의 채널 카드 → <b>일 한도</b>.</div>
-  </div>
-
-  <div class="card">
-    <h3>📊 하루에 몇 개까지 올릴 수 있나요?</h3>
-    <ul>
-      <li><b>내가 정하는 한도</b> — 채널 카드의 <b>일 한도</b> 에서 채널마다 「하루 N편」을 정합니다. 넘치는 영상은 사라지지 않고 <b>다음 날로 N편씩 밀려</b> 예약됩니다.</li>
-      <li><b>구글이 정한 하루 한도</b> — 구글은 하루에 쓸 수 있는 호출량을 제한하고, 영상 하나를 올리는 데 꽤 많이 듭니다.
-      오늘 얼마나 썼는지는 <b>👀 감시 중</b> 탭 오른쪽 할당량 상자에서 볼 수 있습니다.</li>
-      <li>한도에 닿으면(오류 429) 남은 영상은 그대로 두었다가 <b>구글 한도가 초기화된 뒤(한국 시각 <b id="t5Reset">오후 4시 10분쯤</b>)</b> 다음 날로 <b>자동으로 미룹니다</b>. 다시 올릴 필요가 없습니다.</li>
-    </ul>
-  </div>
-
-  <div class="card">
-    <h3>🚨 자주 나오는 문제</h3>
-    <div class="tro">
-      <div class="tro-q">구글 로그인이 7일마다 풀려요</div>
-      <div class="tro-a">채널 탭에서 <b>🔑 구글 계정 연결</b> 을 다시 누르면 됩니다. 기다리던 영상은 사라지지 않고 그대로 올라갑니다.<br>
-      <span style="color:var(--t3)">내 구글 열쇠(내 프로젝트)를 쓰는데 동의 화면이 「테스트」 상태이면 7일마다 풀립니다 — 아래 「내 구글 열쇠를 쓰고 싶다면」의 「라」 단계에서 <b>앱 게시</b>를 하면 막을 수 있습니다.</span></div>
-    </div>
-    <div class="tro">
-      <div class="tro-q">채널 카드에 「공개 권한 없음」이 떠요</div>
-      <div class="tro-a">로그인 창에서 권한 세 칸 중 하나를 빼고 허용했을 때 생깁니다. 그 채널을 <b>다시 연결</b>하면서 <b>세 칸 모두 체크</b>하세요.</div>
-    </div>
-    <div class="tro">
-      <div class="tro-q">「이 인증에 연결된 채널이 없습니다」</div>
-      <div class="tro-a">로그인은 됐지만 <b>채널을 고르는 화면</b>에서 채널을 고르지 않았거나, 그 계정에 채널이 없는 경우입니다. 다시 연결하면서 올릴 채널을 골라 주세요.</div>
-    </div>
-    <div class="tro">
-      <div class="tro-q">「리프레시 토큰을 못 받았습니다」</div>
-      <div class="tro-a">구글 계정 → 보안 → <b>서드파티 앱 및 서비스</b>에서 이 앱의 기존 권한을 삭제한 뒤 다시 연결하세요.</div>
-    </div>
-    <div class="tro">
-      <div class="tro-q">로그인 창이 안 열리거나 엉뚱한 프로그램으로 열려요</div>
-      <div class="tro-a"><b>⚙️ 설정</b> 탭의 「화면을 띄울 브라우저」에서 브라우저를 고르세요. 그래도 안 열리면 연결 대기 화면에 나온 <b>주소를 복사</b>해 직접 열거나, <b>📟 코드 인증</b>을 쓰세요.</div>
-    </div>
-    <div class="tro">
-      <div class="tro-q">「관리자가 액세스를 차단했습니다」</div>
-      <div class="tro-a">회사·학교 계정입니다. 개인 구글 계정으로 하거나, 조직 관리자에게 허용을 요청하세요.</div>
-    </div>
-    <div class="tro">
-      <div class="tro-q">로그인은 됐는데 영상이 안 올라감</div>
-      <div class="tro-a">채널 카드의 <b>🔍 연결 점검</b> 으로 연결 상태를 확인하세요. 하루 한도(오류 429)에 닿았다면 위 「하루에 몇 개까지」를 보세요.</div>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>🩺 그 밖의 오류는 오류 사전에서</h3>
-    <div class="p13">지금까지 나온 오류를 종류별로 모아 두었습니다. <b>화면에 뜬 문구를 그대로</b> 찾으시면 됩니다.</div>
-    <button type="button" class="tb on" onclick="ext('https://beautifulahin.github.io/garasadae-uploader/errors.html')">🩺 오류 사전 열기</button>
-  </div>
-
-  <!-- ===== 고급: 내 구글 열쇠 — 기본 흐름에서는 필요 없다 ===== -->
-  <details class="t5-adv" id="t5Adv">
-    <summary>🔑 내 구글 열쇠를 쓰고 싶다면 (고급)</summary>
+  <!-- ===== 0단계: 내 구글 클라우드 열쇠 만들기 — 2.2.0 부터 이 프로그램에는 공용 열쇠가 없다. 채널을 연결하려면 먼저 필요하다 ===== -->
+  <details class="t5-adv" id="t5Adv" open>
+    <summary>🔑 0️⃣ 내 구글 클라우드 열쇠 만들기 <span class="must">처음 한 번 꼭 필요</span></summary>
     <div class="t5-adv-b">
-      <div class="p13" style="padding-top:12px">기본으로는 이 프로그램에 들어 있는 열쇠로 연결되므로 <b>이 구역은 건너뛰셔도 됩니다.</b>
-      내 구글 클라우드 프로젝트의 열쇠를 쓰고 싶을 때만 아래를 따라 하세요. 만든 열쇠 파일은
-      <b>📺 채널</b> 탭의 <b>「🔑 내 구글 열쇠 쓰기」</b>에서 넣습니다.
-      열쇠는 <b>두 벌</b>(구글 로그인용 <b>데스크톱 앱</b> · 코드 인증용 <b>TV 및 입력 제한 기기</b>)이고, 허락 범위는 위에서 본 <b>세 가지</b>입니다.</div>
+      <div class="p13" style="padding-top:12px">이 프로그램은 <b>만든 사람의 구글 열쇠를 들고 있지 않습니다.</b> 구글이 열쇠(구글 클라우드 프로젝트)마다 하루 할당량을 따로 주기 때문에,
+      모두가 한 열쇠를 나눠 쓰면 한 사람이 다 써도 모두가 막혀서입니다. 그래서 <b>내 구글 계정으로 열쇠를 만들어 넣어야</b> 합니다 — 한 번만 하면 됩니다.
+      아래 가~바를 순서대로 따라 하세요. 만든 열쇠 파일은
+      <b>📺 채널</b> 탭의 <b>「🔑 내 구글 클라우드 열쇠 넣기」</b>에서 넣습니다.
+      열쇠는 <b>두 벌</b>(구글 로그인용 <b>데스크톱 앱</b> · 코드 인증용 <b>TV 및 입력 제한 기기</b>)이고, 허락 범위는 위에서 본 <b>세 가지</b>입니다.
+      (구글 로그인 🔑만 쓸 거라면 첫 번째 열쇠만 있어도 됩니다.)</div>
 
       <div class="t5-step">
         <h4>가. 구글 계정 2단계 인증 켜기 <span class="must">안 켜면 아예 못 들어갑니다</span></h4>
@@ -331,16 +206,31 @@ https://www.googleapis.com/auth/youtube</pre>
 
       <div class="t5-step">
         <h4>바. 이 프로그램에 넣기</h4>
-        <div class="p13"><b>📺 채널</b> 탭의 <b>「🔑 내 구글 열쇠 쓰기」</b>를 펼쳐 두 파일을 올리세요(또는 클라이언트 ID·보안 비밀번호를 직접 붙여넣기).
-        넣고 나면 채널을 <b>다시 연결</b>해야 새 열쇠로 바뀝니다.
+        <div class="p13"><b>📺 채널</b> 탭의 <b>「🔑 내 구글 클라우드 열쇠 넣기」</b>를 펼쳐 두 파일을 올리세요(또는 클라이언트 ID·보안 비밀번호를 직접 붙여넣기).
+        넣고 나면 <b>🔑 구글 계정 연결</b>로 채널을 연결합니다. 이전 판(2.1.0 이하)에서 쓰던 채널은 <b>다시 연결</b>해야 합니다 — 영상·대기열·기록은 그대로 남습니다.
         <b>채널마다 다른 열쇠</b>를 쓰고 싶으면 채널 카드 안의 「이 채널만 다른 열쇠 쓰기」를 쓰세요.</div>
-        <div class="p13" style="margin-top:8px"><b>내 열쇠를 쓰는 경우에만</b> 해당하는 점 — 구글의 하루 호출 한도는 <b>열쇠(구글 프로젝트)마다 따로</b> 계산됩니다.
-        채널마다 다른 열쇠를 쓰면 그만큼 한도를 따로 받습니다.</div>
+        <div class="p13" style="margin-top:8px">구글의 하루 호출 한도는 <b>열쇠(구글 프로젝트)마다 따로</b> 계산됩니다.
+        내 열쇠는 나만 쓰므로 다른 사람이 한도를 써 버려 막히는 일이 없습니다. 채널마다 다른 열쇠를 쓰면 그만큼 한도를 따로 받습니다.</div>
         <button type="button" class="tb on" style="margin-top:10px" onclick="t3GoAdv()">📺 채널 탭에서 열쇠 넣기</button>
       </div>
 
+      <div class="t5-step">
+        <h4>사. 올린 영상이 비공개로 잠길 때 — YouTube API 감사</h4>
+        <div class="p13">새로 만든 구글 프로젝트는 구글의 <b>YouTube API 서비스 감사(Compliance Audit)</b>를 받기 전에는,
+        이 프로그램으로 올린 영상이 <b>비공개로만 올라가고 공개로 바꿀 수 없는 일</b>이 생길 수 있습니다. 올리기 자체는 되는데 공개가 안 되는 모양입니다.
+        적용 조건과 신청 절차는 구글이 정하고 바꿀 수 있으니, 아래 <b>공식 문서</b>를 확인해 주세요.</div>
+        <ol>
+          <li>먼저 영상을 하나 올려 보고, 유튜브 스튜디오에서 공개로 바뀌는지 확인합니다.</li>
+          <li>잠겨서 공개가 안 되면 아래 공식 문서를 읽고, 구글의 <b>감사·할당량 확대 신청 양식</b>으로 신청합니다. 심사에는 시간이 걸립니다.</li>
+        </ol>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+          <button type="button" class="tb" onclick="ext('https://developers.google.com/youtube/v3/guides/quota_and_compliance_audits')">📖 공식 문서: 할당량과 감사</button>
+          <button type="button" class="tb" onclick="ext('https://support.google.com/youtube/contact/yt_api_form')">📝 감사·할당량 확대 신청 양식</button>
+        </div>
+      </div>
+
       <details class="t5-sub">
-        <summary>🚨 내 열쇠를 쓸 때 나오는 오류 — 「액세스가 차단됨」</summary>
+        <summary>🚨 열쇠를 만들고 로그인할 때 나오는 오류 — 「액세스가 차단됨」</summary>
         <div class="t5-sub-b">
           <div class="p13">구글 로그인 화면에 뜬 <b>작은 글씨 한 줄</b>이 원인을 알려줍니다.</div>
           <div class="tro">
@@ -369,7 +259,7 @@ https://www.googleapis.com/auth/youtube</pre>
       </details>
 
       <details class="t5-sub">
-        <summary>🚨 내 열쇠를 쓸 때 「앱 게시」가 오류로 안 될 때</summary>
+        <summary>🚨 열쇠를 만들 때 「앱 게시」가 오류로 안 될 때</summary>
         <div class="t5-sub-b">
           <div class="p13">「라」 단계에서 <b>앱 게시</b>를 눌렀는데 <b>"앱을 업데이트하는 중에 오류가 발생했습니다"</b> 가 뜨는 경우입니다. 아래를 차례로 보세요. <b>게시가 안 돼도 업로드는 됩니다</b> — 맨 아래 항목을 보세요.</div>
           <div class="tro">
@@ -398,4 +288,140 @@ https://www.googleapis.com/auth/youtube</pre>
       </details>
     </div>
   </details>
+
+  <div class="card">
+    <h3>1️⃣ 채널 이름 만들기</h3>
+    <ol>
+      <li><b>📺 채널</b> 탭 아래쪽 <b>➕ 채널 추가</b> 에 이름을 적습니다. (예: 채널1)</li>
+      <li>이름으로 영상 폴더가 하나 생깁니다. 이 채널에 올릴 영상은 그 폴더에 넣습니다.</li>
+    </ol>
+    <div class="p13" style="color:var(--t3);font-size:11px">이름을 안 정하고 바로 2️⃣ 로 가도 됩니다 — 로그인 창에서 고른 유튜브 채널 이름으로 자동 등록됩니다.</div>
+    <button type="button" class="tb on" style="margin-top:8px" onclick="swTab('t3')">📺 채널 탭으로 가기</button>
+  </div>
+
+  <div class="card">
+    <h3>2️⃣ 구글 계정 연결 <span class="must">채널마다 한 번</span></h3>
+    <ol>
+      <li>채널 카드(또는 채널 탭 맨 위)의 <b>🔑 구글 계정 연결</b> 을 누르면, 이 컴퓨터의 브라우저에 <b>구글 로그인 창</b>이 열립니다.</li>
+      <li>그 채널을 가진 구글 계정으로 로그인하세요. 계정이 하나여도 됩니다.</li>
+      <li><b>이번에 등록할 채널을 고르는 화면</b>이 나오면 그 채널을 고릅니다. (채널이 여럿이면 매번 이 화면이 나옵니다)</li>
+      <li>권한 세 칸을 모두 체크하고 <b>허용</b>을 누르면 끝입니다. 채널 이름·배너·프로필 사진은 알아서 받아 둡니다.</li>
+      <li>채널이 더 있으면 <b>다음 채널 이어서 연결</b> 을 눌러 같은 방법을 반복하세요. 계정을 바꿔 고르는 화면이 매번 뜹니다.</li>
+    </ol>
+    <div class="danger">
+      <b>📟 이 컴퓨터 앞에 채널 주인이 없다면 — 코드 인증</b><br>
+      채널 카드의 <b>📟 코드 인증</b> 을 누르면 화면에 <b>주소와 8자리 코드</b>가 뜹니다. 채널 주인에게 알려 주세요.
+      주인이 <b>자기 폰이나 컴퓨터</b>에서 그 주소를 열고 코드를 넣어 승인하면 연결됩니다. 비밀번호가 오가지 않습니다.
+    </div>
+    <div class="p13" style="color:var(--t3);font-size:11px;margin-top:10px">같은 채널을 다시 연결하면 그 자리를 갱신합니다(중복으로 늘어나지 않습니다).
+    로그인 중에 「Google에서 확인하지 않은 앱」 경고가 뜨면 <b>고급</b> → <b>(앱 이름)(으)로 이동</b> 을 눌러 계속 진행하세요.</div>
+    <button type="button" class="tb on" style="margin-top:8px" onclick="swTab('t3')">📺 채널 탭으로 가기</button>
+  </div>
+
+  <div class="card">
+    <h3>3️⃣ 영상 넣기</h3>
+    <ul>
+      <li><b>끌어다 놓기</b> — 영상 파일을 <b>👀 감시 중</b> 탭의 놓는 칸에 끌어다 놓습니다.</li>
+      <li><b>영상 넘기기</b> — 다른 프로그램이나 사람이 승인한 영상을 채널 폴더로 복사해 담습니다.</li>
+      <li><b>폴더에 직접 넣기</b> — 채널 카드의 <b>📂 폴더 열기</b> 로 그 채널 폴더를 열어 영상을 넣습니다.</li>
+    </ul>
+    <div class="p13" style="color:var(--t3);font-size:11px">제목·설명·태그는 영상 옆에 같은 이름의 문안 파일(.txt)을 두면 그대로 쓰입니다. 없으면 파일 이름이 제목이 됩니다.</div>
+  </div>
+
+  <div class="card">
+    <h3>4️⃣ AI 열쇠 넣기 <span class="must">선택</span></h3>
+    <div class="p13">문안(제목·설명·태그)을 따로 안 써 둔 영상은 올리기 직전에 <b>AI 가 영상 내용과 이 채널의 말투를 보고 제목·설명·해시태그를 지어 넣습니다.</b>
+    기본으로 켜져 있고, 열쇠만 있으면 됩니다. 열쇠가 없으면 파일 이름이 제목이 됩니다.</div>
+    <ol>
+      <li>아래 <b>✨ AI 연결</b> 을 누르면 <b>이 컴퓨터에 이미 있는 열쇠를 찾아</b> 목록으로 보여 줍니다. 쓸 열쇠를 골라 <b>이걸로 쓰기</b>를 누르세요.</li>
+      <li>찾은 열쇠가 없으면 <b>구글 AI 스튜디오</b>에서 <b>무료 열쇠</b>를 만들어(본인 구글 계정으로) 창의 칸에 붙여넣고 <b>연결 시험 후 저장</b>을 누르세요.</li>
+    </ol>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button type="button" class="tb on" id="t5AiBtn" onclick="openAi()">✨ AI 연결</button>
+      <button type="button" class="tb" onclick="ext('https://aistudio.google.com/apikey')">🔗 열쇠 받으러 가기</button>
+    </div>
+    <div class="p13" style="color:var(--t3);font-size:11px;margin-top:8px">쪽지나 직접 쓴 문안이 <b>늘 먼저</b>입니다 (사람이 화면에서 고친 것 &gt; 쪽지 &gt; 자동 생성 &gt; 파일 이름).
+    자동으로 지으려면 영상이 구글로 한 번 올라갔다가 곧바로 지워집니다 — 제목을 지으려면 구글이 영상을 봐야 하기 때문입니다.</div>
+  </div>
+
+  <div class="card">
+    <h3>5️⃣ 쿠팡 파트너스 연결 <span class="must">선택</span></h3>
+    <div class="p13"><b>쿠팡 파트너스</b>(partners.coupang.com)에 가입해 승인을 받은 뒤 받는 열쇠(Access Key·Secret Key)를 넣으면,
+    올리는 영상마다 <b>소재에 맞는 상품 링크가 설명 끝에 자동으로 붙고</b> 수수료가 <b>내 계정</b>으로 들어갑니다.
+    관련 상품이 없으면(정치·뉴스 등) 억지로 붙이지 않습니다. AI 연결과 <b>같은 창</b>에서 하며, 이 컴퓨터에 이미 있는 열쇠도 찾아 줍니다.</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+      <button type="button" class="tb on" id="t5CpBtn" onclick="openCoupang()">🛒 쿠팡 파트너스 연결</button>
+      <button type="button" class="tb" onclick="ext('https://partners.coupang.com/')">🔗 가입·열쇠 받는 곳 열기</button>
+    </div>
+    <div class="p13" style="color:var(--t3);font-size:11px;margin-top:8px">열쇠는 이 컴퓨터에만 저장됩니다. 채널마다 켜고 끄거나 sub ID 를 다르게 두려면 <b>📺 채널</b> 탭의 채널 카드에서 정하세요.</div>
+  </div>
+
+  <div class="card">
+    <h3>6️⃣ 올리기</h3>
+    <ol>
+      <li><b>👀 감시 중</b> 탭에서 올릴 영상을 고르고 <b>올리기</b> 를 누릅니다.</li>
+      <li>올릴 영상 표(채널·제목·종류·올리기 시각·공개 시각)가 나옵니다. 확인하고 <b>올리기</b> 를 한 번 더 누르세요. <b>사람이 누른 것만</b> 올라갑니다.</li>
+      <li>영상은 먼저 <b>비공개</b>로 올라가고, <b>30분쯤 뒤 자동으로 검토</b>해서 통과하면 <b>공개</b>로 바뀝니다.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h3>📏 쇼츠와 롱폼은 이렇게 갈립니다</h3>
+    <ul>
+      <li><b>쇼츠</b> — 길이가 <b>3분(180초) 이하</b>이고 화면이 <b>세로 또는 정사각형</b>인 영상.</li>
+      <li><b>롱폼</b> — 그 밖의 영상(3분이 넘거나 가로 화면). 올린 뒤에는 바꿀 수 없으니 올리기 전에 종류를 꼭 확인하세요.</li>
+      <li>롱폼은 <b>맞춤 썸네일</b>이 클릭률을 좌우합니다. 영상과 <b>같은 이름의 그림 파일</b>(.jpg·.png, 2MB 이하)을 영상 옆에 두면 함께 올라갑니다.</li>
+    </ul>
+    <div class="p13" style="color:var(--t3);font-size:11px">채널마다 하루 몇 편까지 올릴지 정할 때도 쇼츠와 롱폼을 나눠 셀 수 있습니다 — <b>📺 채널</b> 탭의 채널 카드 → <b>일 한도</b>.</div>
+  </div>
+
+  <div class="card">
+    <h3>📊 하루에 몇 개까지 올릴 수 있나요?</h3>
+    <ul>
+      <li><b>내가 정하는 한도</b> — 채널 카드의 <b>일 한도</b> 에서 채널마다 「하루 N편」을 정합니다. 넘치는 영상은 사라지지 않고 <b>다음 날로 N편씩 밀려</b> 예약됩니다.</li>
+      <li><b>구글이 정한 하루 한도</b> — 구글은 하루에 쓸 수 있는 호출량을 제한하고, 영상 하나를 올리는 데 꽤 많이 듭니다.
+      오늘 얼마나 썼는지는 <b>👀 감시 중</b> 탭 오른쪽 할당량 상자에서 볼 수 있습니다.</li>
+      <li>한도에 닿으면(오류 429) 남은 영상은 그대로 두었다가 <b>구글 한도가 초기화된 뒤(한국 시각 <b id="t5Reset">오후 4시 10분쯤</b>)</b> 다음 날로 <b>자동으로 미룹니다</b>. 다시 올릴 필요가 없습니다.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>🚨 자주 나오는 문제</h3>
+    <div class="tro">
+      <div class="tro-q">구글 로그인이 7일마다 풀려요</div>
+      <div class="tro-a">채널 탭에서 <b>🔑 구글 계정 연결</b> 을 다시 누르면 됩니다. 기다리던 영상은 사라지지 않고 그대로 올라갑니다.<br>
+      <span style="color:var(--t3)">내 구글 열쇠(내 프로젝트)의 동의 화면이 「테스트」 상태이면 7일마다 풀립니다 — 위 「내 구글 클라우드 열쇠 만들기」의 「라」 단계에서 <b>앱 게시</b>를 하면 막을 수 있습니다.</span></div>
+    </div>
+    <div class="tro">
+      <div class="tro-q">채널 카드에 「공개 권한 없음」이 떠요</div>
+      <div class="tro-a">로그인 창에서 권한 세 칸 중 하나를 빼고 허용했을 때 생깁니다. 그 채널을 <b>다시 연결</b>하면서 <b>세 칸 모두 체크</b>하세요.</div>
+    </div>
+    <div class="tro">
+      <div class="tro-q">「이 인증에 연결된 채널이 없습니다」</div>
+      <div class="tro-a">로그인은 됐지만 <b>채널을 고르는 화면</b>에서 채널을 고르지 않았거나, 그 계정에 채널이 없는 경우입니다. 다시 연결하면서 올릴 채널을 골라 주세요.</div>
+    </div>
+    <div class="tro">
+      <div class="tro-q">「리프레시 토큰을 못 받았습니다」</div>
+      <div class="tro-a">구글 계정 → 보안 → <b>서드파티 앱 및 서비스</b>에서 이 앱의 기존 권한을 삭제한 뒤 다시 연결하세요.</div>
+    </div>
+    <div class="tro">
+      <div class="tro-q">로그인 창이 안 열리거나 엉뚱한 프로그램으로 열려요</div>
+      <div class="tro-a"><b>⚙️ 설정</b> 탭의 「화면을 띄울 브라우저」에서 브라우저를 고르세요. 그래도 안 열리면 연결 대기 화면에 나온 <b>주소를 복사</b>해 직접 열거나, <b>📟 코드 인증</b>을 쓰세요.</div>
+    </div>
+    <div class="tro">
+      <div class="tro-q">「관리자가 액세스를 차단했습니다」</div>
+      <div class="tro-a">회사·학교 계정입니다. 개인 구글 계정으로 하거나, 조직 관리자에게 허용을 요청하세요.</div>
+    </div>
+    <div class="tro">
+      <div class="tro-q">로그인은 됐는데 영상이 안 올라감</div>
+      <div class="tro-a">채널 카드의 <b>🔍 연결 점검</b> 으로 연결 상태를 확인하세요. 하루 한도(오류 429)에 닿았다면 위 「하루에 몇 개까지」를 보세요.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>🩺 그 밖의 오류는 오류 사전에서</h3>
+    <div class="p13">지금까지 나온 오류를 종류별로 모아 두었습니다. <b>화면에 뜬 문구를 그대로</b> 찾으시면 됩니다.</div>
+    <button type="button" class="tb on" onclick="ext('https://beautifulahin.github.io/garasadae-uploader/errors.html')">🩺 오류 사전 열기</button>
+  </div>
+
 </div>
